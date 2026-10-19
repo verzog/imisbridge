@@ -68,12 +68,13 @@ disabled write toggles, not from mixing environments.
 > the **Service endpoint URL (override)** to the correct `.asmx` endpoint. The
 > connection test prints which endpoint requests will go to, so confirm it there.
 
-**Course ID number = iMIS product code.** The completion and quiz pushes send the
-course's **ID number** (Course settings), falling back to its **short name**, as
-the iMIS `productID`. The credit-field setting above does not establish this
-mapping. For a completion/quiz test to target the right iMIS product, set the
-test course's ID number to the intended iMIS product code; a blank ID number or
-an arbitrary short name will target the wrong product or fail.
+**ProductID = numeric Moodle course id.** The completion and quiz pushes send the
+course's **numeric Moodle course id** (the `id` in `course/view.php?id=…`) as the
+iMIS `productID`; iMIS maps it to the iMIS product code via the `MOODLE_PRODUCTS`
+lookup table (Code = iMIS product code, Description = numeric course id). The
+course **ID number / short name are not used**. For a completion/quiz test to
+target the right iMIS product, make sure the (staging) iMIS `MOODLE_PRODUCTS`
+table maps the intended product code to this course's numeric id.
 
 ## 3. Verify connectivity (read-only, safe anywhere)
 

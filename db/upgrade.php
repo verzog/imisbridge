@@ -60,5 +60,20 @@ function xmldb_local_imisbridge_upgrade($oldversion) {
         upgrade_plugin_savepoint(true, 2026101400, 'local', 'imisbridge');
     }
 
+    if ($oldversion < 2026101901) {
+        // 1.8.0 changes the productID the completion/quiz observers send from the
+        // course idnumber/shortname to the numeric course id. Any adhoc
+        // push_activity_task queued before this upgrade still carries the old
+        // value in its custom data, and push_activity_task::execute() forwards it
+        // unchanged — which would write to the wrong iMIS product. Drop those
+        // pending tasks; affected completions can be re-sent via a manual sync or
+        // the bulk pull web service (get_completions_since).
+        $DB->delete_records('task_adhoc', [
+            'classname' => '\\local_imisbridge\\task\\push_activity_task',
+        ]);
+
+        upgrade_plugin_savepoint(true, 2026101901, 'local', 'imisbridge');
+    }
+
     return true;
 }

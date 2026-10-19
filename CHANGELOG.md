@@ -13,7 +13,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   The completion/quiz observers previously sent the course **idnumber** (falling
   back to shortname), so activity records would have landed under a different
   product and not matched the vendor's existing history. `observer::course_number()`
-  now returns `$course->id`.
+  now returns `$course->id`. The upgrade drops any `push_activity_task` adhoc
+  tasks queued before 1.8.0 (they carry the old idnumber/shortname value);
+  affected completions can be re-sent via a manual sync or the bulk pull web
+  service.
 
 ### Removed
 - Dead SOAP client methods that targeted operations **not** exposed by

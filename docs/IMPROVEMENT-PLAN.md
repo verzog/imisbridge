@@ -43,11 +43,15 @@ records the vendor already wrote to iMIS.
 - **Verify:** test C6 — a completion from our plugin writes the same ProductID the
   vendor would have, confirmed against an existing iMIS record.
 
-### 1.2 Confirm the SOAP method name against the live WSDL
+### 1.2 Confirm the SOAP method name against the live WSDL — STILL OPEN
 - **Why:** we call `MoodleUpdate`; the vendor was described as calling
   `ATSMoodleUpdate`. If they are not the same operation, our outbound writes fail.
-- **Do:** verify `__getFunctions()` on the live endpoint; align if needed.
-  (Investigation; code change only if they differ.)
+- **Status:** the authoritative ATS bridge spec lists the operation as
+  **`MoodleUpdate`** (section 6), which matches our client — but this must still
+  be confirmed against the **live WSDL** for this installation. Removing the
+  unrelated dead wrappers in 1.8.0 does **not** close this gate.
+- **Do:** verify `__getFunctions()` on the live endpoint (tests C1/C2); align if
+  it differs. (Investigation; code change only if they differ.)
 
 ---
 
@@ -123,7 +127,8 @@ Likely two PRs: (2a) users, (2b) enrolment.
 | Phase | Item | Size | Blocks cutover? |
 |------|------|------|-----------------|
 | 1 | ProductID = numeric course id — **DONE (1.8.0)** | S | **Yes** |
-| 1 | Verify SOAP method names vs ATS spec — **DONE (1.8.0):** removed non-bridge getToken/checkAuthorization/asiEncrypt/asiDecrypt wrappers | S (investigation) | **Yes** |
+| 1 | Removed non-bridge wrappers (getToken/checkAuthorization/asiEncrypt/asiDecrypt) — **DONE (1.8.0)** | S | No |
+| 1 | Confirm live update op name is `MoodleUpdate` (§1.2) — **OPEN** (spec says MoodleUpdate; verify on the live WSDL via C1/C2) | S (investigation) | **Yes** |
 | 2a | create/update/get users (REST) | M | Yes (for provisioning) |
 | 2b | enrol/unenrol users (REST) | M | Yes (for provisioning) |
 | 3.1 | Both-direction logging | S–M | No, but do before 2 ships to prod |
