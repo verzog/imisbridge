@@ -97,7 +97,28 @@ class imis_client {
             $timeout = 30;
         }
 
-        $this->soap = new \SoapClient($wsdl, [
+        // Optional endpoint override. When set, requests are sent here instead of
+        // the service address embedded in the WSDL. This guards against a WSDL
+        // that advertises a different environment than intended (for example a
+        // test WSDL whose soap:address points at production).
+        $endpoint = get_config('local_imisbridge', 'service_endpoint');
+
+        $this->soap = new \SoapClient($wsdl, self::build_soap_options($timeout, $endpoint ?: null));
+    }
+
+    /**
+     * Build the SoapClient options array.
+     *
+     * Extracted so the endpoint-override behaviour can be unit tested without a
+     * live WSDL. When $endpoint is a non-empty string it is passed as the SOAP
+     * `location`, which overrides the address embedded in the WSDL for every call.
+     *
+     * @param int         $timeout  Connection/read timeout in seconds.
+     * @param string|null $endpoint Optional service endpoint URL override.
+     * @return array The options array for the SoapClient constructor.
+     */
+    public static function build_soap_options(int $timeout, ?string $endpoint): array {
+        $options = [
             'trace'              => true,
             'exceptions'         => true,
             'cache_wsdl'         => WSDL_CACHE_DISK,
@@ -106,7 +127,25 @@ class imis_client {
             'stream_context'     => stream_context_create([
                 'http' => ['timeout' => $timeout],
             ]),
-        ]);
+        ];
+        if (!empty($endpoint)) {
+            $options['location'] = $endpoint;
+        }
+        return $options;
+    }
+
+    /**
+     * The endpoint override that requests are sent to, if one is configured.
+     *
+     * Returns the configured service endpoint override, or null when calls use
+     * the address embedded in the WSDL. Surfaced in the connection test so an
+     * operator can confirm where writes will actually go.
+     *
+     * @return string|null The endpoint override, or null if not set.
+     */
+    public static function get_effective_endpoint(): ?string {
+        $endpoint = get_config('local_imisbridge', 'service_endpoint');
+        return !empty($endpoint) ? $endpoint : null;
     }
 
     // AUTH.

@@ -45,6 +45,7 @@ Under _Site administration > Plugins > Local plugins > iMIS Bridge_:
 | Setting | Value |
 | --- | --- |
 | iMIS WSDL URL | The ATS `wsmoodle.asmx?WSDL` endpoint (production points at `scca.atsservices.net`; ask ATS for the staging URL, which is a different ATS host, **not** the imiscloud site). |
+| Service endpoint URL (override) | Optional. When set, requests go to this `.asmx` URL (no `?WSDL`) instead of the address embedded in the WSDL. **Set it to your staging endpoint before any write test** if the WSDL's embedded `soap:address` points at a different environment (see the trap below). Blank = use the WSDL's address. |
 | ATS API AuthToken | The `MO-xxxxxx` token issued by ATS. |
 | Admin iMIS ID | A valid iMIS contact ID for service-level calls. **Currently unused by this endpoint:** its only consumer, `get_service_token()`, calls `getToken`, which `wsmoodle.asmx` does not advertise and which will fault. No sync or connection-test path uses it today, so it is safe to leave blank. |
 | Web service timeout | Seconds to wait on iMIS before giving up (default 30). |
@@ -56,6 +57,17 @@ never pair a staging token with a production WSDL, or vice versa. Testing agains
 production iMIS from an isolated Moodle (§5) is expected to use production
 credentials; the isolation comes from the separate Moodle instance and the
 disabled write toggles, not from mixing environments.
+
+> **Trap: the WSDL decides where calls go, not the URL you typed.** PHP's
+> `SoapClient` sends requests to the `<soap:address location="…">` embedded in
+> the WSDL's `<service>` block — **not** to the host you fetched the WSDL from. A
+> staging WSDL (e.g. `sccatest.atsservices.net/wsmoodle.asmx?WSDL`) can embed the
+> **production** address (`scca.atsservices.net`), so pointing the WSDL URL at
+> staging would still send every call — including writes — to **production**.
+> Before any write test: open the WSDL in a browser and check its
+> `<soap:address location>`; if it doesn't match the environment you intend, set
+> the **Service endpoint URL (override)** to the correct `.asmx` endpoint. The
+> connection test prints which endpoint requests will go to, so confirm it there.
 
 **Course ID number = iMIS product code.** The completion and quiz pushes send the
 course's **ID number** (Course settings), falling back to its **short name**, as
