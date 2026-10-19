@@ -29,15 +29,19 @@ in the plugin; the rest are proposed, in priority order.
 Nothing below is worth shipping if the data doesn't line up with the 6 months of
 records the vendor already wrote to iMIS.
 
-### 1.1 Configurable ProductID source (default: numeric course id)
+### 1.1 ProductID = numeric Moodle course id — DONE (1.8.0)
 - **Why:** the vendor sends the **numeric Moodle course id** as `ProductID`, and
-  iMIS maps courses on it (`moodle_products.description` = course id). Our
-  outbound currently sends the course **idnumber** (fallback shortname), so our
-  activity records would land under a different ProductID and not match history.
-- **Do:** add a `productid_source` setting (`courseid` / `idnumber` / `shortname`),
-  default **`courseid`**, used by `observer::course_number()`.
-- **Done when:** a completion from our plugin writes the same ProductID the vendor
-  would have, confirmed against an existing iMIS record.
+  iMIS maps courses on it (`MOODLE_PRODUCTS.Description` = numeric course id, per
+  the authoritative ATS bridge spec). Our outbound previously sent the course
+  **idnumber** (fallback shortname), so our activity records would have landed
+  under a different ProductID and not matched history.
+- **Done:** `observer::course_number()` now returns the numeric Moodle course id
+  (`$course->id`). The ATS spec is unambiguous that this is the only correct
+  value, so it is sent directly rather than via a configurable source (no footgun
+  option to mis-set). If a site ever needs a different mapping, add a
+  `productid_source` setting then.
+- **Verify:** test C6 — a completion from our plugin writes the same ProductID the
+  vendor would have, confirmed against an existing iMIS record.
 
 ### 1.2 Confirm the SOAP method name against the live WSDL
 - **Why:** we call `MoodleUpdate`; the vendor was described as calling
@@ -118,8 +122,8 @@ Likely two PRs: (2a) users, (2b) enrolment.
 
 | Phase | Item | Size | Blocks cutover? |
 |------|------|------|-----------------|
-| 1 | ProductID source configurable | S | **Yes** |
-| 1 | Verify SOAP method name | S (investigation) | **Yes** |
+| 1 | ProductID = numeric course id — **DONE (1.8.0)** | S | **Yes** |
+| 1 | Verify SOAP method names vs ATS spec — **DONE (1.8.0):** removed non-bridge getToken/checkAuthorization/asiEncrypt/asiDecrypt wrappers | S (investigation) | **Yes** |
 | 2a | create/update/get users (REST) | M | Yes (for provisioning) |
 | 2b | enrol/unenrol users (REST) | M | Yes (for provisioning) |
 | 3.1 | Both-direction logging | S–M | No, but do before 2 ships to prod |

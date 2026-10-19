@@ -25,8 +25,8 @@
 defined('MOODLE_INTERNAL') || die();
 
 $plugin->component = 'local_imisbridge';
-$plugin->version   = 2026101900;
+$plugin->version   = 2026101901;
 $plugin->requires  = 2025100600; // Moodle 5.1+.
 $plugin->supported = [501, 503]; // Moodle 5.1 to 5.3 LTS.
 $plugin->maturity  = MATURITY_STABLE;
-$plugin->release   = '1.7.0';
+$plugin->release   = '1.8.0';

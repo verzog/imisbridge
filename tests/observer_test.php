@@ -25,6 +25,7 @@
 namespace local_imisbridge;
 
 use local_imisbridge\task\sync_user_task;
+use local_imisbridge\task\push_activity_task;
 
 /**
  * Unit tests for {@see observer}.
@@ -160,6 +161,37 @@ final class observer_test extends \advanced_testcase {
         observer::user_loggedin($event);
 
         $this->assertCount(0, \core\task\manager::get_adhoc_tasks(sync_user_task::class));
+    }
+
+    /**
+     * Completing a course queues a push carrying the numeric Moodle course id
+     * (the ATS productID), not the course idnumber or shortname.
+     *
+     * @return void
+     */
+    public function test_course_completed_pushes_numeric_course_id(): void {
+        $this->resetAfterTest();
+
+        set_config('wsdl_url', 'https://example.invalid/wsmoodle.asmx?WSDL', 'local_imisbridge');
+
+        $user   = $this->getDataGenerator()->create_user(['username' => 'member123']);
+        // An idnumber/shortname that must NOT be used as the productID.
+        $course = $this->getDataGenerator()->create_course([
+            'idnumber'  => 'IMIS-PROD-99',
+            'shortname' => 'SHORT99',
+        ]);
+
+        $event = \core\event\course_completed::create([
+            'objectid'      => 1,
+            'relateduserid' => $user->id,
+            'courseid'      => $course->id,
+            'context'       => \context_course::instance($course->id),
+        ]);
+        observer::course_completed($event);
+
+        $tasks = \core\task\manager::get_adhoc_tasks(push_activity_task::class);
+        $this->assertCount(1, $tasks);
+        $this->assertSame((string)$course->id, reset($tasks)->get_custom_data()->coursenum);
     }
 
     /**

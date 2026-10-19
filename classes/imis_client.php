@@ -37,7 +37,7 @@ namespace local_imisbridge;
  *
  * Public methods map directly to wsmoodle.asmx operations. They form an
  * intentional, reusable API surface: some are used by the plugin's observers
- * and tasks today, and the rest are provided for SSO, reporting and other
+ * and tasks today, and the rest are provided for reporting and other
  * integrations to build on. Methods marked below inject the ATS AuthToken
  * automatically (see get_api_auth_token()); the exact SOAP argument names for
  * each operation come from the live WSDL, so confirm with __getFunctions() /
@@ -58,11 +58,9 @@ namespace local_imisbridge;
  *   Reporting:      get_iqa_rows* (getIQARows; single jsonParams object)
  *   (* injects the ATS API AuthToken automatically.)
  *
- * Confirmed ABSENT from the wsmoodle.asmx WSDL — these will fault against this
- * service: get_token / get_service_token (getToken), check_authorization
- * (checkAuthorization), encrypt / decrypt (asiEncrypt / asiDecrypt). ATS docs
- * imply the token flow lives on the REST bridge, not this SOAP endpoint; these
- * methods are retained for that path only.
+ * The SSO/token flow (getToken, checkSSOFilter, asiEncrypt/asiDecrypt) lives on
+ * the separate ATS SSO application, not on wsmoodle.asmx, so no wrappers for it
+ * are provided here; add them against that endpoint if an SSO path is built.
  *
  * @package    local_imisbridge
  * @copyright  2024 Vernon Spain
@@ -71,9 +69,6 @@ namespace local_imisbridge;
 class imis_client {
     /** @var \SoapClient */
     private $soap;
-
-    /** @var string Cached iMIS session token (for SSO, not the API AuthToken). */
-    private $token;
 
     /** @var string Cached ATS API AuthToken (MO-xxxxxx). */
     private $apiauthtoken;
@@ -243,45 +238,6 @@ class imis_client {
         }
         logger::record($operation, $imisid, $productcode, logger::STATUS_SUCCESS, $this->soap, null);
         return $result;
-    }
-
-    /**
-     * Generate an iMIS session token for the given iMIS ID.
-     *
-     * @param string $imisid The iMIS contact ID.
-     * @return string The generated session token.
-     */
-    public function get_token(string $imisid): string {
-        $result = $this->call('getToken', ['iMISID' => $imisid], $imisid);
-        return $result->getTokenResult ?? '';
-    }
-
-    /**
-     * Get or lazily create a service-level session token using the configured admin iMIS ID.
-     *
-     * @return string The service-level session token.
-     * @throws \moodle_exception If no admin iMIS ID is configured.
-     */
-    public function get_service_token(): string {
-        if (empty($this->token)) {
-            $adminid = get_config('local_imisbridge', 'admin_imis_id');
-            if (empty($adminid)) {
-                throw new \moodle_exception('noadminimisid', 'local_imisbridge');
-            }
-            $this->token = $this->get_token($adminid);
-        }
-        return $this->token;
-    }
-
-    /**
-     * Check if a given iMIS user is authorised to log in.
-     *
-     * @param string $imisid The iMIS contact ID.
-     * @return bool True if the user is authorised.
-     */
-    public function check_authorization(string $imisid): bool {
-        $result = $this->call('checkAuthorization', ['iMISID' => $imisid], $imisid);
-        return (bool)($result->checkAuthorizationResult ?? false);
     }
 
     // CONTACT LOOKUP.
@@ -536,31 +492,5 @@ class imis_client {
             'PageOffset'   => $pageoffset,
         ];
         return $this->call('getIQARows', ['jsonParams' => $jsonparams]);
-    }
-
-    // ENCRYPTION HELPERS.
-
-    /**
-     * Encrypt a value via iMIS.
-     *
-     * @param string $value The value to encrypt.
-     * @return string The encrypted value.
-     */
-    public function encrypt(string $value): string {
-        // Not routed through the audit log: the request carries the plaintext value.
-        $result = $this->soap->asiEncrypt(['value' => $value]);
-        return $result->asiEncryptResult ?? '';
-    }
-
-    /**
-     * Decrypt a value via iMIS.
-     *
-     * @param string $value The value to decrypt.
-     * @return string The decrypted value.
-     */
-    public function decrypt(string $value): string {
-        // Not routed through the audit log: the request/response carries plaintext.
-        $result = $this->soap->asiDecrypt(['value' => $value]);
-        return $result->asiDecryptResult ?? '';
     }
 }

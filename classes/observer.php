@@ -96,7 +96,7 @@ class observer {
 
         $data   = $event->get_data();
         $user   = $DB->get_record('user', ['id' => $data['relateduserid']], 'id, username, idnumber, email');
-        $course = $DB->get_record('course', ['id' => $data['courseid']], 'id, idnumber, shortname');
+        $course = $DB->get_record('course', ['id' => $data['courseid']], 'id');
 
         if (empty($user) || empty($course)) {
             return;
@@ -163,7 +163,7 @@ class observer {
             return;
         }
 
-        $course = $DB->get_record('course', ['id' => $quiz->course], 'id, idnumber, shortname');
+        $course = $DB->get_record('course', ['id' => $quiz->course], 'id');
         if (empty($course)) {
             return;
         }
@@ -193,7 +193,7 @@ class observer {
      *
      * @param string $toggle         Config name of the write toggle governing this push.
      * @param string $imisid         iMIS contact ID (from the configured Moodle user field).
-     * @param string $coursenum      Moodle course number (maps to iMIS product code).
+     * @param string $coursenum      Numeric Moodle course id (MoodleUpdate productID).
      * @param float  $creditvalue    Number of credit hours awarded.
      * @param string $startdate      Course start date (Y-m-d).
      * @param string $completiondate Course completion date (Y-m-d).
@@ -290,13 +290,19 @@ class observer {
     }
 
     /**
-     * Resolve the Moodle course number sent to iMIS: idnumber, falling back to shortname.
+     * Resolve the Moodle course number sent to iMIS as MoodleUpdate's productID.
      *
-     * @param \stdClass $course Course record with idnumber and shortname.
+     * Per the ATS bridge spec, productID is the **numeric Moodle Course ID**: iMIS
+     * maps it to the iMIS product code through the MOODLE_PRODUCTS lookup table
+     * (Code = iMIS product code, Description = numeric Moodle course id), and the
+     * vendor's existing activity history is keyed on it. It is NOT the course
+     * idnumber or shortname.
+     *
+     * @param \stdClass $course Course record with the numeric id.
      * @return string
      */
     private static function course_number(\stdClass $course): string {
-        return !empty($course->idnumber) ? $course->idnumber : $course->shortname;
+        return (string)$course->id;
     }
 
     /**

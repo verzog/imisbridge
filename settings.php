@@ -58,15 +58,6 @@ if ($hassiteconfig) {
         PARAM_TEXT
     ));
 
-    // Admin iMIS ID for SSO session token generation.
-    $settings->add(new admin_setting_configtext(
-        'local_imisbridge/admin_imis_id',
-        get_string('imis_auth_token', 'local_imisbridge'),
-        get_string('imis_auth_token_desc', 'local_imisbridge'),
-        '',
-        PARAM_TEXT
-    ));
-
     // Which Moodle user field holds the iMIS contact ID sent to iMIS.
     $settings->add(new admin_setting_configselect(
         'local_imisbridge/imis_id_source',
