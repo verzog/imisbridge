@@ -74,7 +74,7 @@ final class imis_client_test extends \advanced_testcase {
      * @return void
      */
     public function test_build_soap_options_with_endpoint(): void {
-        $endpoint = 'https://sccatest.atsservices.net/wsmoodle.asmx';
+        $endpoint = 'https://ats-sandbox.example.test/wsmoodle.asmx';
         $options  = imis_client::build_soap_options(15, $endpoint);
 
         $this->assertArrayHasKey('location', $options);
@@ -97,7 +97,7 @@ final class imis_client_test extends \advanced_testcase {
      * @return void
      */
     public function test_effective_endpoint_returns_override(): void {
-        $endpoint = 'https://sccatest.atsservices.net/wsmoodle.asmx';
+        $endpoint = 'https://ats-sandbox.example.test/wsmoodle.asmx';
         set_config('service_endpoint', $endpoint, 'local_imisbridge');
 
         $this->assertSame($endpoint, imis_client::get_effective_endpoint());
@@ -110,11 +110,11 @@ final class imis_client_test extends \advanced_testcase {
      */
     public function test_extract_wsdl_endpoint_soap(): void {
         $xml = '<wsdl:service><wsdl:port>'
-            . '<soap:address location="https://scca.atsservices.net/wsmoodle.asmx" />'
+            . '<soap:address location="https://ats-prod.example.test/wsmoodle.asmx" />'
             . '</wsdl:port></wsdl:service>';
 
         $this->assertSame(
-            'https://scca.atsservices.net/wsmoodle.asmx',
+            'https://ats-prod.example.test/wsmoodle.asmx',
             imis_client::extract_wsdl_endpoint($xml)
         );
     }

@@ -44,7 +44,7 @@ Under _Site administration > Plugins > Local plugins > iMIS Bridge_:
 
 | Setting | Value |
 | --- | --- |
-| iMIS WSDL URL | The ATS `wsmoodle.asmx?WSDL` endpoint (production points at `scca.atsservices.net`; ask ATS for the staging URL, which is a different ATS host, **not** the imiscloud site). |
+| iMIS WSDL URL | The ATS `wsmoodle.asmx?WSDL` endpoint (production is the `<ats-prod>` host; ask ATS for the staging URL, which is a **different ATS host** — and note the ATS host is not the iMIS/AMS site). Real hostnames live in the internal runbook. |
 | Service endpoint URL (override) | Optional. When set, requests go to this `.asmx` URL (no `?WSDL`) instead of the address embedded in the WSDL. **Set it to your staging endpoint before any write test** if the WSDL's embedded `soap:address` points at a different environment (see the trap below). Blank = use the WSDL's address. |
 | ATS API AuthToken | The `MO-xxxxxx` token issued by ATS. This is the credential for every secured call. |
 | Web service timeout | Seconds to wait on iMIS before giving up (default 30). |
@@ -60,8 +60,8 @@ disabled write toggles, not from mixing environments.
 > **Trap: the WSDL decides where calls go, not the URL you typed.** PHP's
 > `SoapClient` sends requests to the `<soap:address location="…">` embedded in
 > the WSDL's `<service>` block — **not** to the host you fetched the WSDL from. A
-> staging WSDL (e.g. `sccatest.atsservices.net/wsmoodle.asmx?WSDL`) can embed the
-> **production** address (`scca.atsservices.net`), so pointing the WSDL URL at
+> staging WSDL (the `<ats-sandbox>` host) can embed the
+> **production** address (`<ats-prod>`), so pointing the WSDL URL at
 > staging would still send every call — including writes — to **production**.
 > Before any write test: open the WSDL in a browser and check its
 > `<soap:address location>`; if it doesn't match the environment you intend, set
