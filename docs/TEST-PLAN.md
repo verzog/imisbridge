@@ -28,11 +28,24 @@ bridge are configured on their side. On a freshly provisioned or packaged Moodle
 > **Two different "SOAP/REST" things — don't conflate them.** The **PHP `soap`
 > extension** (P1) powers the plugin's *outbound* calls (`\SoapClient` → iMIS)
 > and is always required. **Moodle's web services (the REST/SOAP server, P3)** is
-> for *inbound* calls **to** Moodle and is used only by the pull WS
-> (`get_completions_since`) and future inbound provisioning. **For the baseline
-> (outbound completions + SSO), leave Moodle web services / REST OFF** — nothing
-> in the baseline uses them, and off = smaller attack surface. Turn them on only
-> when you reach the updated-version phase (§H and later provisioning).
+> for *inbound* calls **to** Moodle and is used by the pull WS
+> (`get_completions_since`), future inbound provisioning, **and the ATS bridge's
+> own callback into Moodle**. **For the baseline (outbound completions + SSO),
+> leave Moodle web services / REST OFF** — nothing in the baseline uses them, and
+> off = smaller attack surface. Turn them on only when you reach the
+> updated-version phase (§H and later provisioning).
+>
+> **Why the sync operations are *not* baseline:** `SendNewOrdersToMoodle`,
+> `SendCancelledOrdersToMoodle` and `UpdateMoodleGroups` are outbound SOAP calls
+> from us, but their documented effect is to make the **ATS bridge call *back*
+> into Moodle** (create/enrol/group changes) over the Moodle REST callback. With
+> REST OFF the outbound SOAP call can still succeed while the Moodle-side change
+> silently fails — and our plugin does not yet ship the inbound functions that
+> callback targets. So every order/enrolment/cancellation/group **sync** row
+> below (C3–C5, D1, E3/E4, F2) is an **updated-version-phase** test that needs
+> REST enabled *and* the inbound provisioning functions — **not** part of the
+> REST-off baseline. The baseline is outbound completions (`MoodleUpdate`, D2/D3)
+> plus SSO only.
 
 | ID | Check | Expected | Status | Notes |
 |----|-------|----------|--------|-------|
@@ -86,16 +99,16 @@ installed; on an earlier build these describe code that isn't present yet.
 | C0 | `SetupBridge` via `setup_bridge()` (not yet in UI) | Returns log lines | ☐ | **Config/setter — can redirect the bridge's Moodle callback; never run against production** |
 | C1 | **One live `MoodleUpdate`** for a test contact/course | iMIS activity record created/updated for the **correct contact and product** | ☐ | Proves `userId`/`productId` casing binds; was `UserID`/`productID` |
 | C2 | Inspect the `MoodleUpdate` response | `ResultsBase.ResultCode`/`ResultMessage` readable | ☐ | Confirm the success `ResultCode` value with ATS → feeds failure detection |
-| C3 | `SendNewOrdersToMoodle` (per-contact) | Succeeds with AuthToken; `OrdersSent`/`NumOrders` returned | ☐ | AuthToken now sent (1.6.1) |
-| C4 | `SendCancelledOrdersToMoodle` (per-contact) | Succeeds with AuthToken | ☐ | |
-| C5 | `UpdateMoodleGroups` (per-contact) | Succeeds; `CourseId`/`LastUpdated` accepted; `ResultsBase` returned | ☐ | Casing fixed (1.6.1) |
+| C3 | `SendNewOrdersToMoodle` (per-contact) | Succeeds with AuthToken; `OrdersSent`/`NumOrders` returned | ☐ | AuthToken now sent (1.6.1). **Updated-version phase — triggers the bridge's REST callback into Moodle; needs REST + inbound functions, not baseline** |
+| C4 | `SendCancelledOrdersToMoodle` (per-contact) | Succeeds with AuthToken | ☐ | **Updated-version phase — same REST callback dependency as C3** |
+| C5 | `UpdateMoodleGroups` (per-contact) | Succeeds; `CourseId`/`LastUpdated` accepted; `ResultsBase` returned | ☐ | Casing fixed (1.6.1). **Updated-version phase — same REST callback dependency as C3** |
 | C6 | **ProductID = numeric Moodle course id** lands on the right iMIS product | Record matches an existing vendor-created record's ProductID | ☐ | Numeric course id is the **required** default (the vendor used it); confirm, don't re-decide |
 
 ## D. Observer-driven push (staging iMIS only)
 
 | ID | Test | Expected | Status | Notes |
 |----|------|----------|--------|-------|
-| D1 | Login, then run cron | Per-user sync tasks run (`SendNewOrders`/`SendCancelled`/`UpdateGroups` per enabled toggles) | ☐ | Observers queue adhoc tasks |
+| D1 | Login, then run cron | Per-user sync tasks run (`SendNewOrders`/`SendCancelled`/`UpdateGroups` per enabled toggles) | ☐ | Observers queue adhoc tasks. **Updated-version phase — these syncs drive the bridge's REST callback into Moodle; needs REST + inbound functions, not baseline.** The baseline login path is SSO only |
 | D2 | Course completion (toggle on) + cron | `MoodleUpdate` fires with course product + AuthToken; audit row | ☐ | |
 | D3 | Quiz submit (graded, non-preview) + cron | `MoodleUpdate` fires with score/status; audit row | ☐ | Preview/ungraded skipped |
 | D4 | User with no iMIS ID | No task queued; no bogus call | ☐ | |
@@ -107,8 +120,8 @@ installed; on an earlier build these describe code that isn't present yet.
 |----|------|----------|--------|-------|
 | E1 | Access requires `moodle/site:config` | Denied without it | ☐ | |
 | E2 | Submit shows confirmation before any write | Confirm step appears | ☐ | |
-| E3 | Per-user sync | Runs; audit rows | ☐ | |
-| E4 | All-users (blank contact ID) | All-users warning on confirm | ☐ | |
+| E3 | Per-user sync | Runs; audit rows | ☐ | **Updated-version phase — the order/enrolment/group sync drives the bridge's REST callback; needs REST + inbound functions, not baseline** |
+| E4 | All-users (blank contact ID) | All-users warning on confirm | ☐ | **Updated-version phase — same REST callback dependency as E3** |
 | E5 | Sesskey enforced | Stale/absent sesskey rejected | ☐ | |
 | E6 | Single heading (no duplicate title) | One heading renders | ☐ | Fixed in #12 |
 
@@ -117,7 +130,7 @@ installed; on an earlier build these describe code that isn't present yet.
 | ID | Test | Expected | Status | Notes |
 |----|------|----------|--------|-------|
 | F1 | Tasks listed under Server → Scheduled tasks | enrolment/cancellation/group + cleanup present | ☐ | |
-| F2 | Nightly enrolment/cancellation/group sync run | Complete cleanly (all-user writes!) | ☐ | Keep disabled on prod-backed bridge |
+| F2 | Nightly enrolment/cancellation/group sync run | Complete cleanly (all-user writes!) | ☐ | Keep disabled on prod-backed bridge. **Updated-version phase — these syncs drive the bridge's REST callback into Moodle; needs REST + inbound functions, not baseline** |
 
 ## G. Audit log & privacy
 
