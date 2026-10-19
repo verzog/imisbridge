@@ -19,6 +19,22 @@ bottom.
 
 ---
 
+## P. Staging environment prerequisites (check before section A)
+
+The plugin installs on the **Moodle** site only; the iMIS instance and the ATS
+bridge are configured on their side. On a freshly provisioned or packaged Moodle
+(e.g. a distro/appliance build) these fail **silently**, so verify them first.
+
+| ID | Check | Expected | Status | Notes |
+|----|-------|----------|--------|-------|
+| P1 | **PHP `soap` extension enabled** | `php -m` lists `soap` (or it shows under *Site admin → Server → PHP info*) | ☐ | The entire outbound path uses `\SoapClient`; without it every iMIS call throws at construction. **#1 thing to check on a packaged Moodle.** |
+| P2 | **Moodle cron runs every minute** | Recent runs under *Site admin → Server → Tasks → Task processing* | ☐ | Completion/quiz/login sync are queued adhoc tasks — no cron, nothing reaches iMIS |
+| P3 | **Web services + REST protocol enabled** | *Advanced features → Enable web services*; REST on under *Server → Web services → Manage protocols* | ☐ | Needed for the pull WS and (later) inbound provisioning |
+| P4 | **Outbound HTTPS to the ATS bridge host** is open from the Moodle server | The **Test connection** button loads `GetBridgeSettings` | ☐ | Confirms reachability + the WSDL loads |
+| P5 | **Supported Moodle/PHP** | Moodle 5.1–5.3; PHP 8.2–8.4 | ☐ | CI covers these |
+
+---
+
 ## A. Install / upgrade
 
 | ID | Test | Expected | Status | Notes |
@@ -164,3 +180,4 @@ installed; on an earlier build these describe code that isn't present yet.
 |------|--------|
 | 2026-10-15 | Initial plan: install/upgrade, config/connectivity, SOAP write-path contract (#17), observers, manual sync, nightly tasks, audit log/privacy, pull WS, cleanup, security, rollback. |
 | 2026-10-15 | Review fixes: require write lockdown before a production WSDL (B0); split the bad-WSDL case into uncached (no row) vs cached-outage (error row); move `SetupBridge` to the staging-only §C as a config/setter; make numeric ProductID the required default (confirm, don't re-decide); fix the redaction expectation (values gone, tags remain); scope the sesskey check to write/action requests. |
+| 2026-10-19 | Add section P: staging environment prerequisites (PHP soap extension, Moodle cron, web services + REST, outbound HTTPS to the bridge, supported versions) — the silent-failure checks to run before install. |
