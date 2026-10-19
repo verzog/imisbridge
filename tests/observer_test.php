@@ -170,6 +170,7 @@ final class observer_test extends \advanced_testcase {
      * @return void
      */
     public function test_course_completed_pushes_numeric_course_id(): void {
+        global $DB;
         $this->resetAfterTest();
 
         set_config('wsdl_url', 'https://example.invalid/wsmoodle.asmx?WSDL', 'local_imisbridge');
@@ -179,6 +180,18 @@ final class observer_test extends \advanced_testcase {
         $course = $this->getDataGenerator()->create_course([
             'idnumber'  => 'IMIS-PROD-99',
             'shortname' => 'SHORT99',
+        ]);
+
+        // Give the learner a course-total grade so course_score() is exercised.
+        $gradeitem = \grade_item::fetch_course_item((int)$course->id);
+        $DB->insert_record('grade_grades', (object)[
+            'itemid'       => $gradeitem->id,
+            'userid'       => $user->id,
+            'finalgrade'   => 80.0,
+            'rawgrademax'  => $gradeitem->grademax,
+            'rawgrademin'  => $gradeitem->grademin,
+            'timecreated'  => 1000,
+            'timemodified' => 1000,
         ]);
 
         $event = \core\event\course_completed::create([
@@ -192,7 +205,11 @@ final class observer_test extends \advanced_testcase {
 
         $tasks = \core\task\manager::get_adhoc_tasks(push_activity_task::class);
         $this->assertCount(1, $tasks);
-        $this->assertSame((string)$course->id, reset($tasks)->get_custom_data()->coursenum);
+        $data = reset($tasks)->get_custom_data();
+        // Numeric course id, not the idnumber/shortname.
+        $this->assertSame((string)$course->id, $data->coursenum);
+        // course_score() resolves the course-total grade as a percentage.
+        $this->assertEqualsWithDelta(80.0, (float)$data->score, 0.001);
     }
 
     /**

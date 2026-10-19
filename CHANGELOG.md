@@ -17,6 +17,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   tasks queued before 1.8.0 (they carry the old idnumber/shortname value);
   affected completions can be re-sent via a manual sync or the bulk pull web
   service.
+- **Course completion score path no longer fatals on Moodle 5.x.**
+  `observer::course_score()` called `grade_get_course_grades()`, which no longer
+  exists in Moodle 5.1+, so a completion push with a score would have thrown
+  "undefined function". Rewritten to use `grade_item::fetch_course_item()` /
+  `grade_grade::fetch()`, and now covered by a unit test.
 
 ### Removed
 - Dead SOAP client methods that targeted operations **not** exposed by

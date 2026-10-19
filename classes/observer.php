@@ -249,17 +249,17 @@ class observer {
         global $CFG;
         require_once($CFG->libdir . '/gradelib.php');
 
-        $coursegrades = grade_get_course_grades($courseid, $userid);
-        if (empty($coursegrades) || !isset($coursegrades->grades[$userid])) {
+        $gradeitem = \grade_item::fetch_course_item($courseid);
+        if (!$gradeitem) {
             return 0.0;
         }
 
-        $usergrade = $coursegrades->grades[$userid]->grade;
-        if ($usergrade === null || $usergrade === false) {
+        $grade = \grade_grade::fetch(['itemid' => $gradeitem->id, 'userid' => $userid]);
+        if (!$grade || $grade->finalgrade === null) {
             return 0.0;
         }
 
-        return self::calculate_percentage((float)$usergrade, (float)$coursegrades->grademax);
+        return self::calculate_percentage((float)$grade->finalgrade, (float)$gradeitem->grademax);
     }
 
     /**
