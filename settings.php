@@ -29,6 +29,18 @@ if ($hassiteconfig) {
 
     $ADMIN->add('localplugins', $settings);
 
+    // Outbound transport: ATS SOAP middleware (default) or direct iMIS REST.
+    $settings->add(new admin_setting_configselect(
+        'local_imisbridge/transport',
+        get_string('transport', 'local_imisbridge'),
+        get_string('transport_desc', 'local_imisbridge'),
+        'soap',
+        [
+            'soap' => get_string('transport_soap', 'local_imisbridge'),
+            'rest' => get_string('transport_rest', 'local_imisbridge'),
+        ]
+    ));
+
     // WSDL endpoint.
     $settings->add(new admin_setting_configtext(
         'local_imisbridge/wsdl_url',
@@ -94,6 +106,71 @@ if ($hassiteconfig) {
         'local_imisbridge/credit_field',
         get_string('credit_field', 'local_imisbridge'),
         get_string('credit_field_desc', 'local_imisbridge'),
+        '',
+        PARAM_ALPHANUMEXT
+    ));
+
+    // Direct iMIS REST transport settings (used when Transport = Direct iMIS REST).
+    $settings->add(new admin_setting_heading(
+        'local_imisbridge/restheading',
+        get_string('restheading', 'local_imisbridge'),
+        get_string('restheading_desc', 'local_imisbridge')
+    ));
+
+    $settings->add(new admin_setting_configtext(
+        'local_imisbridge/rest_base_url',
+        get_string('rest_base_url', 'local_imisbridge'),
+        get_string('rest_base_url_desc', 'local_imisbridge'),
+        '',
+        PARAM_URL
+    ));
+
+    $settings->add(new admin_setting_configtext(
+        'local_imisbridge/rest_username',
+        get_string('rest_username', 'local_imisbridge'),
+        get_string('rest_username_desc', 'local_imisbridge'),
+        '',
+        PARAM_RAW_TRIMMED
+    ));
+
+    $settings->add(new admin_setting_configpasswordunmask(
+        'local_imisbridge/rest_password',
+        get_string('rest_password', 'local_imisbridge'),
+        get_string('rest_password_desc', 'local_imisbridge'),
+        '',
+        PARAM_RAW
+    ));
+
+    // Optional iMIS column mappings. Leave blank until confirmed against iMIS;
+    // a blank column name means that value is not sent.
+    $settings->add(new admin_setting_configtext(
+        'local_imisbridge/rest_col_credittype',
+        get_string('rest_col_credittype', 'local_imisbridge'),
+        get_string('rest_col_credittype_desc', 'local_imisbridge'),
+        '',
+        PARAM_ALPHANUMEXT
+    ));
+
+    $settings->add(new admin_setting_configtext(
+        'local_imisbridge/rest_col_creditvalue',
+        get_string('rest_col_creditvalue', 'local_imisbridge'),
+        get_string('rest_col_creditvalue_desc', 'local_imisbridge'),
+        '',
+        PARAM_ALPHANUMEXT
+    ));
+
+    $settings->add(new admin_setting_configtext(
+        'local_imisbridge/rest_col_grantdate',
+        get_string('rest_col_grantdate', 'local_imisbridge'),
+        get_string('rest_col_grantdate_desc', 'local_imisbridge'),
+        '',
+        PARAM_ALPHANUMEXT
+    ));
+
+    $settings->add(new admin_setting_configtext(
+        'local_imisbridge/rest_col_completiondate',
+        get_string('rest_col_completiondate', 'local_imisbridge'),
+        get_string('rest_col_completiondate_desc', 'local_imisbridge'),
         '',
         PARAM_ALPHANUMEXT
     ));
