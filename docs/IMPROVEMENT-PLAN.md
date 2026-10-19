@@ -61,6 +61,15 @@ A REST web service, **iMIS → Moodle push**, replacing the vendor's
 `create/update/enrol/unenrol` functions — built to avoid every §2/§3 trap.
 Likely two PRs: (2a) users, (2b) enrolment.
 
+> **Strategic alternative — direct iMIS REST (pull).** The medium-term target is to
+> drop the ATS middleware entirely and talk to iMIS's own REST API. In that model
+> this inbound step **inverts**: instead of iMIS pushing into a Moodle web service,
+> a Moodle scheduled task **pulls** registrations from iMIS and enrols locally — no
+> inbound token, no token-in-URL, and the `require_login`-on-hidden-courses enrol
+> gotcha disappears. See `DIRECT-REST-ARCHITECTURE.md`. The §2a/§2b traps below
+> still apply to the local provisioning/enrol code either way, so this work is not
+> wasted; it is the same enrol logic, triggered by a pull rather than a push.
+
 ### 2a. `create_users` / `update_users` / `get_users`
 - Match existing users on `idnumber`/`username` (the iMIS ID); **"already exists"
   is success-and-continue**, not an error (DESIGN-NOTES §3).
