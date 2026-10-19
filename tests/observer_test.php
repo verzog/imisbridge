@@ -186,6 +186,7 @@ final class observer_test extends \advanced_testcase {
             'relateduserid' => $user->id,
             'courseid'      => $course->id,
             'context'       => \context_course::instance($course->id),
+            'other'         => ['relateduserid' => $user->id],
         ]);
         observer::course_completed($event);
 
