@@ -46,8 +46,7 @@ Under _Site administration > Plugins > Local plugins > iMIS Bridge_:
 | --- | --- |
 | iMIS WSDL URL | The ATS `wsmoodle.asmx?WSDL` endpoint (production points at `scca.atsservices.net`; ask ATS for the staging URL, which is a different ATS host, **not** the imiscloud site). |
 | Service endpoint URL (override) | Optional. When set, requests go to this `.asmx` URL (no `?WSDL`) instead of the address embedded in the WSDL. **Set it to your staging endpoint before any write test** if the WSDL's embedded `soap:address` points at a different environment (see the trap below). Blank = use the WSDL's address. |
-| ATS API AuthToken | The `MO-xxxxxx` token issued by ATS. |
-| Admin iMIS ID | A valid iMIS contact ID for service-level calls. **Currently unused by this endpoint:** its only consumer, `get_service_token()`, calls `getToken`, which `wsmoodle.asmx` does not advertise and which will fault. No sync or connection-test path uses it today, so it is safe to leave blank. |
+| ATS API AuthToken | The `MO-xxxxxx` token issued by ATS. This is the credential for every secured call. |
 | Web service timeout | Seconds to wait on iMIS before giving up (default 30). |
 | Default credit type | Credit type recorded on activity records (default `CEU`). |
 | Credit value course field | Short name of the course custom field holding the credit value (blank sends 0). |
@@ -69,12 +68,13 @@ disabled write toggles, not from mixing environments.
 > the **Service endpoint URL (override)** to the correct `.asmx` endpoint. The
 > connection test prints which endpoint requests will go to, so confirm it there.
 
-**Course ID number = iMIS product code.** The completion and quiz pushes send the
-course's **ID number** (Course settings), falling back to its **short name**, as
-the iMIS `productID`. The credit-field setting above does not establish this
-mapping. For a completion/quiz test to target the right iMIS product, set the
-test course's ID number to the intended iMIS product code; a blank ID number or
-an arbitrary short name will target the wrong product or fail.
+**ProductID = numeric Moodle course id.** The completion and quiz pushes send the
+course's **numeric Moodle course id** (the `id` in `course/view.php?id=…`) as the
+iMIS `productID`; iMIS maps it to the iMIS product code via the `MOODLE_PRODUCTS`
+lookup table (Code = iMIS product code, Description = numeric course id). The
+course **ID number / short name are not used**. For a completion/quiz test to
+target the right iMIS product, make sure the (staging) iMIS `MOODLE_PRODUCTS`
+table maps the intended product code to this course's numeric id.
 
 ## 3. Verify connectivity (read-only, safe anywhere)
 

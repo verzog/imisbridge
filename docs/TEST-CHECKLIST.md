@@ -68,15 +68,16 @@ Observers **queue adhoc tasks**; the SOAP calls happen when **cron** runs, not
 at the moment of the event. So after each trigger, **run cron** (or run the
 pending adhoc tasks) before checking the audit log.
 
-Before triggering completion/quiz, **set the test course's ID number to the
-intended safe iMIS product code** — the observer sends `course.idnumber`
-(falling back to `shortname`) as `productID`, so a blank/arbitrary value can hit
-the wrong activity or fail on mapping rather than on the observer.
+Before triggering completion/quiz, confirm the (staging) iMIS `MOODLE_PRODUCTS`
+table maps the intended safe product code to this course's **numeric Moodle
+course id** — the observer sends `course.id` as `productID`, so the record lands
+on whatever product that numeric id is mapped to (the course ID number / short
+name are not used).
 
 Verify both the iMIS-side effect and an audit-log row for each:
 
 - [ ] **Login** (`user_loggedin`) → queues the per-user sync; after cron, the **enabled** login operations run: `SendNewOrdersToMoodle`, `SendCancelledOrdersToMoodle`, `UpdateMoodleGroups` (whichever login toggles are on). *(Not `MoodleUpdate`.)*
-- [ ] **Course completion** (`course_completed`, with `push_completions` on) → after cron, `MoodleUpdate` fires with the course's ID number as the product code and the AuthToken.
+- [ ] **Course completion** (`course_completed`, with `push_completions` on) → after cron, `MoodleUpdate` fires with the course's **numeric id** as `productID` and the AuthToken.
 - [ ] **Quiz submit** (`quiz_attempt_submitted`, with `push_quiz_scores` on) → after cron, `MoodleUpdate` fires with the score/status. *(Preview attempts and ungraded quizzes are skipped by design.)*
 - [ ] The iMIS ID used matches the configured **source** (not blindly `$user->username` if you changed it).
 - [ ] A user **with no iMIS ID** (blank username/idnumber/email) is handled gracefully — no task queued, no bogus call.

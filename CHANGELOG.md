@@ -4,6 +4,36 @@ All notable changes to the iMIS Bridge plugin (`local_imisbridge`) are documente
 in this file. The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.8.0] - 2026-10-19
+
+### Fixed
+- **`MoodleUpdate` now sends the numeric Moodle course id as `productID`.** Per the
+  authoritative ATS bridge spec, `productID` is the numeric Moodle Course ID
+  (iMIS maps it to the iMIS product code via the `MOODLE_PRODUCTS` lookup table).
+  The completion/quiz observers previously sent the course **idnumber** (falling
+  back to shortname), so activity records would have landed under a different
+  product and not matched the vendor's existing history. `observer::course_number()`
+  now returns `$course->id`. The upgrade drops any `push_activity_task` adhoc
+  tasks queued before 1.8.0 (they carry the old idnumber/shortname value);
+  affected completions can be re-sent via a manual sync or the bulk pull web
+  service.
+- **Course completion score path no longer fatals on Moodle 5.x.**
+  `observer::course_score()` called `grade_get_course_grades()`, which no longer
+  exists in Moodle 5.1+, so a completion push with a score would have thrown
+  "undefined function". Rewritten to use `grade_item::fetch_course_item()` /
+  `grade_grade::fetch()`, and now covered by a unit test.
+
+### Removed
+- Dead SOAP client methods that targeted operations **not** exposed by
+  `wsmoodle.asmx` (they would fault against the bridge and were unused):
+  `get_token()` / `get_service_token()` (`getToken`), `check_authorization()`
+  (`checkAuthorization` — the real bridge method is `checkSSOFilter`), and
+  `encrypt()` / `decrypt()` (`asiEncrypt` / `asiDecrypt`). These belong to the
+  separate ATS SSO application, not this SOAP endpoint.
+- The **Admin iMIS ID** setting (`admin_imis_id`), whose only consumer was the
+  removed `get_service_token()`. The ATS API AuthToken is the credential for all
+  secured calls. Any stored value is simply ignored after upgrade.
+
 ## [1.7.0] - 2026-10-19
 
 ### Added
@@ -114,6 +144,7 @@ behaviour.
 - Generalised the privacy metadata string, `README.md`, and `docs/TESTING.md` to
   describe the configurable identifier rather than assuming the username.
 
+[1.8.0]: https://github.com/verzog/imisbridge/releases/tag/v1.8.0
 [1.7.0]: https://github.com/verzog/imisbridge/releases/tag/v1.7.0
 [1.6.1]: https://github.com/verzog/imisbridge/releases/tag/v1.6.1
 [1.6.0]: https://github.com/verzog/imisbridge/releases/tag/v1.6.0

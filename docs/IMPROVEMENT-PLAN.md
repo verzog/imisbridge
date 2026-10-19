@@ -29,21 +29,29 @@ in the plugin; the rest are proposed, in priority order.
 Nothing below is worth shipping if the data doesn't line up with the 6 months of
 records the vendor already wrote to iMIS.
 
-### 1.1 Configurable ProductID source (default: numeric course id)
+### 1.1 ProductID = numeric Moodle course id — DONE (1.8.0)
 - **Why:** the vendor sends the **numeric Moodle course id** as `ProductID`, and
-  iMIS maps courses on it (`moodle_products.description` = course id). Our
-  outbound currently sends the course **idnumber** (fallback shortname), so our
-  activity records would land under a different ProductID and not match history.
-- **Do:** add a `productid_source` setting (`courseid` / `idnumber` / `shortname`),
-  default **`courseid`**, used by `observer::course_number()`.
-- **Done when:** a completion from our plugin writes the same ProductID the vendor
-  would have, confirmed against an existing iMIS record.
+  iMIS maps courses on it (`MOODLE_PRODUCTS.Description` = numeric course id, per
+  the authoritative ATS bridge spec). Our outbound previously sent the course
+  **idnumber** (fallback shortname), so our activity records would have landed
+  under a different ProductID and not matched history.
+- **Done:** `observer::course_number()` now returns the numeric Moodle course id
+  (`$course->id`). The ATS spec is unambiguous that this is the only correct
+  value, so it is sent directly rather than via a configurable source (no footgun
+  option to mis-set). If a site ever needs a different mapping, add a
+  `productid_source` setting then.
+- **Verify:** test C6 — a completion from our plugin writes the same ProductID the
+  vendor would have, confirmed against an existing iMIS record.
 
-### 1.2 Confirm the SOAP method name against the live WSDL
+### 1.2 Confirm the SOAP method name against the live WSDL — STILL OPEN
 - **Why:** we call `MoodleUpdate`; the vendor was described as calling
   `ATSMoodleUpdate`. If they are not the same operation, our outbound writes fail.
-- **Do:** verify `__getFunctions()` on the live endpoint; align if needed.
-  (Investigation; code change only if they differ.)
+- **Status:** the authoritative ATS bridge spec lists the operation as
+  **`MoodleUpdate`** (section 6), which matches our client — but this must still
+  be confirmed against the **live WSDL** for this installation. Removing the
+  unrelated dead wrappers in 1.8.0 does **not** close this gate.
+- **Do:** verify `__getFunctions()` on the live endpoint (tests C1/C2); align if
+  it differs. (Investigation; code change only if they differ.)
 
 ---
 
@@ -118,8 +126,9 @@ Likely two PRs: (2a) users, (2b) enrolment.
 
 | Phase | Item | Size | Blocks cutover? |
 |------|------|------|-----------------|
-| 1 | ProductID source configurable | S | **Yes** |
-| 1 | Verify SOAP method name | S (investigation) | **Yes** |
+| 1 | ProductID = numeric course id — **DONE (1.8.0)** | S | **Yes** |
+| 1 | Removed non-bridge wrappers (getToken/checkAuthorization/asiEncrypt/asiDecrypt) — **DONE (1.8.0)** | S | No |
+| 1 | Confirm live update op name is `MoodleUpdate` (§1.2) — **OPEN** (spec says MoodleUpdate; verify on the live WSDL via C1/C2) | S (investigation) | **Yes** |
 | 2a | create/update/get users (REST) | M | Yes (for provisioning) |
 | 2b | enrol/unenrol users (REST) | M | Yes (for provisioning) |
 | 3.1 | Both-direction logging | S–M | No, but do before 2 ships to prod |
