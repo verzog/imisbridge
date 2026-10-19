@@ -27,40 +27,87 @@ bridge are configured on their side. On a freshly provisioned or packaged Moodle
 
 > **Three layers, three different sites — map them before you test.**
 > "Staging" is ambiguous here because *three independent systems* are involved,
-> and **the ATS test environment is not the same as our dev iMIS**:
+> and **the ATS test environment is not the same as our dev iMIS**. The real
+> hostnames for this deployment live in the **internal runbook** (this repo is
+> public); the roles below are what matter:
 >
-> | Layer | Dev / test | Production | What lives there |
-> |-------|-----------|-----------|------------------|
-> | **Moodle** (plugin runs here) | `learn.scca.nohost.me` (5.3) | prod Moodle | The plugin + its outbound `\SoapClient` |
-> | **ATS middleware** (`wsmoodle.asmx`) | `sccatest.atsservices.net` | `scca.atsservices.net` | The SOAP bridge the plugin calls |
-> | **iMIS** (AMS data) | `sccadev.imiscloud.com` (our dev) | SCCA prod iMIS | Contacts, `MOODLE_PRODUCTS` mappings, activity records |
+> | Layer | Dev / test role | Production role | What lives there |
+> |-------|-----------------|-----------------|------------------|
+> | **Moodle** (plugin runs here) | `<moodle-staging>` (5.3) | `<moodle-prod>` | The plugin + its outbound `\SoapClient` |
+> | **ATS middleware** (`wsmoodle.asmx`) | `<ats-sandbox>` | `<ats-prod>` | The SOAP bridge the plugin calls |
+> | **iMIS** (AMS data) | `<dev-imis>` (ours) | `<prod-imis>` | Contacts, `MOODLE_PRODUCTS` mappings, activity records |
 >
-> (Hostnames are this deployment's; genericise before any public release.)
->
-> **The trap:** the ATS *test* middleware (`sccatest`) is ATS's own sandbox,
-> backed by **ATS test iMIS data — not our `sccadev`**. And `sccadev` itself
-> currently references the **production** ATS middleware (`scca.atsservices.net`).
+> **The trap:** the ATS *test* middleware (`<ats-sandbox>`) is ATS's own sandbox,
+> backed by **ATS test iMIS data — not our `<dev-imis>`**. And `<dev-imis>`
+> itself currently references the **production** ATS middleware (`<ats-prod>`).
 > Consequences:
 > - **Contract / connectivity tests** (B, C1–C5 mechanics) → run against the ATS
->   sandbox (`sccatest`): safe (never touches SCCA data), proves the plumbing.
+>   sandbox (`<ats-sandbox>`), **but only after clearing the write gates below.**
+>   The sandbox never touches our iMIS data, but "sandbox" is **not**
+>   automatically safe — see the gates.
 > - **Data-matching validation — test C6** (our numeric `productID` lands on the
 >   right iMIS product) → can **only** be done against **our own iMIS**, because
 >   only it holds our real `MOODLE_PRODUCTS` course↔product mappings and history.
 >   The ATS sandbox won't have them.
-> - There is **no confirmed `wsmoodle.asmx` endpoint wired to `sccadev`** yet.
+> - There is **no confirmed `wsmoodle.asmx` endpoint wired to `<dev-imis>`** yet.
 >   Until ATS provisions one, the only place with our real mappings is
->   **production**, so C6 there must be a single, carefully-scoped read (and at
->   most one throwaway write to a disposable test contact/product) — never
->   general testing.
-> - **`scca.atsservices.net` = PRODUCTION.** Every write to it is a production
->   write, regardless of which Moodle sends it.
+>   **production**, so **C6 against production is READ-ONLY**: inspect an existing
+>   vendor-created record's ProductID and compare it to what our plugin *would*
+>   send. **Do not write to production** — a disposable contact/product does not
+>   stop a wrong id, mapping or credential from modifying a real record. The
+>   **write half of C6 stays blocked** until a `<dev-imis>`-wired endpoint exists.
+> - **`<ats-prod>` = PRODUCTION.** Every write to it is a production write,
+>   regardless of which Moodle sends it.
 > - **The `service_endpoint` override (1.7.0) selects the host, not the iMIS
->   behind it.** It cannot make `sccatest` reach our `sccadev` data — that
->   requires ATS wiring on their side.
+>   behind it.** It cannot make `<ats-sandbox>` reach our `<dev-imis>` data —
+>   that requires ATS wiring on their side.
+>
+> **Write gates — clear ALL of these before any C1–C5 write, even "to the
+> sandbox":**
+> 1. **Effective address.** Run the connection test and confirm it reports the
+>    request endpoint is actually the sandbox host — the `<ats-sandbox>` WSDL may
+>    embed the **production** `<soap:address>`, in which case `\SoapClient` sends
+>    to production unless you set the `service_endpoint` override (§B, 1.7.0).
+> 2. **Sandbox credentials + fixtures.** Use an **AuthToken issued for the
+>    sandbox** (a prod token against the sandbox fails — token and endpoint must
+>    share an environment), and have sandbox fixtures to hit: a known contact id,
+>    and (for C3–C6) a product/course mapping, order and group. Our normal SCCA
+>    test contact/mappings do **not** exist in the ATS sandbox, so a
+>    data-dependent call failing there is a fixture gap, not a contract bug.
+> 3. **Callback Moodle (C3–C5 only).** `SendNewOrdersToMoodle`,
+>    `SendCancelledOrdersToMoodle` and `UpdateMoodleGroups` make the bridge call
+>    **back into whichever Moodle its callback configuration names** — which may
+>    be **production** Moodle. Isolated sandbox *iMIS* data does not protect
+>    production *Moodle* users. Confirm the sandbox bridge's Moodle callback
+>    targets a **staging Moodle** before running C3–C5, or they may enrol,
+>    unenrol or regroup production users.
 >
 > **Open item for ATS:** provision (or identify) a `wsmoodle.asmx` endpoint wired
-> to our **`sccadev`** dev iMIS, so C6 and write tests can run against our own
+> to our **`<dev-imis>`** dev iMIS, so C6 and write tests can run against our own
 > data without touching production. (See the ATS questions.)
+
+> **Pre-flight with a raw SOAP client (Bruno / Postman / the `.asmx` test page)
+> — do this before the plugin.** Hitting `wsmoodle.asmx` directly, one
+> **read-only** request at a time, confirms the open questions with full raw-XML
+> visibility and **zero** risk from plugin toggles or cron:
+> - `GET …/wsmoodle.asmx?WSDL` → read the `<soap:address location>` for the
+>   **effective endpoint** (gate 1 — is a "test" WSDL actually pointing at prod?).
+> - `GetBridgeSettings` → returns the bridge config including the **Moodle
+>   callback (`REST_ENDPOINT`)** and `COURSE_URL`, so you can see **which Moodle
+>   the bridge calls back into** (gate 3) and confirm the environment.
+> - `MoodleGetUserProfile` (a known contact id) → confirms **which iMIS** is
+>   behind the endpoint and that the **AuthToken is valid / correctly scoped**
+>   (gate 2).
+> - `getActivityByIDAndType` (contact + the `MOODLE` activity type) → read
+>   existing activity records and their **ProductID** values: this is the
+>   **read-only half of C6**, done safely per contact.
+>
+> Keep Bruno to those read operations. A **write/sync** op from Bruno
+> (`MoodleUpdate`, `SendNewOrdersToMoodle`, `SendCancelledOrdersToMoodle`,
+> `UpdateMoodleGroups`, `createActivity`) against a production-backed endpoint is
+> still a production write — Bruno does not make it safe. (`.asmx` = SOAP 1.1;
+> each method's exact request envelope and `SOAPAction` header are on the
+> endpoint's own test page.)
 
 > **Three different "SOAP/REST" things — don't conflate them.**
 > 1. **PHP `soap` extension** (P1) — powers the plugin's *outbound* calls
@@ -110,7 +157,7 @@ bridge are configured on their side. On a freshly provisioned or packaged Moodle
 
 | ID | Check | Expected | Status | Notes |
 |----|-------|----------|--------|-------|
-| P0 | **Map each endpoint → iMIS** (ask ATS) | For every `wsmoodle.asmx` URL you will use, you know exactly which iMIS instance it reads/writes: ATS sandbox, our `sccadev`, or production | ☐ | See the three-layer topology note above. **Do this before ANY write test** — the hostname alone does not tell you |
+| P0 | **Map each endpoint → iMIS AND clear the write gates** (ask ATS; confirm read-only first) | For every `wsmoodle.asmx` URL: you know which iMIS it reads/writes; the connection test (or a raw SOAP client — see pre-flight below) confirms the **effective request host**; you hold a **sandbox-scoped AuthToken + fixtures**; and (for C3–C5) the bridge's **Moodle callback targets staging** | ☐ | See the three-layer topology note + the three write gates above. **Do all of this before ANY write test** — the hostname alone does not tell you |
 | P1 | **PHP `soap` extension enabled** (baseline) | `php -m` lists `soap` (or under *Site admin → Server → PHP info*) | ☐ | The entire *outbound* path uses `\SoapClient`; without it every iMIS call throws at construction. **Distinct from the Moodle SOAP *protocol*** (a different thing — see the §P note). **#1 thing to check on a packaged Moodle.** |
 | P2 | **Moodle cron runs every minute** (baseline) | Recent runs under *Site admin → Server → Tasks → Task processing* | ☐ | Completion/quiz/login sync are queued adhoc tasks — no cron, nothing reaches iMIS |
 | P3 | **Moodle web-service protocols** — leave as the vendor set them | Live/mirror: **REST enabled** (vendor inbound), **Moodle SOAP protocol disabled** — keep both as-is. Clean Moodle with no vendor: web services may be off entirely | ☐ | Inbound layer; unused by outbound completions or SSO. Our plugin needs REST only for §H / provisioning (updated-version phase). **Leave the Moodle SOAP protocol off** — we don't use it; but external functions aren't transport-specific, so if it's enabled for another integration the `get_completions_since` pull WS is reachable over SOAP too and must be tested. Outbound uses the PHP soap extension (P1), not this |
@@ -164,7 +211,7 @@ installed; on an earlier build these describe code that isn't present yet.
 | C3 | `SendNewOrdersToMoodle` (per-contact) | Succeeds with AuthToken; `OrdersSent`/`NumOrders` returned | ☐ | AuthToken now sent (1.6.1). **Updated-version phase — triggers the bridge's REST callback into Moodle; needs REST + inbound functions, not baseline** |
 | C4 | `SendCancelledOrdersToMoodle` (per-contact) | Succeeds with AuthToken | ☐ | **Updated-version phase — same REST callback dependency as C3** |
 | C5 | `UpdateMoodleGroups` (per-contact) | Succeeds; `CourseId`/`LastUpdated` accepted; `ResultsBase` returned | ☐ | Casing fixed (1.6.1). **Updated-version phase — same REST callback dependency as C3** |
-| C6 | **ProductID = numeric Moodle course id** lands on the right iMIS product | Record matches an existing vendor-created record's ProductID | ☐ | Numeric course id is the **required** default (the vendor used it); confirm, don't re-decide. **Can only be validated against *our own* iMIS (`sccadev`/prod) — the ATS sandbox lacks our `MOODLE_PRODUCTS` mappings (see §P topology).** Needs an ATS endpoint wired to `sccadev`, or a single scoped check on prod |
+| C6 | **ProductID = numeric Moodle course id** lands on the right iMIS product | An existing vendor-created record's ProductID equals the numeric course id our plugin would send | ☐ | Numeric course id is the **required** default (the vendor used it); confirm, don't re-decide. Validate only against **our own iMIS** (the ATS sandbox lacks our `MOODLE_PRODUCTS` mappings — see §P topology). **On production this is READ-ONLY** — inspect an existing record (e.g. via a raw SOAP `getActivityByIDAndType`) and compare; **do not write**. The write check waits for a dev-iMIS-wired endpoint |
 
 ## D. Observer-driven push (staging iMIS only)
 
@@ -269,4 +316,5 @@ installed; on an earlier build these describe code that isn't present yet.
 | 2026-10-19 | Clarify section P: the PHP soap extension (outbound) is distinct from Moodle web services (inbound); leave web services / REST OFF for the baseline and enable only for the updated-version phase (pull WS / provisioning). |
 | 2026-10-19 | Record the confirmed live web-service-protocol posture (REST **enabled** for the vendor's inbound create/enrol, Moodle SOAP protocol **disabled**) and reframe §P accordingly: the Phase-1 baseline uses no Moodle web-service protocol, so leave the vendor's REST on and the Moodle SOAP protocol off; name the three distinct SOAP/REST concepts (PHP soap extension vs Moodle REST protocol vs Moodle SOAP protocol); note REST-on is necessary-but-not-sufficient for the callback syncs, which also need our own inbound functions. |
 | 2026-10-19 | Codex #21: correct the SOAP framing — Moodle external functions aren't transport-specific, so describe the Moodle SOAP protocol as an unused/unsupported transport, not a nonexistent surface. If it's enabled for another integration, `get_completions_since` (a bulk personal-data export) is reachable over SOAP too; added security caveat in §P and test J4. |
-| 2026-10-19 | Add the three-layer topology note to §P (Moodle / ATS middleware / iMIS as distinct sites): the ATS test middleware (`sccatest`) is ATS's own sandbox, not our `sccadev` dev iMIS, so contract tests run against the sandbox but data-matching (C6) can only be validated against our own iMIS. Added prerequisite P0 (map each endpoint → iMIS before any write test) and annotated C6 accordingly. |
+| 2026-10-19 | Add the three-layer topology note to §P (Moodle / ATS middleware / iMIS as distinct sites): the ATS test middleware sandbox is ATS's own, not our dev iMIS, so contract tests run against the sandbox but data-matching (C6) can only be validated against our own iMIS. Added prerequisite P0 and annotated C6. |
+| 2026-10-19 | Codex #24: harden the §P topology for safety — keep C6 read-only on production (no throwaway writes); add three write gates (verify the effective SOAP address, use a sandbox-scoped AuthToken + fixtures, and confirm the bridge's Moodle callback targets staging before C3–C5); add a raw-SOAP (Bruno) read-only pre-flight; and genericise the real hostnames to role placeholders (real values live in the internal runbook; this repo is public). |
