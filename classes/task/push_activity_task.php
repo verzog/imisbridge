@@ -121,13 +121,27 @@ class push_activity_task extends \core\task\adhoc_task {
 
         if (($data->toggle ?? '') === 'push_completions') {
             // A course-completion event always means complete.
-            $client->upsert_completion($partyid, $courseid, 'COMPLETE', $score, $date,
-                'Moodle course ' . $courseid . ' completion', $extra);
+            $client->upsert_completion(
+                $partyid,
+                $courseid,
+                'COMPLETE',
+                $score,
+                $date,
+                'Moodle course ' . $courseid . ' completion',
+                $extra
+            );
         } else {
             // Per-attempt score: append a note, never touch the course-level row.
             $status = strtoupper((string)($data->status ?? ''));
-            $client->add_note($partyid, $courseid, $status, $score, $date,
-                'Moodle course ' . $courseid . ' score', $extra);
+            $client->add_note(
+                $partyid,
+                $courseid,
+                $status,
+                $score,
+                $date,
+                'Moodle course ' . $courseid . ' score',
+                $extra
+            );
         }
     }
 

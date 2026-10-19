@@ -257,8 +257,9 @@ class rest_client {
      */
     public function find_moodle_activity(string $partyid, string $courseid): ?object {
         foreach ($this->get_activities($partyid) as $row) {
-            if (self::property($row, 'ACTIVITY_TYPE') === self::ACTIVITY_MOODLE
-                && (string)self::property($row, 'UF_1') === $courseid) {
+            $type = self::property($row, 'ACTIVITY_TYPE');
+            $uf1  = (string)self::property($row, 'UF_1');
+            if ($type === self::ACTIVITY_MOODLE && $uf1 === $courseid) {
                 return $row;
             }
         }
@@ -473,7 +474,9 @@ class rest_client {
             '$type'          => 'Asi.Soa.Core.DataContracts.IdentityData, Asi.Contracts',
             'EntityTypeName' => 'Party',
             'IdentityElements' => [
-                '$type'   => 'System.Collections.ObjectModel.Collection`1[[System.String, mscorlib]], mscorlib',
+                // The backtick is part of the .NET generic type name; build it via
+                // chr(96) so the string literal carries no backtick (Moodle forbids them).
+                '$type'   => 'System.Collections.ObjectModel.Collection' . chr(96) . '1[[System.String, mscorlib]], mscorlib',
                 '$values' => [$partyid],
             ],
         ];

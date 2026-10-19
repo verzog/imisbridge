@@ -72,7 +72,13 @@ final class rest_client_test extends \advanced_testcase {
      */
     public function test_build_activity_body_moodle(): void {
         $body = rest_client::build_activity_body(
-            rest_client::ACTIVITY_MOODLE, 'jsmith', '2150', 'COMPLETE', 87.5, '2026-10-19', 'desc'
+            rest_client::ACTIVITY_MOODLE,
+            'jsmith',
+            '2150',
+            'COMPLETE',
+            87.5,
+            '2026-10-19',
+            'desc'
         );
 
         $this->assertSame('Party', $body['PrimaryParentEntityTypeName']);
@@ -94,7 +100,13 @@ final class rest_client_test extends \advanced_testcase {
      */
     public function test_build_activity_body_note_type(): void {
         $body = rest_client::build_activity_body(
-            rest_client::ACTIVITY_MOODLENOTE, 'jsmith', '2150', 'PASS', 60.0, '2026-10-19', 'd'
+            rest_client::ACTIVITY_MOODLENOTE,
+            'jsmith',
+            '2150',
+            'PASS',
+            60.0,
+            '2026-10-19',
+            'd'
         );
         $this->assertSame('MOODLENOTE', $this->body_value($body, 'ACTIVITY_TYPE'));
     }
@@ -106,7 +118,13 @@ final class rest_client_test extends \advanced_testcase {
      */
     public function test_build_activity_body_extra_columns(): void {
         $body = rest_client::build_activity_body(
-            rest_client::ACTIVITY_MOODLE, 'jsmith', '2150', 'COMPLETE', 100.0, '2026-10-19', 'd',
+            rest_client::ACTIVITY_MOODLE,
+            'jsmith',
+            '2150',
+            'COMPLETE',
+            100.0,
+            '2026-10-19',
+            'd',
             ['UF_5' => 'CEU', 'UF_6' => '', 'UF_7' => null]
         );
 

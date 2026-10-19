@@ -77,8 +77,14 @@ try {
             $uf1  = \local_imisbridge\rest_client::property($row, 'UF_1');
             $uf3  = \local_imisbridge\rest_client::property($row, 'UF_3');
             $seqn = \local_imisbridge\rest_client::property($row, 'SEQN');
-            cli_writeln(sprintf('  SEQN=%s  type=%s  UF_1(course)=%s  UF_3(status)=%s',
-                (string)$seqn, (string)$type, (string)$uf1, (string)$uf3));
+            $line = sprintf(
+                '  SEQN=%s  type=%s  UF_1(course)=%s  UF_3(status)=%s',
+                (string)$seqn,
+                (string)$type,
+                (string)$uf1,
+                (string)$uf3
+            );
+            cli_writeln($line);
         }
     } else {
         cli_writeln("\nFor a read check, re-run with --imisid=<valid iMIS ID> to list that "
