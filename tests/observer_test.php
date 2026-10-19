@@ -208,7 +208,7 @@ final class observer_test extends \advanced_testcase {
         $data = reset($tasks)->get_custom_data();
         // Numeric course id, not the idnumber/shortname.
         $this->assertSame((string)$course->id, $data->coursenum);
-        // course_score() resolves the course-total grade as a percentage.
+        // The course-total grade resolves to a percentage via course_score().
         $this->assertEqualsWithDelta(80.0, (float)$data->score, 0.001);
     }
 
