@@ -61,6 +61,37 @@ class logger {
         ?\SoapClient $soap = null,
         ?string $error = null
     ): void {
+        // Read the traced request/response only when capture is on; the generic
+        // recorder redacts and stores them.
+        $request  = ($soap && self::is_capturing()) ? (string)$soap->__getLastRequest() : null;
+        $response = ($soap && self::is_capturing()) ? (string)$soap->__getLastResponse() : null;
+        self::record_call($operation, $imisid, $productcode, $status, $error, $request, $response);
+    }
+
+    /**
+     * Record one call to the audit log, independent of transport (SOAP or REST).
+     *
+     * The request/response payloads are stored only when payload capture is
+     * enabled, and are always redacted. A failure here never interrupts the sync.
+     *
+     * @param string      $operation   The operation name (SOAP op or "METHOD /path").
+     * @param string|null $imisid      The iMIS contact ID sent, if any.
+     * @param string|null $productcode The iMIS product code sent, if any.
+     * @param string      $status      self::STATUS_SUCCESS or self::STATUS_ERROR.
+     * @param string|null $error       The fault/exception/HTTP error, when the call failed.
+     * @param string|null $request     The raw request payload, if available.
+     * @param string|null $response    The raw response payload, if available.
+     * @return void
+     */
+    public static function record_call(
+        string $operation,
+        ?string $imisid,
+        ?string $productcode,
+        string $status,
+        ?string $error = null,
+        ?string $request = null,
+        ?string $response = null
+    ): void {
         global $DB;
 
         // Logging is best-effort: never let it break the sync it is recording.
@@ -77,14 +108,17 @@ class logger {
             $record->status      = $status;
             // Full request/response are only stored when payload capture is enabled,
             // and always with credentials redacted.
-            if ($soap && self::is_capturing()) {
-                $record->request  = self::redact((string)$soap->__getLastRequest());
-                $record->response = self::redact((string)$soap->__getLastResponse());
+            if ($request !== null && self::is_capturing()) {
+                $record->request = self::redact($request);
             } else {
-                $record->request  = null;
+                $record->request = null;
+            }
+            if ($response !== null && self::is_capturing()) {
+                $record->response = self::redact($response);
+            } else {
                 $record->response = null;
             }
-            // A SOAP fault can echo a rejected credential, so redact it too.
+            // A fault can echo a rejected credential, so redact it too.
             $record->error       = ($error === null) ? null : self::redact($error);
             $record->timecreated = time();
 
@@ -133,6 +167,13 @@ class logger {
         foreach ($elements as $pattern) {
             $xml = (string)preg_replace($pattern, '${1}[redacted]${2}', $xml);
         }
+
+        // REST credentials: bearer tokens, OAuth token JSON, and form-encoded or
+        // JSON password/grant fields.
+        $xml = (string)preg_replace('/(Bearer\s+)[A-Za-z0-9._\-]+/i', '${1}[redacted]', $xml);
+        $xml = (string)preg_replace('/("access_token"\s*:\s*")[^"]*(")/i', '${1}[redacted]${2}', $xml);
+        $xml = (string)preg_replace('/("password"\s*:\s*")[^"]*(")/i', '${1}[redacted]${2}', $xml);
+        $xml = (string)preg_replace('/(\bpassword=)[^&\s]*/i', '${1}[redacted]', $xml);
 
         return (string)preg_replace('/MO-[A-Za-z0-9]+/', 'MO-[redacted]', $xml);
     }

@@ -390,15 +390,26 @@ trigger writeback, the audit log, the kill-switches, and SSO (handled by
 
 1. **Transport switch.** Add a `transport` setting (`soap` | `rest`). SOAP stays
    default until REST is proven. REST adds base URL, service-account credentials,
-   token cache.
+   token cache. — **DONE (1.9.0)**
 2. **`rest_client`** alongside `imis_client`, sharing the audit logger and the
-   `imis_id_source` setting.
-3. **Outbound writeback (§5)** on the existing observer events — read-template →
-   upsert, with the client-side `MOODLE_PRODUCTS` lookup.
-4. **Inbound pull task (§6)** — the strategic win; retire ATS once proven.
+   `imis_id_source` setting. — **DONE (1.9.0)**
+3. **Outbound writeback (§5)** on the existing observer events — completion
+   upserts the `MOODLE` row (per-(contact, course) lock), quiz scores append
+   `MOODLENOTE`. — **DONE (1.9.0)**, with these follow-ups still open:
+   - the raw columns for credit type/value and the grant/completion dates are sent
+     only when mapped via the optional column settings (default: not sent), pending
+     confirmation against iMIS (§5.4);
+   - `PRODUCT_CODE` population via the client-side `MOODLE_PRODUCTS` lookup (§5.2)
+     is not yet wired — `UF_1` (course id) is always sent; on an update the existing
+     row's `PRODUCT_CODE` is preserved by the template clone;
+   - the `POST` entity shape and the `PUT` update contract (§5.6) need confirming
+     against the target iMIS; the read-only `cli/test_rest.php` is the safe first
+     check.
+4. **Inbound pull task (§6)** — the strategic win; retire ATS once proven. — not
+   started.
 
-Phases 1–3 can ship behind the switch with zero risk to the live SOAP path. Phase
-4 is what lets the ATS subscription be cancelled.
+Phases 1–3 ship behind the switch with zero risk to the live SOAP path (default
+`transport = soap`). Phase 4 is what lets the ATS subscription be cancelled.
 
 ---
 
