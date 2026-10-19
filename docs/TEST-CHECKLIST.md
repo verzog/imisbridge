@@ -46,7 +46,7 @@ Take a **DB + `moodledata` backup** before you begin.
 - [ ] On an **upgrade** from an install that had a WSDL set, the settings page **retains the existing WSDL endpoint** (configuration is preserved, not reset to blank).
 - [ ] Set the **WSDL URL** (a staging iMIS/bridge endpoint for the write tests — see the safety note above).
 - [ ] Set the **ATS API AuthToken** (`MO-…`). This is **required** for the completion/quiz pushes and for the contact-lookup part of the connection test — they call `MoodleUpdate` / `MoodleGetUserProfile`, which fail with `noauthtoken` if it is blank. *(Login enrolment/cancellation/group sync does not use the AuthToken.)*
-- [ ] Set **iMIS ID source** to match your SAML2 reality (`username` for this deployment).
+- [ ] Set **iMIS ID source** to match your SAML2 reality (**ID number** for this deployment: SAML `mdlattr = ID number` matches `UNIQUEID` against Moodle `idnumber`, so that is the authoritative field).
 - [ ] (If testing completion/quiz) set the **course credit field** and **credit type** as needed.
 - [ ] Audit-log settings visible: `log_enabled`, `log_retention_days` (default 90), `capture_payloads` (default **off**), and the **Open log** button.
 

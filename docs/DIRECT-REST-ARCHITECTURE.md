@@ -333,10 +333,15 @@ Either way the pull needs a stable per-registration key, not just (contact, cour
 ### 6.2 Provision and enrol — locally, via Moodle's internal API
 For each registration row:
 
-1. Find the Moodle user by **`idnumber`** (§3). Absent → **create** it (SAML won't;
-   §3): set both `idnumber` and `username` to the iMIS ID (matching how the site is
-   provisioned today), auth `saml2`, a **long random password** (never a password
-   derived from the iMIS ID), sparse profile allowed.
+1. Find the Moodle user by **`idnumber`** (§3), requiring **exactly one** match.
+   Moodle does **not** enforce uniqueness on `idnumber` (unlike `username`), so the
+   lookup must handle the three cases distinctly: **one** match → use it; **zero** →
+   **create** it (SAML won't; §3): set both `idnumber` and `username` to the iMIS ID
+   (matching how the site is provisioned today), auth `saml2`, a **long random
+   password** (never a password derived from the iMIS ID), sparse profile allowed;
+   **more than one** → do **not** guess — skip and log/flag the ambiguity, exactly as
+   `logger::resolve_userid()` already refuses a non-unique match, so a duplicate
+   `idnumber` never enrols the wrong account.
 2. Enrol into the mapped course via Moodle's **internal enrol API**. **Do not call
    `require_login($course)`** — check `enrol/manual:enrol` in the course context
    directly so hidden courses enrol by design and no manager role is needed
