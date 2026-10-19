@@ -67,11 +67,16 @@ try {
 
     // Show where requests will actually be sent before making any call, so a
     // WSDL that advertises the wrong environment is caught before testing.
-    $endpoint = \local_imisbridge\imis_client::get_effective_endpoint();
-    if ($endpoint !== null) {
-        cli_writeln(get_string('endpoint_override_active', 'local_imisbridge', $endpoint));
+    $override = \local_imisbridge\imis_client::get_effective_endpoint();
+    if ($override !== null) {
+        cli_writeln(get_string('endpoint_override_active', 'local_imisbridge', $override));
     } else {
-        cli_writeln(get_string('endpoint_from_wsdl', 'local_imisbridge'));
+        $wsdladdr = \local_imisbridge\imis_client::read_wsdl_endpoint();
+        if ($wsdladdr !== null) {
+            cli_writeln(get_string('endpoint_from_wsdl', 'local_imisbridge', $wsdladdr));
+        } else {
+            cli_writeln(get_string('endpoint_from_wsdl_unknown', 'local_imisbridge'));
+        }
     }
     cli_writeln('');
 

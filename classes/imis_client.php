@@ -148,6 +148,56 @@ class imis_client {
         return !empty($endpoint) ? $endpoint : null;
     }
 
+    /**
+     * Best-effort: the service address embedded in the configured WSDL.
+     *
+     * SoapClient sends requests to the `<soap:address location>` in the WSDL, not
+     * to the host the WSDL was fetched from, so a staging WSDL can embed a
+     * production address. When no override is set this fetches the WSDL and
+     * returns that address, so the connection test can show the real destination.
+     * Returns null if the WSDL is not set or cannot be read/parsed (the caller
+     * then shows a warning instead).
+     *
+     * @return string|null The embedded service address, or null.
+     */
+    public static function read_wsdl_endpoint(): ?string {
+        global $CFG;
+        $wsdl = get_config('local_imisbridge', 'wsdl_url');
+        if (empty($wsdl)) {
+            return null;
+        }
+        $timeout = (int)get_config('local_imisbridge', 'ws_timeout');
+        if ($timeout <= 0) {
+            $timeout = 30;
+        }
+        try {
+            require_once($CFG->libdir . '/filelib.php');
+            $xml = download_file_content($wsdl, null, null, false, $timeout, $timeout);
+            if (!is_string($xml) || $xml === '') {
+                return null;
+            }
+            return self::extract_wsdl_endpoint($xml);
+        } catch (\Throwable $e) {
+            return null;
+        }
+    }
+
+    /**
+     * Extract the first SOAP service address from a WSDL document.
+     *
+     * Matches the `location` of the first `soap:address` / `soap12:address`
+     * element. Extracted from the fetch so it can be unit tested.
+     *
+     * @param string $wsdlxml The WSDL XML.
+     * @return string|null The location URL, or null if none is found.
+     */
+    public static function extract_wsdl_endpoint(string $wsdlxml): ?string {
+        if (preg_match('/<(?:[a-z0-9]+:)?address\b[^>]*\blocation\s*=\s*"([^"]+)"/i', $wsdlxml, $matches)) {
+            return $matches[1];
+        }
+        return null;
+    }
+
     // AUTH.
 
     /**

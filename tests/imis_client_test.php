@@ -102,4 +102,40 @@ final class imis_client_test extends \advanced_testcase {
 
         $this->assertSame($endpoint, imis_client::get_effective_endpoint());
     }
+
+    /**
+     * The WSDL service address is extracted from a soap:address element.
+     *
+     * @return void
+     */
+    public function test_extract_wsdl_endpoint_soap(): void {
+        $xml = '<wsdl:service><wsdl:port>'
+            . '<soap:address location="https://scca.atsservices.net/wsmoodle.asmx" />'
+            . '</wsdl:port></wsdl:service>';
+
+        $this->assertSame(
+            'https://scca.atsservices.net/wsmoodle.asmx',
+            imis_client::extract_wsdl_endpoint($xml)
+        );
+    }
+
+    /**
+     * The address is also extracted when only a soap12:address is present.
+     *
+     * @return void
+     */
+    public function test_extract_wsdl_endpoint_soap12(): void {
+        $xml = '<wsdl:port><soap12:address location="https://host/wsmoodle.asmx"/></wsdl:port>';
+
+        $this->assertSame('https://host/wsmoodle.asmx', imis_client::extract_wsdl_endpoint($xml));
+    }
+
+    /**
+     * A document with no service address returns null.
+     *
+     * @return void
+     */
+    public function test_extract_wsdl_endpoint_none(): void {
+        $this->assertNull(imis_client::extract_wsdl_endpoint('<wsdl:definitions></wsdl:definitions>'));
+    }
 }
