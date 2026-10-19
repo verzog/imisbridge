@@ -46,7 +46,19 @@ if ($action === 'testconnection' && confirm_sesskey()) {
     // always exercises it.
     try {
         $client = new \local_imisbridge\imis_client();
-        $out    = 'GetBridgeSettings:' . PHP_EOL . var_export($client->get_bridge_settings(), true);
+        // Show where requests will actually be sent (override vs WSDL address) so
+        // a WSDL that advertises the wrong environment is caught before writing.
+        $override = \local_imisbridge\imis_client::get_effective_endpoint();
+        if ($override !== null) {
+            $endpointline = get_string('endpoint_override_active', 'local_imisbridge', $override);
+        } else {
+            $wsdladdr     = \local_imisbridge\imis_client::read_wsdl_endpoint();
+            $endpointline = ($wsdladdr !== null)
+                ? get_string('endpoint_from_wsdl', 'local_imisbridge', $wsdladdr)
+                : get_string('endpoint_from_wsdl_unknown', 'local_imisbridge');
+        }
+        $out  = $endpointline . PHP_EOL . PHP_EOL;
+        $out .= 'GetBridgeSettings:' . PHP_EOL . var_export($client->get_bridge_settings(), true);
         if (!empty($contactid)) {
             $out .= PHP_EOL . PHP_EOL . 'MoodleGetUserProfile(' . $contactid . '):' . PHP_EOL
                 . var_export($client->get_contact_by_id($contactid), true);

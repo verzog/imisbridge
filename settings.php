@@ -38,6 +38,17 @@ if ($hassiteconfig) {
         PARAM_URL
     ));
 
+    // Optional service endpoint override. When set, SOAP requests are sent here
+    // instead of the address embedded in the WSDL (guards against a test WSDL
+    // that advertises a production endpoint).
+    $settings->add(new admin_setting_configtext(
+        'local_imisbridge/service_endpoint',
+        get_string('service_endpoint', 'local_imisbridge'),
+        get_string('service_endpoint_desc', 'local_imisbridge'),
+        '',
+        PARAM_URL
+    ));
+
     // ATS API AuthToken (MO-xxxxxx) — required on all secured methods from 2025 onward.
     $settings->add(new admin_setting_configpasswordunmask(
         'local_imisbridge/auth_token',

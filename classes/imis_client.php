@@ -97,7 +97,28 @@ class imis_client {
             $timeout = 30;
         }
 
-        $this->soap = new \SoapClient($wsdl, [
+        // Optional endpoint override. When set, requests are sent here instead of
+        // the service address embedded in the WSDL. This guards against a WSDL
+        // that advertises a different environment than intended (for example a
+        // test WSDL whose soap:address points at production).
+        $endpoint = get_config('local_imisbridge', 'service_endpoint');
+
+        $this->soap = new \SoapClient($wsdl, self::build_soap_options($timeout, $endpoint ?: null));
+    }
+
+    /**
+     * Build the SoapClient options array.
+     *
+     * Extracted so the endpoint-override behaviour can be unit tested without a
+     * live WSDL. When $endpoint is a non-empty string it is passed as the SOAP
+     * `location`, which overrides the address embedded in the WSDL for every call.
+     *
+     * @param int         $timeout  Connection/read timeout in seconds.
+     * @param string|null $endpoint Optional service endpoint URL override.
+     * @return array The options array for the SoapClient constructor.
+     */
+    public static function build_soap_options(int $timeout, ?string $endpoint): array {
+        $options = [
             'trace'              => true,
             'exceptions'         => true,
             'cache_wsdl'         => WSDL_CACHE_DISK,
@@ -106,7 +127,75 @@ class imis_client {
             'stream_context'     => stream_context_create([
                 'http' => ['timeout' => $timeout],
             ]),
-        ]);
+        ];
+        if (!empty($endpoint)) {
+            $options['location'] = $endpoint;
+        }
+        return $options;
+    }
+
+    /**
+     * The endpoint override that requests are sent to, if one is configured.
+     *
+     * Returns the configured service endpoint override, or null when calls use
+     * the address embedded in the WSDL. Surfaced in the connection test so an
+     * operator can confirm where writes will actually go.
+     *
+     * @return string|null The endpoint override, or null if not set.
+     */
+    public static function get_effective_endpoint(): ?string {
+        $endpoint = get_config('local_imisbridge', 'service_endpoint');
+        return !empty($endpoint) ? $endpoint : null;
+    }
+
+    /**
+     * Best-effort: the service address embedded in the configured WSDL.
+     *
+     * SoapClient sends requests to the `<soap:address location>` in the WSDL, not
+     * to the host the WSDL was fetched from, so a staging WSDL can embed a
+     * production address. When no override is set this fetches the WSDL and
+     * returns that address, so the connection test can show the real destination.
+     * Returns null if the WSDL is not set or cannot be read/parsed (the caller
+     * then shows a warning instead).
+     *
+     * @return string|null The embedded service address, or null.
+     */
+    public static function read_wsdl_endpoint(): ?string {
+        global $CFG;
+        $wsdl = get_config('local_imisbridge', 'wsdl_url');
+        if (empty($wsdl)) {
+            return null;
+        }
+        $timeout = (int)get_config('local_imisbridge', 'ws_timeout');
+        if ($timeout <= 0) {
+            $timeout = 30;
+        }
+        try {
+            require_once($CFG->libdir . '/filelib.php');
+            $xml = download_file_content($wsdl, null, null, false, $timeout, $timeout);
+            if (!is_string($xml) || $xml === '') {
+                return null;
+            }
+            return self::extract_wsdl_endpoint($xml);
+        } catch (\Throwable $e) {
+            return null;
+        }
+    }
+
+    /**
+     * Extract the first SOAP service address from a WSDL document.
+     *
+     * Matches the `location` of the first `soap:address` / `soap12:address`
+     * element. Extracted from the fetch so it can be unit tested.
+     *
+     * @param string $wsdlxml The WSDL XML.
+     * @return string|null The location URL, or null if none is found.
+     */
+    public static function extract_wsdl_endpoint(string $wsdlxml): ?string {
+        if (preg_match('/<(?:[a-z0-9]+:)?address\b[^>]*\blocation\s*=\s*"([^"]+)"/i', $wsdlxml, $matches)) {
+            return $matches[1];
+        }
+        return null;
     }
 
     // AUTH.

@@ -65,6 +65,21 @@ Example:
 try {
     $client = new \local_imisbridge\imis_client();
 
+    // Show where requests will actually be sent before making any call, so a
+    // WSDL that advertises the wrong environment is caught before testing.
+    $override = \local_imisbridge\imis_client::get_effective_endpoint();
+    if ($override !== null) {
+        cli_writeln(get_string('endpoint_override_active', 'local_imisbridge', $override));
+    } else {
+        $wsdladdr = \local_imisbridge\imis_client::read_wsdl_endpoint();
+        if ($wsdladdr !== null) {
+            cli_writeln(get_string('endpoint_from_wsdl', 'local_imisbridge', $wsdladdr));
+        } else {
+            cli_writeln(get_string('endpoint_from_wsdl_unknown', 'local_imisbridge'));
+        }
+    }
+    cli_writeln('');
+
     // GetBridgeSettings verifies connectivity and the WSDL, and includes the
     // AuthToken when one is configured. The definitive credential check is the
     // MoodleGetUserProfile lookup below.
