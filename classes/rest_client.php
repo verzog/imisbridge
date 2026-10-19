@@ -130,12 +130,14 @@ class rest_client {
     /**
      * Perform an authenticated REST request, refreshing the token once on a 401.
      *
-     * @param string     $method One of GET, POST, PUT, DELETE.
-     * @param string     $path   Path beginning with '/', appended to the base URL.
-     * @param array|null $json   Body to send as JSON, or null for no body.
+     * @param string      $method One of GET, POST, PUT, DELETE.
+     * @param string      $path   Path beginning with '/', appended to the base URL.
+     * @param array|null  $json   Body to send as JSON, or null for no body.
+     * @param string|null $imisid The affected contact iMIS ID, for the audit log.
      * @return object The decoded response: {code:int, body:mixed, raw:string}.
+     * @throws \moodle_exception On a non-2xx response or transport failure.
      */
-    public function request(string $method, string $path, ?array $json = null): object {
+    public function request(string $method, string $path, ?array $json = null, ?string $imisid = null): object {
         $result = $this->raw_request($method, $path, $json, $this->get_token());
 
         // A 401 means the token expired or was revoked — refresh once and retry.
@@ -143,16 +145,23 @@ class rest_client {
             $result = $this->raw_request($method, $path, $json, $this->get_token(true));
         }
 
-        $status = ($result->code >= 200 && $result->code < 300) ? logger::STATUS_SUCCESS : logger::STATUS_ERROR;
+        $ok = ($result->code >= 200 && $result->code < 300);
         logger::record_call(
             $method . ' ' . $path,
+            $imisid,
             null,
-            null,
-            $status,
-            ($status === logger::STATUS_ERROR) ? 'HTTP ' . $result->code : null,
+            $ok ? logger::STATUS_SUCCESS : logger::STATUS_ERROR,
+            $ok ? null : 'HTTP ' . $result->code,
             ($json !== null) ? json_encode($json) : null,
             $result->raw
         );
+
+        if (!$ok) {
+            // Throw so the adhoc task retries with backoff, and so a failed read is
+            // never mistaken for "no activity" (which would cause a duplicate POST).
+            $detail = $method . ' ' . $path . ' returned HTTP ' . $result->code;
+            throw new \moodle_exception('restrequestfailed', 'local_imisbridge', '', $detail);
+        }
 
         return $result;
     }
@@ -230,8 +239,8 @@ class rest_client {
         do {
             $path = '/api/Activity?PartyId=' . rawurlencode($partyid)
                 . '&Limit=' . $limit . '&Offset=' . $offset;
-            $result = $this->request('GET', $path);
-            if ($result->code < 200 || $result->code >= 300 || !is_object($result->body)) {
+            $result = $this->request('GET', $path, null, $partyid);
+            if (!is_object($result->body)) {
                 break;
             }
             $page = self::items($result->body);
@@ -305,7 +314,7 @@ class rest_client {
             if ($existing !== null) {
                 $seqn = (string)self::property($existing, 'SEQN');
                 $body = self::clone_for_update($existing, $status, $score, $date, $description, $extra);
-                return $this->request('PUT', '/api/Activity/' . rawurlencode($seqn), $body);
+                return $this->request('PUT', '/api/Activity/' . rawurlencode($seqn), $body, $partyid);
             }
 
             $body = self::build_activity_body(
@@ -318,7 +327,7 @@ class rest_client {
                 $description,
                 $extra
             );
-            return $this->request('POST', '/api/Activity', $body);
+            return $this->request('POST', '/api/Activity', $body, $partyid);
         } finally {
             $lock->release();
         }
@@ -358,7 +367,7 @@ class rest_client {
             $description,
             $extra
         );
-        return $this->request('POST', '/api/Activity', $body);
+        return $this->request('POST', '/api/Activity', $body, $partyid);
     }
 
     /**

@@ -114,6 +114,7 @@ $string['rest_username_desc'] = 'The username of the dedicated iMIS REST service
 $string['restheading'] = 'Direct iMIS REST transport';
 $string['restheading_desc'] = 'Settings for talking directly to the iMIS REST API, with no ATS middleware. These apply only when Transport is set to Direct iMIS REST. See docs/DIRECT-REST-ARCHITECTURE.md.';
 $string['restlockfailed'] = 'Could not acquire the iMIS REST write lock for this contact and course; the task will retry.';
+$string['restrequestfailed'] = 'iMIS REST request failed: {$a}.';
 $string['resttokenfailed'] = 'iMIS REST authentication failed (HTTP {$a}). Check the base URL and service-account credentials.';
 $string['schedule_cancellations'] = '02:15 UTC - cancellation sync (all users)';
 $string['schedule_enrollments'] = '02:00 UTC - enrolment sync (all users)';
