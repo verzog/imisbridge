@@ -142,6 +142,26 @@ The hand-verified REST notes document the **`MOODLE`** record (§5.3). The
 `MOODLENOTE` trail is optional and secondary — implement the `MOODLE` record first;
 it is the one iMIS reporting keys on.
 
+**Which observer event writes which record — and the invariant.** The vendor did
+*not* route every event to the canonical row, and neither should the REST
+transport. Only **course completion** owns the `MOODLE` row; per-attempt and
+per-module events write `MOODLENOTE` so they can never overwrite the course-level
+status or final grade:
+
+| Observer event | Record | Keyed by |
+|---|---|---|
+| `course_completed` | **`MOODLE`** (upsert, §5.6) | `PartyId` + course (`UF_1`) |
+| `user_graded` / graded-quiz submission | `MOODLENOTE` (insert) | own `SEQN` |
+| `course_module_completion_updated` | `MOODLENOTE` (insert) | own `SEQN` |
+
+**Invariant: nothing but a course-completion event may update the `MOODLE` row.** A
+quiz re-attempt or a late grade after completion must not flip the canonical
+`UF_3=COMPLETE` back to `PASS`/`INPROGRESS` or replace the final course grade with a
+module score. This is exactly why the vendor sent quiz/module results as
+`MOODLENOTE` (`createActivity`) and only `course_completed` as `MoodleUpdate`.
+`MOODLENOTE` rows are append-only (one per event); they are never located-and-updated,
+so the upsert race (§5.6) does not apply to them.
+
 ### 5.2 Course → product-code mapping is done **client-side**
 The vendor Moodle plugin never touched `MOODLE_PRODUCTS` — it sent the **numeric
 Moodle course id** as `productID` and let iMIS/ATS map it. With no middleware, the
@@ -180,9 +200,12 @@ then change only what is needed. **[verified]**
   }
   ```
 
-- In `Properties.$values` set: `PartyId`, `ACTIVITY_TYPE` = `MOODLE`,
-  `PRODUCT_CODE`, `UF_1` (course id), `UF_3` (status), `TRANSACTION_DATE`,
-  `DESCRIPTION`.
+- In `Properties.$values` set every field the SOAP `MoodleUpdate` sends today
+  (§5.4), not a subset — a first-time `POST` that omits the grade or credit value
+  would silently drop data the SOAP path records. At minimum: `PartyId`,
+  `ACTIVITY_TYPE` = `MOODLE`, `PRODUCT_CODE`, `UF_1` (course id), `UF_3` (status),
+  `UF_4` (grade), the credit type/value and start/completion/grant dates (§5.4),
+  `TRANSACTION_DATE`, `DESCRIPTION`.
 - **Remove `SEQN`** so iMIS assigns a new id (otherwise it clashes with the
   template row).
 - **Remove `CREATED_ON` / `UPDATED_ON`** — read-only audit fields; sending values
@@ -193,11 +216,29 @@ then change only what is needed. **[verified]**
 On success iMIS returns the created entity with the new id in both
 `Identity.IdentityElements` and the `SEQN` property. **[verified]**
 
-### 5.4 Status and grade values
-- `UF_3` status vocabulary from the vendor: `COMPLETE` / `INPROGRESS` for course
-  completion (`completion_completion::is_complete()`); module-level additionally
-  used `PASS` / `FAIL`. Keep `COMPLETE`/`INPROGRESS` for the course record.
-- `UF_4` grade is the course final grade as a percentage (decimal).
+### 5.4 Field mapping — map **every** `MoodleUpdate` input, on create and update
+The SOAP `MoodleUpdate` sends a fixed set of fields (vendor `moodleupdate_data`:
+`userId`, `productId`, `status`, `score`, credit `type`, credit `value`,
+`startDate`, `completionDate`, `grantDate`). The REST `MOODLE` record must carry
+the equivalent of **all** of them, and must include the same set on both the `POST`
+and the `PUT` — otherwise a transport switch would quietly stop recording grades or
+credit hours.
+
+| `MoodleUpdate` input | Activity property | Notes |
+|---|---|---|
+| `userId` | `PartyId` (+ `PrimaryParentIdentity`) | Moodle username (§3) |
+| `productId` | `UF_1` (course id) + `PRODUCT_CODE` | client-side `MOODLE_PRODUCTS` lookup (§5.2) |
+| `status` | `UF_3` | `COMPLETE` / `INPROGRESS` for the course record (`completion_completion::is_complete()`) |
+| `score` | `UF_4` | course final grade as a percentage (decimal) |
+| credit `type` | raw column **to confirm** | the plugin's "default credit type" (e.g. `CEU`) |
+| credit `value` | raw column **to confirm** | the plugin's credit-value course field |
+| `startDate` / `completionDate` / `grantDate` | `TRANSACTION_DATE` + raw column(s) **to confirm** | `grantDate` was **required** by the vendor payload; local-time, no TZ (§5.5) |
+
+The raw Activity columns backing credit type/value and the start/completion/grant
+dates were **not** observed in the REST testing (only `UF_1`/`UF_3`/`UF_4`/
+`TRANSACTION_DATE` were). Read a real existing `MOODLE` row from your iMIS to
+discover which raw columns hold them before building — do not guess column names.
+**[assumed — confirm against `<dev-imis>`]**
 
 ### 5.5 Dates — local time, no timezone
 Write **local-time** timestamps (Australia/Brisbane for this org) with **no
@@ -214,19 +255,36 @@ decide insert-vs-update. So the REST `PUT` contract is unproven. The bridge must
 own the upsert:
 
 1. `GET /api/Activity?PartyId=<id>` and find an existing `MOODLE` row for this
-   course (`UF_1`).
+   course (`UF_1`). **Filter server-side** by `ACTIVITY_TYPE=MOODLE` and `UF_1`, or
+   **page the result fully** (`HasNext`/`NextOffset`, §8) — the default page is ~100
+   rows, so a contact with many activities can have its matching row on a later page,
+   and reading only the first page would miss it and create a duplicate.
 2. None → `POST` a new activity (§5.3).
 3. Exists → `PUT /api/Activity/{SEQN}` with the full entity (including its
    `Identity`), flipping `UF_3`/`UF_4`. **Verify `PUT` against `<dev-imis>` before
    relying on it.**
 
+**Concurrency — serialise the read-before-create.** The read-then-write sequence
+races: completion and quiz events already enqueue independent `push_activity_task`
+adhoc tasks, so two overlapping workers can both finish the `GET` (step 1) before
+either `POST`s (step 2), both conclude "no row", and both create a duplicate
+canonical row. Guard it with a **per-(`PartyId`, course) lock** (Moodle's
+`\core\lock` API) held across steps 1–3, or a server-side atomic uniqueness/upsert
+if iMIS offers one. (Quiz/module events are exempt — they append `MOODLENOTE` rows
+and never locate-and-update, §5.1.)
+
 ### 5.7 Errors (useful signal)
-- A **malformed** body → generic `500`, plain text
-  `"An error occurred. Please contact the administrator."` → treat as "body is
-  structurally wrong". **[verified]**
 - A **structurally valid** body with a bad value → proper `ValidationResultsData`
   JSON naming the field (e.g. `"The PartyId (null) is not valid."`) → use it to
   diagnose. **[verified]**
+- A generic `500` with plain text
+  `"An error occurred. Please contact the administrator."` was observed **once, for
+  a malformed body** in testing. But `50x` is iMIS's general *internal-error* class
+  (validation failures come back as `422`), so a `500` is **not** proof the body is
+  malformed — it can equally be a transient server fault. **Keep normal retry /
+  backoff on `500`** (as the SOAP path has), and treat "malformed body" as one
+  possible cause to check, not a conclusion. **[partially verified — 500 seen for a
+  malformed body; 500 is not exclusively that]**
 
 Route every call through the existing audit logger (operation, status, fault),
 same as the SOAP path.
@@ -252,6 +310,22 @@ scheduled task pulls** registrations from iMIS and provisions locally.
 
 The registration IQA should join registrations to `MOODLE_PRODUCTS` so each row
 carries the contact's iMIS ID (= username) and the resolved Moodle course id.
+
+**Cancellations must be detectable from the row set.** A row carrying only contact
++ course identifies an *active* enrolment; it gives the per-row loop no way to know a
+registration was cancelled, so a cancelled member would stay enrolled indefinitely.
+Pick one of:
+
+- **Status column (preferred):** the IQA returns **both** active and recently
+  cancelled registrations, each with an explicit **status** and a **stable
+  registration key** (so the loop enrols on active and unenrols/suspends on
+  cancelled); or
+- **Snapshot reconciliation:** persist the last pulled set keyed by that stable
+  registration key, and on each run treat keys that **disappeared** from the active
+  result as cancellations.
+
+Either way the pull needs a stable per-registration key, not just (contact, course)
+— program-item registrations can produce several rows per contact/course (§11).
 
 ### 6.2 Provision and enrol — locally, via Moodle's internal API
 For each registration row:
