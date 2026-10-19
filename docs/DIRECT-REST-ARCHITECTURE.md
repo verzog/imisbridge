@@ -66,30 +66,32 @@ locally. Nothing calls into Moodle, so the inbound web service, its token, and t
 
 ---
 
-## 3. Identity model — the iMIS contact ID is the Moodle **username**
+## 3. Identity model — the iMIS contact ID is the Moodle **ID number**
 
 This is the load-bearing fact for every read and write, so it is stated first.
 
-- iMIS "PartyId" means the contact's iMIS ID. It is the same value as the Moodle
-  **username**, `ShipToId` on a registration, and `ID` on an activity.
-  **[verified on `<dev-imis>`]**
-- The live Moodle SAML2 config confirms it: `auth_saml2 | idpattr = uid` is matched
-  to `auth_saml2 | mdlattr = Username`. The IdP's `uid` (the iMIS ID) *is* the
-  Moodle username on every login.
-- **Case-sensitive.** `auth_saml2 | tolower = Exact`, so usernames are matched case
-  sensitively. Send `PartyId` with the username's **exact case** — never lowercase
-  or normalise it.
+- iMIS "PartyId" means the contact's iMIS ID. It is the same value as `ShipToId` on
+  a registration and `ID` on an activity. **[verified on `<dev-imis>`]**
+- The **authoritative Moodle field is `idnumber`.** The live Moodle SAML2 config
+  matches on it: `auth_saml2 | idpattr = UNIQUEID` is matched to
+  `auth_saml2 | mdlattr = ID number`. So on every login the IdP's `UNIQUEID` (the
+  iMIS ID) is matched against the Moodle user's **ID number** — which means
+  `idnumber` must hold the iMIS ID for login to work at all, and is therefore the
+  field guaranteed to carry it.
+- **Case-insensitive.** `auth_saml2 | tolower = Case and accent insensitive`, so the
+  match ignores case (and accents). Do not rely on exact case when correlating; and
+  note iMIS may apply its own matching on the value we send as `PartyId`.
+- On this installation provisioning populates **both `idnumber` and `username`** with
+  the iMIS ID, so either field yields a correct value — but `idnumber` is the one
+  SAML depends on, so it is the robust key. (This corrects an earlier draft that
+  read the SAML settings-page *defaults* — `idpattr = uid`, `mdlattr = Username` —
+  rather than the configured values; the vendor `local_imis` plugin was right to key
+  on `$user->idnumber`.)
 
-**Do not key on `idnumber`.** The vendor `local_imis` plugin keyed everything on
-`$user->idnumber`, but on this site SAML does **not** populate `idnumber`
-(`field_map_idnumber` is empty). That field was only filled because the vendor's
-*inbound* push (`create_users`) wrote the iMIS ID into it at provisioning time.
-Dropping that push — which is the whole point of going direct — leaves `idnumber`
-empty, so a bridge keyed on it would silently skip every SAML-provisioned user.
-Username is the only field SAML guarantees.
-
-The plugin already models this correctly: `imis_id_source` (default **username**).
-Keep the default; the REST transport reads the same setting.
+**Plugin setting.** Set `imis_id_source` = **ID number** for this deployment (the
+plugin default is `username`, which also works here only because username is
+populated too — but `idnumber` is authoritative). The REST transport reads the same
+setting.
 
 ### Provisioning consequence
 `auth_saml2 | autocreate` and `allowcreate` are both **No**, so SAML does not
@@ -226,7 +228,7 @@ credit hours.
 
 | `MoodleUpdate` input | Activity property | Notes |
 |---|---|---|
-| `userId` | `PartyId` (+ `PrimaryParentIdentity`) | Moodle username (§3) |
+| `userId` | `PartyId` (+ `PrimaryParentIdentity`) | Moodle ID number (§3) |
 | `productId` | `UF_1` (course id) + `PRODUCT_CODE` | client-side `MOODLE_PRODUCTS` lookup (§5.2) |
 | `status` | `UF_3` | `COMPLETE` / `INPROGRESS` for the course record (`completion_completion::is_complete()`) |
 | `score` | `UF_4` | course final grade as a percentage (decimal) |
@@ -309,7 +311,8 @@ scheduled task pulls** registrations from iMIS and provisions locally.
   designer preview only, not the API.
 
 The registration IQA should join registrations to `MOODLE_PRODUCTS` so each row
-carries the contact's iMIS ID (= username) and the resolved Moodle course id.
+carries the contact's iMIS ID (= Moodle `idnumber`) and the resolved Moodle course
+id.
 
 **Cancellations must be detectable from the row set.** A row carrying only contact
 + course identifies an *active* enrolment; it gives the per-row loop no way to know a
@@ -330,9 +333,10 @@ Either way the pull needs a stable per-registration key, not just (contact, cour
 ### 6.2 Provision and enrol — locally, via Moodle's internal API
 For each registration row:
 
-1. Find the Moodle user by **username** (§3). Absent → **create** it (SAML won't;
-   §3): auth `saml2`, a **long random password** (never `password = username`),
-   sparse profile allowed.
+1. Find the Moodle user by **`idnumber`** (§3). Absent → **create** it (SAML won't;
+   §3): set both `idnumber` and `username` to the iMIS ID (matching how the site is
+   provisioned today), auth `saml2`, a **long random password** (never a password
+   derived from the iMIS ID), sparse profile allowed.
 2. Enrol into the mapped course via Moodle's **internal enrol API**. **Do not call
    `require_login($course)`** — check `enrol/manual:enrol` in the course context
    directly so hidden courses enrol by design and no manager role is needed
@@ -378,9 +382,9 @@ Prefer a status change over a hard delete for production so history is retained.
 | Outbound write | `MoodleUpdate` | `POST`/`PUT /api/Activity` (upsert) |
 | Course→product map | iMIS-side | **client-side** `MOODLE_PRODUCTS` lookup |
 | Inbound | iMIS **pushes** into Moodle WS | Moodle **pulls** via scheduled task |
-| Identity | username (configurable) | username (same setting) |
+| Identity | ID number (configurable) | ID number (same setting) |
 
-What **stays the same**: the identity model (username), the observer events that
+What **stays the same**: the identity model (ID number), the observer events that
 trigger writeback, the audit log, the kill-switches, and SSO (handled by
 `auth_saml2` — out of scope either way).
 
