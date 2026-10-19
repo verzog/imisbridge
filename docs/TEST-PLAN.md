@@ -25,33 +25,57 @@ The plugin installs on the **Moodle** site only; the iMIS instance and the ATS
 bridge are configured on their side. On a freshly provisioned or packaged Moodle
 (e.g. a distro/appliance build) these fail **silently**, so verify them first.
 
-> **Two different "SOAP/REST" things — don't conflate them.** The **PHP `soap`
-> extension** (P1) powers the plugin's *outbound* calls (`\SoapClient` → iMIS)
-> and is always required. **Moodle's web services (the REST/SOAP server, P3)** is
-> for *inbound* calls **to** Moodle and is used by the pull WS
-> (`get_completions_since`), future inbound provisioning, **and the ATS bridge's
-> own callback into Moodle**. **For the baseline (outbound completions + SSO),
-> leave Moodle web services / REST OFF** — nothing in the baseline uses them, and
-> off = smaller attack surface. Turn them on only when you reach the
-> updated-version phase (§H and later provisioning).
+> **Three different "SOAP/REST" things — don't conflate them.**
+> 1. **PHP `soap` extension** (P1) — powers the plugin's *outbound* calls
+>    (`\SoapClient` → the ATS bridge) and is **always required, baseline
+>    included**. Check with `php -m`. The existing completions channel already
+>    depends on it, so it is almost certainly present — but verify.
+> 2. **Moodle REST protocol** (`webservice_rest`) — an *inbound* channel (calls
+>    **to** Moodle). Used by the pull WS (`get_completions_since`, §H), future
+>    inbound provisioning, and the ATS bridge's callback into Moodle.
+> 3. **Moodle SOAP protocol** (`webservice_soap`) — also *inbound*, and **not the
+>    same thing as the PHP soap extension**. Our plugin doesn't **use** this
+>    transport, so leave it **OFF** — a disabled Moodle SOAP protocol does
+>    **not** affect our outbound completions (those use the PHP soap extension in
+>    #1, which is unrelated). **Caveat (security):** Moodle external functions
+>    are not transport-specific, so if the Moodle SOAP protocol is ever enabled
+>    for another integration, our `get_completions_since` pull WS — a **bulk
+>    personal-data export** — becomes reachable over SOAP too, exactly as over
+>    REST. It's an unused/unsupported transport for us, not a nonexistent surface:
+>    keep SOAP off, and if it's on for any reason, include the pull WS in
+>    protocol and security testing (§H, §J).
 >
-> **Why the sync operations are *not* baseline:** `SendNewOrdersToMoodle`,
+> **Live environment (confirmed 2026-10-19):** under *Server → Web services →
+> Manage protocols*, **REST is enabled** (the still-live vendor plugin needs it
+> for its inbound create/enrol) and the **Moodle SOAP protocol is disabled**.
+> That is the correct posture — keep it. **Do not enable the Moodle SOAP
+> protocol**, and **do not turn REST off** while the vendor plugin is still
+> running.
+>
+> **What the baseline actually needs:** the Phase-1 baseline is **outbound
+> completions (`MoodleUpdate`, D2/D3) + SSO only**. It uses *no* Moodle
+> web-service protocol, so REST being on (for the vendor) neither helps nor harms
+> it — the baseline needs only the PHP soap extension (P1), cron (P2) and
+> outbound HTTPS (P4). On a clean Moodle with no vendor plugin you *could* leave
+> web services off entirely for a smaller surface; on the live/mirror site you
+> leave the vendor's REST as-is.
+>
+> **Why the sync operations are still *not* baseline:** `SendNewOrdersToMoodle`,
 > `SendCancelledOrdersToMoodle` and `UpdateMoodleGroups` are outbound SOAP calls
 > from us, but their documented effect is to make the **ATS bridge call *back*
-> into Moodle** (create/enrol/group changes) over the Moodle REST callback. With
-> REST OFF the outbound SOAP call can still succeed while the Moodle-side change
-> silently fails — and our plugin does not yet ship the inbound functions that
-> callback targets. So every order/enrolment/cancellation/group **sync** row
-> below (C3–C5, D1, E3/E4, F2) is an **updated-version-phase** test that needs
-> REST enabled *and* the inbound provisioning functions — **not** part of the
-> REST-off baseline. The baseline is outbound completions (`MoodleUpdate`, D2/D3)
-> plus SSO only.
+> into Moodle** (create/enrol/group changes) over the REST callback. REST being
+> enabled is **necessary but not sufficient**: that callback targets *inbound
+> provisioning functions*, and our plugin does not ship them yet — today the
+> bridge's callback lands on the **vendor's** `local_imis_*` functions. So every
+> order/enrolment/cancellation/group **sync** row below (C3–C5, D1, E3/E4, F2) is
+> an **updated-version-phase** test that needs **our own inbound functions** —
+> **not** part of the Phase-1 baseline.
 
 | ID | Check | Expected | Status | Notes |
 |----|-------|----------|--------|-------|
-| P1 | **PHP `soap` extension enabled** (baseline) | `php -m` lists `soap` (or under *Site admin → Server → PHP info*) | ☐ | The entire *outbound* path uses `\SoapClient`; without it every iMIS call throws at construction. Distinct from Moodle's web-service protocols. **#1 thing to check on a packaged Moodle.** |
+| P1 | **PHP `soap` extension enabled** (baseline) | `php -m` lists `soap` (or under *Site admin → Server → PHP info*) | ☐ | The entire *outbound* path uses `\SoapClient`; without it every iMIS call throws at construction. **Distinct from the Moodle SOAP *protocol*** (a different thing — see the §P note). **#1 thing to check on a packaged Moodle.** |
 | P2 | **Moodle cron runs every minute** (baseline) | Recent runs under *Site admin → Server → Tasks → Task processing* | ☐ | Completion/quiz/login sync are queued adhoc tasks — no cron, nothing reaches iMIS |
-| P3 | **Web services + REST protocol** — **leave OFF for the baseline** | Enable only for §H / provisioning: *Advanced features → Enable web services*; REST on under *Server → Web services → Manage protocols* | ☐ | Not used by outbound completions or SSO; enabling it is an updated-version step, not a baseline one |
+| P3 | **Moodle web-service protocols** — leave as the vendor set them | Live/mirror: **REST enabled** (vendor inbound), **Moodle SOAP protocol disabled** — keep both as-is. Clean Moodle with no vendor: web services may be off entirely | ☐ | Inbound layer; unused by outbound completions or SSO. Our plugin needs REST only for §H / provisioning (updated-version phase). **Leave the Moodle SOAP protocol off** — we don't use it; but external functions aren't transport-specific, so if it's enabled for another integration the `get_completions_since` pull WS is reachable over SOAP too and must be tested. Outbound uses the PHP soap extension (P1), not this |
 | P4 | **Outbound HTTPS to the ATS bridge host** is open from the Moodle server | The **Test connection** button loads `GetBridgeSettings` | ☐ | Confirms reachability + the WSDL loads |
 | P5 | **Supported Moodle/PHP** | Moodle 5.1–5.3; PHP 8.2–8.4 | ☐ | CI covers these |
 
@@ -171,6 +195,7 @@ installed; on an earlier build these describe code that isn't present yet.
 | J1 | Entry points enforce login → capability, with **sesskey on write/action requests only** | Read-only pages (`admin/log.php`, the initial `admin/sync.php` view) need no sesskey; submitted sync actions require `confirm_sesskey()` | ☐ | Don't add sesskey to navigational GETs |
 | J2 | Output escaped (try `<b>` in a value) | Rendered as text | ☐ | |
 | J3 | No secret in logs even with capture on | Confirmed | ☐ | |
+| J4 | Pull WS is transport-agnostic | If the Moodle SOAP protocol is enabled, `get_completions_since` is reachable over SOAP as well as REST; the capability + restricted-users service still gate it on every protocol | ☐ | Don't assume REST-only — a bulk personal-data export; test each enabled protocol |
 
 ## K. Rollback
 
@@ -204,3 +229,5 @@ installed; on an earlier build these describe code that isn't present yet.
 | 2026-10-15 | Review fixes: require write lockdown before a production WSDL (B0); split the bad-WSDL case into uncached (no row) vs cached-outage (error row); move `SetupBridge` to the staging-only §C as a config/setter; make numeric ProductID the required default (confirm, don't re-decide); fix the redaction expectation (values gone, tags remain); scope the sesskey check to write/action requests. |
 | 2026-10-19 | Add section P: staging environment prerequisites (PHP soap extension, Moodle cron, web services + REST, outbound HTTPS to the bridge, supported versions) — the silent-failure checks to run before install. |
 | 2026-10-19 | Clarify section P: the PHP soap extension (outbound) is distinct from Moodle web services (inbound); leave web services / REST OFF for the baseline and enable only for the updated-version phase (pull WS / provisioning). |
+| 2026-10-19 | Record the confirmed live web-service-protocol posture (REST **enabled** for the vendor's inbound create/enrol, Moodle SOAP protocol **disabled**) and reframe §P accordingly: the Phase-1 baseline uses no Moodle web-service protocol, so leave the vendor's REST on and the Moodle SOAP protocol off; name the three distinct SOAP/REST concepts (PHP soap extension vs Moodle REST protocol vs Moodle SOAP protocol); note REST-on is necessary-but-not-sufficient for the callback syncs, which also need our own inbound functions. |
+| 2026-10-19 | Codex #21: correct the SOAP framing — Moodle external functions aren't transport-specific, so describe the Moodle SOAP protocol as an unused/unsupported transport, not a nonexistent surface. If it's enabled for another integration, `get_completions_since` (a bulk personal-data export) is reachable over SOAP too; added security caveat in §P and test J4. |
