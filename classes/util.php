@@ -48,6 +48,20 @@ class util {
     }
 
     /**
+     * Whether an opt-in (default-off) toggle is explicitly enabled.
+     *
+     * Unlike {@see is_enabled()}, an unset value is treated as **off**. Use this for
+     * toggles that default to disabled, so a fresh install does not enable them
+     * before their default has been written.
+     *
+     * @param string $name The plugin config name of the checkbox setting.
+     * @return bool
+     */
+    public static function is_enabled_optin(string $name): bool {
+        return (bool)get_config('local_imisbridge', $name);
+    }
+
+    /**
      * The Moodle user field configured as the source of the iMIS contact ID.
      *
      * Defaults to 'username' so existing installations keep their behaviour.

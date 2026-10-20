@@ -26,6 +26,7 @@ namespace local_imisbridge;
 
 use local_imisbridge\task\sync_user_task;
 use local_imisbridge\task\push_activity_task;
+use local_imisbridge\task\push_module_note_task;
 
 /**
  * Unit tests for {@see observer}.
@@ -210,6 +211,106 @@ final class observer_test extends \advanced_testcase {
         $this->assertSame((string)$course->id, $data->coursenum);
         // The course-total grade resolves to a percentage via course_score().
         $this->assertEqualsWithDelta(80.0, (float)$data->score, 0.001);
+    }
+
+    /**
+     * Completion states map to the MOODLENOTE status; incomplete/unknown skip.
+     *
+     * @return void
+     */
+    public function test_module_status(): void {
+        $this->assertSame('PASS', observer::module_status(COMPLETION_COMPLETE_PASS));
+        $this->assertSame('FAIL', observer::module_status(COMPLETION_COMPLETE_FAIL));
+        $this->assertSame('COMPLETE', observer::module_status(COMPLETION_COMPLETE));
+        $this->assertNull(observer::module_status(COMPLETION_INCOMPLETE));
+        $this->assertNull(observer::module_status(-1));
+    }
+
+    /**
+     * Complete a graded module and return the queued module-note tasks.
+     *
+     * @param string $modname       The module to create ('assign' graded, 'label' not).
+     * @param bool   $enabletoggle  Whether to enable push_module_completions.
+     * @return \local_imisbridge\task\push_module_note_task[]
+     */
+    private function run_module_completion(string $modname, bool $enabletoggle): array {
+        global $DB;
+
+        set_config('wsdl_url', 'https://example.invalid/wsmoodle.asmx?WSDL', 'local_imisbridge');
+        if ($enabletoggle) {
+            set_config('push_module_completions', '1', 'local_imisbridge');
+        }
+
+        $user   = $this->getDataGenerator()->create_user(['username' => 'member123']);
+        $course = $this->getDataGenerator()->create_course(['enablecompletion' => 1]);
+        $this->getDataGenerator()->enrol_user($user->id, $course->id);
+
+        $instance = $this->getDataGenerator()->get_plugin_generator('mod_' . $modname)->create_instance([
+            'course'     => $course->id,
+            'completion' => COMPLETION_TRACKING_MANUAL,
+        ]);
+        $cm = get_coursemodule_from_instance($modname, $instance->id);
+
+        // Record the completion via the API (buffered observers are not dispatched
+        // in a unit test), then invoke the observer directly with the event.
+        $completion = new \completion_info($course);
+        $completion->update_state($cm, COMPLETION_COMPLETE, $user->id);
+        $rec = $DB->get_record('course_modules_completion', ['coursemoduleid' => $cm->id, 'userid' => $user->id]);
+        $this->assertNotEmpty($rec, 'completion record should exist');
+
+        // Calling update_state() may itself dispatch this observer (its completion
+        // event fires during the call), so clear the queue and count only the
+        // explicit invocation below — deterministic regardless of event buffering.
+        $DB->delete_records('task_adhoc');
+
+        $event = \core\event\course_module_completion_updated::create([
+            'objectid'      => $rec->id,
+            'context'       => \context_module::instance($cm->id),
+            'relateduserid' => $user->id,
+            'other'         => ['relateduserid' => $user->id, 'overrideby' => $rec->overrideby],
+        ]);
+        observer::course_module_completion_updated($event);
+
+        return \core\task\manager::get_adhoc_tasks(push_module_note_task::class);
+    }
+
+    /**
+     * A graded module completion queues one MOODLENOTE push with the right data.
+     *
+     * @return void
+     */
+    public function test_module_completion_graded_queues_note(): void {
+        $this->resetAfterTest();
+
+        $tasks = $this->run_module_completion('assign', true);
+
+        $this->assertCount(1, $tasks);
+        $data = reset($tasks)->get_custom_data();
+        $this->assertSame('member123', $data->imisid);
+        $this->assertSame('COMPLETE', $data->status);
+        $this->assertNotEmpty($data->cmid);
+    }
+
+    /**
+     * With the opt-in toggle off (the default), a graded completion queues nothing.
+     *
+     * @return void
+     */
+    public function test_module_completion_default_off(): void {
+        $this->resetAfterTest();
+
+        $this->assertCount(0, $this->run_module_completion('assign', false));
+    }
+
+    /**
+     * An ungraded module (no grade item) is skipped even with the toggle on.
+     *
+     * @return void
+     */
+    public function test_module_completion_ungraded_skipped(): void {
+        $this->resetAfterTest();
+
+        $this->assertCount(0, $this->run_module_completion('label', true));
     }
 
     /**

@@ -217,6 +217,13 @@ if ($hassiteconfig) {
         1
     ));
 
+    $settings->add(new admin_setting_configcheckbox(
+        'local_imisbridge/push_module_completions',
+        get_string('push_module_completions', 'local_imisbridge'),
+        get_string('push_module_completions_desc', 'local_imisbridge'),
+        0
+    ));
+
     // Scheduled task controls — toggle each nightly all-user task.
     $settings->add(new admin_setting_heading(
         'local_imisbridge/scheduledtaskcontrols',

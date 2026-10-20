@@ -189,6 +189,133 @@ class observer {
     }
 
     /**
+     * Triggered when a course-module completion changes. Queues a MOODLENOTE push.
+     *
+     * Opt-in (the `push_module_completions` toggle, default off) and **graded
+     * modules only** — a module with no grade item is ignored. Only completed
+     * states (pass/fail/complete) are sent; a revert to incomplete is skipped. The
+     * record is written as a supplementary MOODLENOTE activity, never the canonical
+     * course-completion record.
+     *
+     * @param \core\event\course_module_completion_updated $event The completion event.
+     * @return void
+     */
+    public static function course_module_completion_updated(
+        \core\event\course_module_completion_updated $event
+    ): void {
+        global $DB, $CFG;
+        require_once($CFG->libdir . '/completionlib.php');
+
+        if (!util::is_enabled_optin('push_module_completions')) {
+            return;
+        }
+
+        if (!util::is_configured()) {
+            return;
+        }
+
+        $data = $event->get_data();
+
+        // Read the completion record for the authoritative user, module and state.
+        $completion = $DB->get_record('course_modules_completion', ['id' => $data['objectid'] ?? 0]);
+        if (empty($completion)) {
+            return;
+        }
+
+        $status = self::module_status((int)$completion->completionstate);
+        if ($status === null) {
+            // Incomplete or unknown state — nothing to push.
+            return;
+        }
+
+        $user = $DB->get_record('user', ['id' => $completion->userid], 'id, username, idnumber, email');
+        if (empty($user)) {
+            return;
+        }
+
+        $imisid = util::get_imis_id($user);
+        if ($imisid === '') {
+            return;
+        }
+
+        $cm = get_coursemodule_from_id('', (int)$completion->coursemoduleid);
+        if (!$cm) {
+            return;
+        }
+
+        // Graded modules only: skip a module that has no grade item.
+        [$graded, $score] = self::module_grade($cm, (int)$user->id);
+        if (!$graded) {
+            return;
+        }
+
+        $task = new task\push_module_note_task();
+        $task->set_custom_data([
+            'imisid'    => $imisid,
+            'coursenum' => (string)$cm->course,
+            'cmid'      => (int)$cm->id,
+            'modname'   => $cm->modname,
+            'cmname'    => format_string($cm->name),
+            'status'    => $status,
+            'score'     => $score,
+            'date'      => date('Y-m-d'),
+        ]);
+        \core\task\manager::queue_adhoc_task($task);
+    }
+
+    /**
+     * Map a course-module completion state to the iMIS MOODLENOTE status.
+     *
+     * Only completed states map to a value; an incomplete or unknown state returns
+     * null so nothing is pushed.
+     *
+     * @param int $completionstate A COMPLETION_* constant.
+     * @return string|null 'PASS', 'FAIL', 'COMPLETE', or null to skip.
+     */
+    public static function module_status(int $completionstate): ?string {
+        switch ($completionstate) {
+            case COMPLETION_COMPLETE_PASS:
+                return 'PASS';
+            case COMPLETION_COMPLETE_FAIL:
+                return 'FAIL';
+            case COMPLETION_COMPLETE:
+                return 'COMPLETE';
+            default:
+                return null;
+        }
+    }
+
+    /**
+     * The learner's grade for a course module, and whether the module is graded.
+     *
+     * @param \stdClass $cm     The course-module record (needs modname, instance).
+     * @param int       $userid The Moodle user ID.
+     * @return array [bool $isgraded, float $percentage]. $isgraded is false when the
+     *               module has no grade item (so the caller skips it).
+     */
+    private static function module_grade(\stdClass $cm, int $userid): array {
+        global $CFG;
+        require_once($CFG->libdir . '/gradelib.php');
+
+        $gradeitem = \grade_item::fetch([
+            'itemtype'     => 'mod',
+            'itemmodule'   => $cm->modname,
+            'iteminstance' => $cm->instance,
+        ]);
+        if (!$gradeitem) {
+            return [false, 0.0];
+        }
+
+        $grade = \grade_grade::fetch(['itemid' => $gradeitem->id, 'userid' => $userid]);
+        if (!$grade || $grade->finalgrade === null) {
+            // A graded module with no grade yet — still graded; send 0.
+            return [true, 0.0];
+        }
+
+        return [true, self::calculate_percentage((float)$grade->finalgrade, (float)$gradeitem->grademax)];
+    }
+
+    /**
      * Queue an activity-record push to iMIS.
      *
      * @param string $toggle         Config name of the write toggle governing this push.
