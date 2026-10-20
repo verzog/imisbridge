@@ -25,8 +25,9 @@
 require_once(__DIR__ . '/../../../config.php');
 require_once($CFG->libdir . '/adminlib.php');
 
-require_login();
-require_capability('moodle/site:config', context_system::instance());
+// Registered admin page: handles login, the moodle/site:config capability, the
+// page context/title/heading, and makes the page bookmarkable from the admin.
+admin_externalpage_setup('local_imisbridge_log');
 
 $operation = optional_param('operation', '', PARAM_ALPHANUMEXT);
 $status    = optional_param('status', '', PARAM_ALPHA);

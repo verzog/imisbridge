@@ -25,13 +25,9 @@
 require_once(__DIR__ . '/../../../config.php');
 require_once($CFG->libdir . '/adminlib.php');
 
-require_login();
-require_capability('moodle/site:config', context_system::instance());
-
-$PAGE->set_url(new moodle_url('/local/imisbridge/admin/sync.php'));
-$PAGE->set_context(context_system::instance());
-$PAGE->set_title(get_string('manualsynccontrols', 'local_imisbridge'));
-$PAGE->set_heading(get_string('manualsynccontrols', 'local_imisbridge'));
+// Registered admin page: handles login, the moodle/site:config capability, the
+// page URL/context/title/heading, and makes the page bookmarkable from the admin.
+admin_externalpage_setup('local_imisbridge_sync');
 
 // Use POST to avoid action/contactid appearing in browser history and server logs.
 $action    = optional_param('action', '', PARAM_ALPHANUMEXT);
@@ -39,6 +35,7 @@ $contactid = optional_param('contactid', '', PARAM_TEXT);
 $message    = '';
 $error      = '';
 $testoutput = '';
+$syncoutput = '';
 
 if ($action === 'testconnection' && confirm_sesskey()) {
     // Read-only: verify connectivity without writing any data. GetBridgeSettings
@@ -105,29 +102,36 @@ if ($action === 'testconnection' && confirm_sesskey()) {
             ? get_string('forcontact', 'local_imisbridge', s($contactid))
             : get_string('allusers', 'local_imisbridge');
 
+        // Collect each call's raw result so a manual sync of a few records can be
+        // eyeballed on this page without opening the audit log.
+        $results = [];
         switch ($action) {
             case 'enrollments':
-                $client->sync_orders($cid);
-                $message = get_string('syncdone', 'local_imisbridge', $scope);
+                $results['SendNewOrdersToMoodle'] = $client->sync_orders($cid);
                 break;
 
             case 'cancellations':
-                $client->sync_cancelled_orders($cid);
-                $message = get_string('syncdone', 'local_imisbridge', $scope);
+                $results['SendCancelledOrdersToMoodle'] = $client->sync_cancelled_orders($cid);
                 break;
 
             case 'groups':
-                $client->update_groups($cid);
-                $message = get_string('syncdone', 'local_imisbridge', $scope);
+                $results['UpdateMoodleGroups'] = $client->update_groups($cid);
                 break;
 
             case 'all':
-                $client->sync_orders($cid);
-                $client->sync_cancelled_orders($cid);
-                $client->update_groups($cid);
-                $message = get_string('syncdone', 'local_imisbridge', $scope);
+                $results['SendNewOrdersToMoodle']       = $client->sync_orders($cid);
+                $results['SendCancelledOrdersToMoodle'] = $client->sync_cancelled_orders($cid);
+                $results['UpdateMoodleGroups']          = $client->update_groups($cid);
                 break;
         }
+
+        $message = get_string('syncdone', 'local_imisbridge', $scope);
+
+        $out = '';
+        foreach ($results as $op => $res) {
+            $out .= $op . ':' . PHP_EOL . var_export($res, true) . PHP_EOL . PHP_EOL;
+        }
+        $syncoutput = trim($out);
     } catch (\Exception $e) {
         $error = get_string('syncfailed', 'local_imisbridge', $e->getMessage());
     }
@@ -143,6 +147,7 @@ if ($error) {
 }
 
 $syncurl  = new moodle_url('/local/imisbridge/admin/sync.php');
+$auditurl = new moodle_url('/local/imisbridge/admin/log.php');
 $logsurl  = new moodle_url('/admin/tasklogs.php');
 $sesskey  = sesskey();
 $cidvalue = s($contactid);
@@ -184,6 +189,16 @@ if ($testoutput !== '') {
     echo html_writer::end_div();
 }
 
+if ($syncoutput !== '') {
+    echo html_writer::start_div('card mb-4');
+    echo html_writer::start_div('card-body');
+    echo html_writer::tag('h5', get_string('syncresult', 'local_imisbridge'), ['class' => 'card-title']);
+    echo html_writer::tag('p', get_string('syncresulthelp', 'local_imisbridge'), ['class' => 'text-muted']);
+    echo html_writer::tag('pre', s($syncoutput), ['class' => 'bg-light p-3']);
+    echo html_writer::end_div();
+    echo html_writer::end_div();
+}
+
 echo html_writer::start_div('card');
 echo html_writer::start_div('card-body');
 echo html_writer::tag('h5', get_string('scheduledtaskstatus', 'local_imisbridge'), ['class' => 'card-title']);
@@ -193,7 +208,13 @@ echo html_writer::tag('li', get_string('schedule_enrollments', 'local_imisbridge
 echo html_writer::tag('li', get_string('schedule_cancellations', 'local_imisbridge'));
 echo html_writer::tag('li', get_string('schedule_groups', 'local_imisbridge'));
 echo html_writer::end_tag('ul');
-echo html_writer::link($logsurl, get_string('viewtasklogs', 'local_imisbridge'), ['class' => 'btn btn-secondary btn-sm']);
+// Primary link: the iMIS audit log shows what was actually sent to iMIS and the
+// result. The secondary link is Moodle's cron run output for the scheduled tasks.
+echo html_writer::tag('p', get_string('viewlogshelp', 'local_imisbridge'), ['class' => 'text-muted']);
+echo html_writer::start_div('d-flex gap-2 flex-wrap');
+echo html_writer::link($auditurl, get_string('openlog', 'local_imisbridge'), ['class' => 'btn btn-primary btn-sm']);
+echo html_writer::link($logsurl, get_string('viewtaskrunlogs', 'local_imisbridge'), ['class' => 'btn btn-secondary btn-sm']);
+echo html_writer::end_div();
 echo html_writer::end_div();
 echo html_writer::end_div();
 
