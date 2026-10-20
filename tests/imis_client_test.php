@@ -138,4 +138,74 @@ final class imis_client_test extends \advanced_testcase {
     public function test_extract_wsdl_endpoint_none(): void {
         $this->assertNull(imis_client::extract_wsdl_endpoint('<wsdl:definitions></wsdl:definitions>'));
     }
+
+    /**
+     * A result with no ResultsBase is treated as a (transport-level) success.
+     *
+     * @return void
+     */
+    public function test_result_error_no_resultsbase(): void {
+        $result = json_decode(json_encode(['MoodleGetUserProfileResult' => ['ID' => '123']]));
+        $this->assertNull(imis_client::result_error($result));
+        $this->assertNull(imis_client::result_error(null));
+    }
+
+    /**
+     * A populated Exception in the ResultsBase is an application-level failure.
+     *
+     * @return void
+     */
+    public function test_result_error_exception(): void {
+        $result = json_decode(json_encode([
+            'ResultsBase' => ['ResultCode' => '5', 'ResultMessage' => 'rejected', 'Exception' => 'Bad productId'],
+        ]));
+        $this->assertSame('Bad productId', imis_client::result_error($result));
+    }
+
+    /**
+     * An empty Exception with no configured success codes is a success.
+     *
+     * @return void
+     */
+    public function test_result_error_empty_exception_no_codes(): void {
+        $result = json_decode(json_encode(['ResultsBase' => ['ResultCode' => '0', 'Exception' => '']]));
+        $this->assertNull(imis_client::result_error($result));
+    }
+
+    /**
+     * With success codes configured, an unexpected ResultCode is a failure.
+     *
+     * @return void
+     */
+    public function test_result_error_resultcode_strict(): void {
+        set_config('soap_success_result_codes', '0', 'local_imisbridge');
+
+        $ok = json_decode(json_encode(['ResultsBase' => ['ResultCode' => '0', 'Exception' => '']]));
+        $this->assertNull(imis_client::result_error($ok));
+
+        $bad = json_decode(json_encode(['ResultsBase' => ['ResultCode' => '5', 'ResultMessage' => 'rejected']]));
+        $this->assertSame('ResultCode 5: rejected', imis_client::result_error($bad));
+    }
+
+    /**
+     * The status may sit on the createActivity wrapper rather than a ResultsBase.
+     *
+     * @return void
+     */
+    public function test_result_error_createactivity_wrapper(): void {
+        $result = json_decode(json_encode(['createActivityResult' => ['Exception' => 'nope']]));
+        $this->assertSame('nope', imis_client::result_error($result));
+    }
+
+    /**
+     * Success codes are parsed from a comma list; blank yields an empty set.
+     *
+     * @return void
+     */
+    public function test_success_result_codes(): void {
+        $this->assertSame([], imis_client::success_result_codes());
+
+        set_config('soap_success_result_codes', '0, 1 ,2', 'local_imisbridge');
+        $this->assertSame(['0', '1', '2'], imis_client::success_result_codes());
+    }
 }

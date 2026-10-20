@@ -236,8 +236,100 @@ class imis_client {
             logger::record($operation, $imisid, $productcode, logger::STATUS_ERROR, $this->soap, $e->getMessage());
             throw $e;
         }
+
+        // The SOAP call returned, but ATS can report an application-level failure in
+        // a valid response (a populated ResultsBase Exception, or a non-success
+        // ResultCode). Surface it as an error and throw, so a rejected write is not
+        // logged as success and the adhoc task retries with backoff.
+        $apperror = self::result_error($result);
+        if ($apperror !== null) {
+            logger::record($operation, $imisid, $productcode, logger::STATUS_ERROR, $this->soap, $apperror);
+            throw new \moodle_exception('soapresulterror', 'local_imisbridge', '', $operation . ': ' . $apperror);
+        }
+
         logger::record($operation, $imisid, $productcode, logger::STATUS_SUCCESS, $this->soap, null);
         return $result;
+    }
+
+    /**
+     * Inspect a SOAP result for an application-level failure, independent of transport.
+     *
+     * Operations that return a ResultsBase (e.g. MoodleUpdate, UpdateMoodleGroups)
+     * can report a failure in a valid SOAP response. A populated `Exception` is an
+     * unambiguous failure. A `ResultCode` is judged only when success codes are
+     * configured (see {@see success_result_codes()}), so the default behaviour
+     * changes nothing unless a code explicitly carries an exception.
+     *
+     * @param mixed $result The raw SOAP result object.
+     * @return string|null An error message when the result indicates failure, else null.
+     */
+    public static function result_error($result): ?string {
+        $rb = self::results_base($result);
+        if ($rb === null) {
+            return null;
+        }
+
+        $exception = (isset($rb->Exception) && is_scalar($rb->Exception)) ? trim((string)$rb->Exception) : '';
+        if ($exception !== '') {
+            return $exception;
+        }
+
+        $successcodes = self::success_result_codes();
+        if (!empty($successcodes) && isset($rb->ResultCode) && is_scalar($rb->ResultCode)) {
+            $code = trim((string)$rb->ResultCode);
+            if (!in_array($code, $successcodes, true)) {
+                $message = (isset($rb->ResultMessage) && is_scalar($rb->ResultMessage))
+                    ? trim((string)$rb->ResultMessage) : '';
+                return 'ResultCode ' . $code . ($message !== '' ? ': ' . $message : '');
+            }
+        }
+
+        return null;
+    }
+
+    /**
+     * Locate the ResultsBase (or an equivalent status object) within a SOAP result.
+     *
+     * @param mixed $result The raw SOAP result object.
+     * @return object|null The status object carrying Exception/ResultCode, or null.
+     */
+    public static function results_base($result): ?object {
+        if (!is_object($result)) {
+            return null;
+        }
+        if (isset($result->ResultsBase) && is_object($result->ResultsBase)) {
+            return $result->ResultsBase;
+        }
+        // createActivity wraps its payload; the status may sit on the wrapper.
+        if (isset($result->createActivityResult) && is_object($result->createActivityResult)) {
+            $wrapper = $result->createActivityResult;
+            if (isset($wrapper->ResultsBase) && is_object($wrapper->ResultsBase)) {
+                return $wrapper->ResultsBase;
+            }
+            if (isset($wrapper->Exception) || isset($wrapper->ResultCode)) {
+                return $wrapper;
+            }
+        }
+        return null;
+    }
+
+    /**
+     * The ResultCodes treated as success, from plugin configuration.
+     *
+     * Blank (the default) means the ResultCode is not judged — only a populated
+     * Exception marks a failure. Configure the real ATS success code(s) here to
+     * also treat an unexpected ResultCode as a failure.
+     *
+     * @return string[] The configured success codes (trimmed, empty when unset).
+     */
+    public static function success_result_codes(): array {
+        $raw = (string)get_config('local_imisbridge', 'soap_success_result_codes');
+        if (trim($raw) === '') {
+            return [];
+        }
+        return array_values(array_filter(array_map('trim', explode(',', $raw)), static function ($code) {
+            return $code !== '';
+        }));
     }
 
     // CONTACT LOOKUP.

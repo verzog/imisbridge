@@ -84,12 +84,13 @@ Order matters here — disable writes **before** entering any endpoint.
   Compare against an existing vendor-written record for continuity with the
   history already in iMIS.
 - [ ] Submit a graded quiz and confirm the score lands correctly.
-- [ ] Confirm each call in the **audit log** (operation, status, any fault) — but
-  **do not treat a logged "success" as proof the record landed.** The audit status
-  is transport-level (the SOAP call returned without throwing); it does **not**
-  inspect the ATS `ResultsBase` ResultCode / ResultMessage / Exception, so an
-  application-level rejection in a valid SOAP response still logs "success" and the
-  task will not retry. Confirm the activity actually appears in iMIS.
+- [ ] Confirm each call in the **audit log** (operation, status, any fault). As of
+  1.11.0 a populated `Exception` in the SOAP `ResultsBase` is surfaced as an error
+  (logged and retried), and setting **SOAP success ResultCodes** makes an
+  unexpected `ResultCode` a failure too. But until those success codes are
+  configured, a non-exception `ResultCode` rejection can still log "success" — so
+  still **confirm the activity actually appears in iMIS**, don't rely on the log
+  alone.
 
 ## C. Inbound provisioning — verify the core-functions service
 
