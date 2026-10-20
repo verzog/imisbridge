@@ -118,17 +118,41 @@ Order matters here — disable writes **before** entering any endpoint.
 > a custom wrapper can treat "already exists" as success so processing continues,
 > which avoids that outage pattern and core cannot. Decide from that test.
 
-- [ ] On the inbound web-service (e.g. "ATS iMIS Bridge"), the service account's
-  role holds `moodle/user:create`, `moodle/user:update`, `moodle/user:viewdetails`,
-  **`moodle/user:viewalldetails`**, `enrol/manual:enrol`, `enrol/manual:unenrol`,
-  **and `moodle/role:assign`**. Two easy-to-miss ones:
-  - `moodle/role:assign` — required by `enrol_manual_enrol_users` to assign the
-    Student role (not shown in the function's "required capabilities").
-  - `moodle/user:viewalldetails` — without it (Moodle 5.1+) `core_user_get_users` can
-    omit `username` / `idnumber` from the result and then drop the match, so ATS
-    concludes an existing member is **absent**, calls create, and hits the exact
-    already-exists failure this is meant to prevent. (Alternatively, configure
-    `idnumber` as a displayed identity field.)
+**Build recipe** (what was set up on dev; repeat on prod at cutover):
+
+1. Site admin → Advanced features → **Enable web services**; then Server → Web
+   services → **Manage protocols** → enable **REST**.
+2. Server → Web services → **External services** → add a service (e.g.
+   "ATS iMIS Bridge"): **Enabled**, **Authorised users only**, not on the mobile
+   service.
+3. Add its **functions**: `core_user_get_users`, `core_user_create_users`,
+   `core_user_update_users`, `enrol_manual_enrol_users`, `enrol_manual_unenrol_users`.
+   (`local_imisbridge_get_completions_since` can ride the same service if one token
+   also serves the outbound bulk pull; `core_webservice_get_site_info` is handy for a
+   connectivity check.)
+4. Create a dedicated **service-account** user and add it as an **authorised user**
+   of the service.
+5. Give that account a role holding these capabilities. The two **starred** ones are
+   **not** in the functions' declared "required capabilities" and are the usual cause
+   of a silent failure:
+   - `moodle/user:create`, `moodle/user:update`, `moodle/user:viewdetails`,
+     `moodle/user:viewhiddendetails`, `moodle/course:useremail`
+   - ★ **`moodle/user:viewalldetails`** — without it (Moodle 5.1+)
+     `core_user_get_users` can omit `idnumber`/`username`, so ATS fails to match an
+     existing member, calls create, and hits the already-exists error. (Or expose
+     `idnumber` via Site admin → Users → User policies → *Show user identity*.)
+   - `enrol/manual:enrol`, `enrol/manual:unenrol`
+   - ★ **`moodle/role:assign`** — without it `enrol_manual_enrol_users` cannot assign
+     the Student role (`ROLE_ID`).
+   - `local/imisbridge:readcompletions` — only if this token also serves the pull.
+6. Server → Web services → **Manage tokens** → create a token for the service account
+   on this service. That token is `WEBSERVICE_TOKEN` in §D; rotate it if exposed.
+
+Then verify:
+
+- [ ] Service-account role has the full capability set from the recipe above — in
+  particular the two non-declared ones, **`moodle/role:assign`** and
+  **`moodle/user:viewalldetails`**.
 - [ ] Service set to **authorised users only**, with the service account added; not
   exposed on the mobile service.
 - [ ] Web services + the **REST protocol** enabled; the REST endpoint
