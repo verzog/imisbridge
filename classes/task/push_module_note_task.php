@@ -64,52 +64,17 @@ class push_module_note_task extends \core\task\adhoc_task {
         }
 
         if (!\local_imisbridge\util::is_configured()) {
-            mtrace('iMIS Bridge: not configured; skipping ' . $data->imisid . '.');
+            mtrace('iMIS Bridge: external system not configured; skipping ' . $data->imisid . '.');
             return;
         }
 
-        $imisid   = (string)$data->imisid;
-        $courseid = (string)($data->coursenum ?? '');
-        $status   = (string)($data->status ?? '');
-        $score    = (float)($data->score ?? 0);
-        $date     = (string)($data->date ?? date('Y-m-d'));
-        $cmid     = (int)($data->cmid ?? 0);
-        $modname  = (string)($data->modname ?? '');
-        $cmname   = (string)($data->cmname ?? '');
+        $cmid = (int)($data->cmid ?? 0);
+        mtrace('iMIS Bridge: pushing module note for ' . $data->imisid . ' (cm ' . $cmid . ')...');
 
-        mtrace('iMIS Bridge: pushing module note for ' . $imisid . ' (cm ' . $cmid . ')...');
+        // The active provider records the supplementary note (never the canonical
+        // course-completion record).
+        \local_imisbridge\provider\manager::instance()->push_module_note($data);
 
-        if (\local_imisbridge\util::transport() === 'rest') {
-            $client = new \local_imisbridge\rest_client();
-            $client->add_note(
-                $imisid,
-                $courseid,
-                $status,
-                $score,
-                $date,
-                'Module completion: ' . $cmname,
-                ['UF_5' => $cmid]
-            );
-        } else {
-            // SOAP createActivity (MOODLENOTE). Field names mirror the vendor's
-            // proven call against the same ATS service; confirm against the live
-            // WSDL if a field is rejected.
-            $client = new \local_imisbridge\imis_client();
-            $client->create_activity([
-                'ContactID'    => $imisid,
-                'ActivityType' => 'MOODLENOTE',
-                'Note'         => 'Module completion: ' . $cmname,
-                'ProductCode'  => $courseid,
-                'UserField3'   => $status,
-                'UserField4'   => $score,
-                'UserField5'   => $cmid,
-                'Note2'        => 'modulecompletion',
-                'SourceCode'   => $modname,
-                'Description'  => $cmname,
-                'ThruDate'     => $date,
-            ]);
-        }
-
-        mtrace('iMIS Bridge: module note pushed for ' . $imisid . '.');
+        mtrace('iMIS Bridge: module note pushed for ' . $data->imisid . '.');
     }
 }

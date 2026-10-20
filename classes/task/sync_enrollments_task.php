@@ -53,14 +53,19 @@ class sync_enrollments_task extends \core\task\scheduled_task {
         }
 
         if (!\local_imisbridge\util::is_configured()) {
-            mtrace('iMIS Bridge: no iMIS WSDL configured; skipping enrolment sync.');
+            mtrace('iMIS Bridge: external system not configured; skipping enrolment sync.');
+            return;
+        }
+
+        $provider = \local_imisbridge\provider\manager::org_sync_instance();
+        if ($provider === null) {
+            mtrace('iMIS Bridge: active provider does not support order sync; skipping enrolment sync.');
             return;
         }
 
         mtrace('iMIS Bridge: Starting enrollment sync for all users...');
         try {
-            $client = new \local_imisbridge\imis_client();
-            $result = $client->sync_orders(null);
+            $result = $provider->sync_orders(null);
             mtrace('iMIS Bridge: Enrollment sync complete. Result: ' . var_export($result, true));
         } catch (\Exception $e) {
             mtrace('iMIS Bridge: Enrollment sync FAILED: ' . $e->getMessage());

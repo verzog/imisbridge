@@ -88,30 +88,17 @@ class util {
     }
 
     /**
-     * The active outbound transport: 'soap' (ATS middleware) or 'rest' (direct iMIS).
+     * Whether the plugin has the minimum configuration to talk to the external system.
      *
-     * Defaults to 'soap' so existing installations keep the ATS path. Only an
-     * explicit 'rest' selects the direct iMIS REST transport.
-     *
-     * @return string One of 'soap' or 'rest'.
-     */
-    public static function transport(): string {
-        return (get_config('local_imisbridge', 'transport') === 'rest') ? 'rest' : 'soap';
-    }
-
-    /**
-     * Whether the plugin has the minimum configuration to talk to iMIS.
-     *
-     * Neither client can be built without its endpoint, so automatic writes skip
-     * cleanly (rather than throwing in cron) until the active transport is
-     * configured: the SOAP path needs a WSDL URL, the REST path a base URL.
+     * Delegates to the active provider's static check, so automatic writes skip
+     * cleanly (rather than throwing in cron) until that provider is configured.
+     * The check must not construct a client — each provider's constructor requires
+     * live connection settings and throws without them.
      *
      * @return bool
      */
     public static function is_configured(): bool {
-        if (self::transport() === 'rest') {
-            return !empty(get_config('local_imisbridge', 'rest_base_url'));
-        }
-        return !empty(get_config('local_imisbridge', 'wsdl_url'));
+        $class = provider\manager::active_provider_class();
+        return $class::is_configured();
     }
 }

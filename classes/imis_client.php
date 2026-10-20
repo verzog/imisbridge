@@ -66,12 +66,140 @@ namespace local_imisbridge;
  * @copyright  2024 Vernon Spain
  * @license    http://www.gnu.org/copyleft/gpl.html GNU GPL v3 or later
  */
-class imis_client {
+class imis_client implements \local_imisbridge\provider\org_sync_provider {
     /** @var \SoapClient */
     private $soap;
 
     /** @var string Cached ATS API AuthToken (MO-xxxxxx). */
     private $apiauthtoken;
+
+    /**
+     * A short human-readable name for this provider.
+     *
+     * @return string
+     */
+    public static function label(): string {
+        return get_string('transport_soap', 'local_imisbridge');
+    }
+
+    /**
+     * Whether the SOAP bridge has the minimum configuration to connect (a WSDL URL).
+     *
+     * @return bool
+     */
+    public static function is_configured(): bool {
+        return !empty(get_config('local_imisbridge', 'wsdl_url'));
+    }
+
+    /**
+     * The ATS SOAP bridge both pushes records and offers inbound order/group sync.
+     *
+     * @param string $capability One of the provider CAP_* constants.
+     * @return bool
+     */
+    public static function supports(string $capability): bool {
+        return in_array($capability, [
+            \local_imisbridge\provider\provider_interface::CAP_PUSH,
+            \local_imisbridge\provider\provider_interface::CAP_ORG_SYNC,
+        ], true);
+    }
+
+    /**
+     * Push a course completion record via MoodleUpdate.
+     *
+     * @param \stdClass $data The queued push data.
+     * @return void
+     */
+    public function push_completion(\stdClass $data): void {
+        $this->push_activity($data);
+    }
+
+    /**
+     * Push an assessment score record via MoodleUpdate.
+     *
+     * @param \stdClass $data The queued push data.
+     * @return void
+     */
+    public function push_score(\stdClass $data): void {
+        $this->push_activity($data);
+    }
+
+    /**
+     * Send an activity record to iMIS. The SOAP bridge treats completions and
+     * scores identically — both are a MoodleUpdate carrying the record's status.
+     *
+     * @param \stdClass $data The queued push data.
+     * @return void
+     */
+    private function push_activity(\stdClass $data): void {
+        $this->update_activity_record(
+            imisid:          (string)$data->imisid,
+            moodlecoursenum: (string)($data->coursenum ?? ''),
+            credittype:      (string)($data->credittype ?? 'CEU'),
+            creditvalue:     (float)($data->creditvalue ?? 0),
+            startdate:       (string)($data->startdate ?? ''),
+            completiondate:  (string)($data->completiondate ?? ''),
+            grantdate:       (string)($data->grantdate ?? ''),
+            status:          (string)($data->status ?? ''),
+            score:           (float)($data->score ?? 0)
+        );
+    }
+
+    /**
+     * Push a supplementary module-completion note via createActivity (MOODLENOTE).
+     *
+     * Field names mirror the vendor's proven call against the same ATS service;
+     * confirm against the live WSDL if a field is rejected.
+     *
+     * @param \stdClass $data The queued push data.
+     * @return void
+     */
+    public function push_module_note(\stdClass $data): void {
+        $cmname = (string)($data->cmname ?? '');
+        $this->create_activity([
+            'ContactID'    => (string)$data->imisid,
+            'ActivityType' => 'MOODLENOTE',
+            'Note'         => 'Module completion: ' . $cmname,
+            'ProductCode'  => (string)($data->coursenum ?? ''),
+            'UserField3'   => (string)($data->status ?? ''),
+            'UserField4'   => (float)($data->score ?? 0),
+            'UserField5'   => (int)($data->cmid ?? 0),
+            'Note2'        => 'modulecompletion',
+            'SourceCode'   => (string)($data->modname ?? ''),
+            'Description'  => $cmname,
+            'ThruDate'     => (string)($data->date ?? date('Y-m-d')),
+        ]);
+    }
+
+    /**
+     * Run read-only connection diagnostics (endpoint, GetBridgeSettings, optional profile).
+     *
+     * @param string|null $contactid Optional member ID to exercise an authenticated lookup.
+     * @return string The diagnostic report.
+     */
+    public function diagnostics(?string $contactid): string {
+        // Show where requests will actually be sent (override vs WSDL address) so a
+        // WSDL that advertises the wrong environment is caught before writing.
+        $override = self::get_effective_endpoint();
+        if ($override !== null) {
+            $endpointline = get_string('endpoint_override_active', 'local_imisbridge', $override);
+        } else {
+            $wsdladdr     = self::read_wsdl_endpoint();
+            $endpointline = ($wsdladdr !== null)
+                ? get_string('endpoint_from_wsdl', 'local_imisbridge', $wsdladdr)
+                : get_string('endpoint_from_wsdl_unknown', 'local_imisbridge');
+        }
+        $out  = $endpointline . PHP_EOL . PHP_EOL;
+        $out .= 'GetBridgeSettings:' . PHP_EOL . var_export($this->get_bridge_settings(), true);
+        if (!empty($contactid)) {
+            $out .= PHP_EOL . PHP_EOL . 'MoodleGetUserProfile(' . $contactid . '):' . PHP_EOL
+                . var_export($this->get_contact_by_id($contactid), true);
+            $out .= PHP_EOL . PHP_EOL . get_string('testcredentialsok', 'local_imisbridge');
+        } else {
+            $out .= PHP_EOL . PHP_EOL . get_string('testcredentialsnote', 'local_imisbridge');
+        }
+        return $out;
+    }
 
     /**
      * Constructor — initialises the SOAP client from plugin settings.

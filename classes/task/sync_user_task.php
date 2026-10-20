@@ -57,7 +57,7 @@ class sync_user_task extends \core\task\adhoc_task {
         }
 
         if (!\local_imisbridge\util::is_configured()) {
-            mtrace('iMIS Bridge: no iMIS WSDL configured; skipping ' . $imisid . '.');
+            mtrace('iMIS Bridge: external system not configured; skipping ' . $imisid . '.');
             return;
         }
 
@@ -72,18 +72,22 @@ class sync_user_task extends \core\task\adhoc_task {
             return;
         }
 
+        $provider = \local_imisbridge\provider\manager::org_sync_instance();
+        if ($provider === null) {
+            mtrace('iMIS Bridge: active provider does not support order/group sync; skipping ' . $imisid . '.');
+            return;
+        }
+
         mtrace('iMIS Bridge: syncing user ' . $imisid . '...');
 
-        $client = new \local_imisbridge\imis_client();
-
         if ($enrolments) {
-            $client->sync_orders($imisid);
+            $provider->sync_orders($imisid);
         }
         if ($cancellations) {
-            $client->sync_cancelled_orders($imisid);
+            $provider->sync_cancelled_orders($imisid);
         }
         if ($groups) {
-            $client->update_groups($imisid);
+            $provider->update_groups($imisid);
         }
 
         mtrace('iMIS Bridge: user sync complete for ' . $imisid . '.');
