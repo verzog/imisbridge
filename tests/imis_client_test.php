@@ -218,6 +218,42 @@ final class imis_client_test extends \advanced_testcase {
     }
 
     /**
+     * The real SendNewOrdersToMoodle success shape (status on the *Result wrapper,
+     * ResultCode 0, an all-empty Exception object) is a success.
+     *
+     * @return void
+     */
+    public function test_result_error_order_wrapper_success(): void {
+        $result = json_decode(json_encode([
+            'SendNewOrdersToMoodleResult' => [
+                'ResultCode'    => '0',
+                'ResultMessage' => 'No orders found',
+                'Exception'     => ['Message' => '', 'Source' => '', 'StackTrace' => ''],
+                'OrdersSent'    => false,
+                'NumOrders'     => 0,
+            ],
+        ]));
+        $this->assertNull(imis_client::result_error($result));
+    }
+
+    /**
+     * A populated Exception on an order/group *Result wrapper is now caught as a
+     * failure (previously these operations were always reported as success).
+     *
+     * @return void
+     */
+    public function test_result_error_order_wrapper_failure(): void {
+        $result = json_decode(json_encode([
+            'SendCancelledOrdersToMoodleResult' => [
+                'ResultCode'    => '7',
+                'ResultMessage' => 'rejected',
+                'Exception'     => ['Message' => 'Contact not found', 'Source' => 'ATS'],
+            ],
+        ]));
+        $this->assertSame('Contact not found', imis_client::result_error($result));
+    }
+
+    /**
      * Success codes are parsed from a comma list; blank yields an empty set.
      *
      * @return void
