@@ -49,4 +49,12 @@ $observers = [
         'priority'  => 200,
         'internal'  => false,
     ],
+
+    // Fire when a course-module completion state changes (opt-in; graded modules only).
+    [
+        'eventname' => '\core\event\course_module_completion_updated',
+        'callback'  => '\local_imisbridge\observer::course_module_completion_updated',
+        'priority'  => 200,
+        'internal'  => false,
+    ],
 ];

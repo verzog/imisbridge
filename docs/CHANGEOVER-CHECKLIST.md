@@ -16,16 +16,16 @@ writes at a time. Everything else supports those.
 |---|---|---|
 | Completion → iMIS | `course_completed` → `MoodleUpdate` (canonical MOODLE record) | `course_completed` → `MoodleUpdate` — **same** |
 | Score → iMIS | `user_graded` → `createActivity` (MOODLENOTE) | `quiz_attempt_submitted` → `MoodleUpdate` |
-| Module completions | `course_module_completion_updated` → MOODLENOTE | **not tracked** |
+| Module completions | `course_module_completion_updated` → MOODLENOTE | **opt-in** via `push_module_completions` (default off, **graded modules only**) |
 | Inbound provisioning | `local_imis_*` web-service functions (in-plugin) | **none in-plugin** → Moodle **core** functions on a hand-built service |
 | Identity field | `$user->idnumber` | `imis_id_source` setting (set to **ID number**) |
 | productID | numeric Moodle course id | numeric Moodle course id — **same** |
 
 Verified from the code: the new plugin's observers are `user_loggedin`,
-`course_completed`, and `mod_quiz\event\attempt_submitted`; its only web-service
-function is `local_imisbridge_get_completions_since` (a read-only completions
-pull on a restricted service) — it exposes **no** create/get/update/enrol/unenrol
-functions.
+`course_completed`, `mod_quiz\event\attempt_submitted`, and (opt-in)
+`course_module_completion_updated`; its only web-service function is
+`local_imisbridge_get_completions_since` (a read-only completions pull on a
+restricted service) — it exposes **no** create/get/update/enrol/unenrol functions.
 
 ---
 
@@ -38,9 +38,13 @@ Resolve these before cutover — they are behaviour changes, not bugs:
    If any course awards credit via a non-quiz graded activity (assignment, SCORM,
    lesson, …), that score will **not** flow to iMIS. Decide whether quiz-only is
    acceptable, or add a `user_graded` observer / make the trigger configurable.
-2. **The MOODLENOTE audit trail stops.** The vendor wrote supplementary
-   `MOODLENOTE` records for module completions and per-grade notes; the new plugin
-   writes **none**. Confirm no iMIS report or process depends on those records.
+2. **The MOODLENOTE audit trail is opt-in and partial.** The vendor wrote
+   supplementary `MOODLENOTE` records for module completions **and** per-grade
+   notes. The new plugin can write the **module-completion** notes — enable
+   `push_module_completions` (default off, graded modules only) — but does **not**
+   reproduce the per-`user_graded` notes. Decide whether the module-completion
+   trail is needed (if so, turn the toggle on and mind the volume), and whether the
+   missing per-grade notes matter to any iMIS report.
 3. **Inbound behaviour changes.** Moodle's core `core_user_create_users`
    **throws when the user already exists** (the vendor returned "already exists =
    success"), and the core functions have no idempotency or create/enrol
