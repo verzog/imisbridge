@@ -132,27 +132,36 @@ Order matters here — disable writes **before** entering any endpoint.
    connectivity check.)
 4. Create a dedicated **service-account** user and add it as an **authorised user**
    of the service.
-5. Give that account a role holding these capabilities. The two **starred** ones are
-   **not** in the functions' declared "required capabilities" and are the usual cause
-   of a silent failure:
+5. Give that account a role (system context) holding these capabilities. The
+   **starred** ones are **not** in the functions' declared "required capabilities"
+   and are the usual cause of a silent access/enrol failure:
+   - ★ **`webservice/rest:use`** — required to call the REST protocol at all; without
+     it every request made with the token fails with an access-control exception.
    - `moodle/user:create`, `moodle/user:update`, `moodle/user:viewdetails`,
      `moodle/user:viewhiddendetails`, `moodle/course:useremail`
    - ★ **`moodle/user:viewalldetails`** — without it (Moodle 5.1+)
      `core_user_get_users` can omit `idnumber`/`username`, so ATS fails to match an
-     existing member, calls create, and hits the already-exists error. (Or expose
-     `idnumber` via Site admin → Users → User policies → *Show user identity*.)
+     existing member, calls create, and hits the already-exists error. (The
+     "expose `idnumber` via *Show user identity*" alternative also needs
+     `moodle/site:viewuseridentity` on this role, so granting `viewalldetails` is
+     simpler.)
    - `enrol/manual:enrol`, `enrol/manual:unenrol`
-   - ★ **`moodle/role:assign`** — without it `enrol_manual_enrol_users` cannot assign
-     the Student role (`ROLE_ID`).
+   - ★ **`moodle/role:assign`** — needed by `enrol_manual_enrol_users` to assign the
+     Student role (`ROLE_ID`).
    - `local/imisbridge:readcompletions` — only if this token also serves the pull.
-6. Server → Web services → **Manage tokens** → create a token for the service account
+6. **Allow this role to assign Student.** `moodle/role:assign` alone is not enough:
+   go to Site admin → Users → Permissions → **Define roles → Allow role assignments**
+   and tick that the service-account role may assign the **Student** role
+   (`ROLE_ID`), or enrolment fails with `wsusercannotassign`.
+7. Server → Web services → **Manage tokens** → create a token for the service account
    on this service. That token is `WEBSERVICE_TOKEN` in §D; rotate it if exposed.
 
 Then verify:
 
-- [ ] Service-account role has the full capability set from the recipe above — in
-  particular the two non-declared ones, **`moodle/role:assign`** and
-  **`moodle/user:viewalldetails`**.
+- [ ] Service-account role has the full capability set from the recipe above —
+  especially the non-declared ones (**`webservice/rest:use`**, **`moodle/role:assign`**,
+  **`moodle/user:viewalldetails`**) and the **Allow role assignments** mapping for
+  Student.
 - [ ] Service set to **authorised users only**, with the service account added; not
   exposed on the mobile service.
 - [ ] Web services + the **REST protocol** enabled; the REST endpoint
