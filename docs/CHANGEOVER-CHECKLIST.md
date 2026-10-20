@@ -112,8 +112,11 @@ Order matters here — disable writes **before** entering any endpoint.
 > new plugin — and core `enrol_manual_enrol_users` actually avoids the vendor's
 > hidden-course `require_login` trap. A single-plugin alternative (adding external
 > functions + a `db/services.php` to `local_imisbridge` and pointing `FN_*` at them)
-> is possible but adds code and capability surface for no benefit over the core
-> route, so it is **not** recommended.
+> is heavier — more code and capability surface. Prefer the core route **unless**
+> the existing-user test below shows ATS strands the enrol when
+> `core_user_create_users` throws on an already-existing user (parity decision 3):
+> a custom wrapper can treat "already exists" as success so processing continues,
+> which avoids that outage pattern and core cannot. Decide from that test.
 
 - [ ] On the inbound web-service (e.g. "ATS iMIS Bridge"), the service account's
   role holds `moodle/user:create`, `moodle/user:update`, `moodle/user:viewdetails`,
@@ -152,14 +155,17 @@ Order matters here — disable writes **before** entering any endpoint.
 The ATS bridge reads these keys from an iMIS General Lookup. Traps seen on a dev
 bridge, to check before an inbound test:
 
-- **`COURSE_URL`** — the Moodle callback/link base. Found on the dev bridge pointing
-  at the **production** Moodle. Repoint to the dev Moodle
-  (`https://<dev-moodle>/course/view.php?id=`) **before** running any order/group
-  sync, or the enrol/unenrol callbacks fire against production.
-- **`REST_ENDPOINT`** — the Moodle web-service the bridge calls to enrol/create.
-  Must be the **Moodle** site's `/webservice/rest/server.php`. Found on the dev
-  bridge pointing at the **iMIS** host instead, where no Moodle WS answers — so
-  inbound silently goes nowhere. Fix the host before testing inbound.
+- **`REST_ENDPOINT` (the real safety gate)** — the Moodle web-service the bridge
+  actually calls to create/enrol/unenrol. This, with `WEBSERVICE_TOKEN`, is what can
+  change a Moodle, so **before any order/group sync verify it points at the dev
+  Moodle** (`https://<dev-moodle>/webservice/rest/server.php`), not production. Found
+  on the dev bridge pointing at the **iMIS** host instead, where no Moodle WS
+  answers — so inbound reached no Moodle at all until fixed.
+- **`COURSE_URL`** — only the generated **course-link** pattern (links / emails /
+  SSO redirects); it does **not** control where enrol/unenrol/group callbacks go.
+  Repointing it to the dev Moodle stops production links being emitted, but does
+  **not** by itself make a sync safe — the gate is `REST_ENDPOINT` above. Found on
+  the dev bridge pointing at production.
 - **`WEBSERVICE_TOKEN`** — the Moodle token for that endpoint. Treat as a secret and
   rotate it if exposed. It must belong to the **same** Moodle `REST_ENDPOINT` points
   at, on a service account holding the §C capabilities.
