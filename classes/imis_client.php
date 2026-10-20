@@ -322,17 +322,25 @@ class imis_client {
         if (!is_object($result)) {
             return null;
         }
+        // Some operations return the ResultsBase at the top level (e.g. UpdateMoodleGroups).
         if (isset($result->ResultsBase) && is_object($result->ResultsBase)) {
             return $result->ResultsBase;
         }
-        // On createActivity the status may sit on the result wrapper, not a ResultsBase.
-        if (isset($result->createActivityResult) && is_object($result->createActivityResult)) {
-            $wrapper = $result->createActivityResult;
-            if (isset($wrapper->ResultsBase) && is_object($wrapper->ResultsBase)) {
-                return $wrapper->ResultsBase;
+        // Otherwise the status sits on the operation's *Result wrapper, either as a
+        // nested ResultsBase or as ResultCode/Exception fields on the wrapper itself.
+        // This covers SendNewOrdersToMoodle, SendCancelledOrdersToMoodle, createActivity
+        // and similar, whose wrappers carry the status directly rather than in a
+        // ResultsBase property. A plain data wrapper (e.g. MoodleGetUserProfileResult)
+        // has neither field and is skipped, so a read with no status stays a success.
+        foreach (get_object_vars($result) as $value) {
+            if (!is_object($value)) {
+                continue;
             }
-            if (isset($wrapper->Exception) || isset($wrapper->ResultCode)) {
-                return $wrapper;
+            if (isset($value->ResultsBase) && is_object($value->ResultsBase)) {
+                return $value->ResultsBase;
+            }
+            if (isset($value->Exception) || isset($value->ResultCode)) {
+                return $value;
             }
         }
         return null;
