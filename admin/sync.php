@@ -188,6 +188,9 @@ $auditurl = new moodle_url('/local/imisbridge/admin/log.php');
 $logsurl  = new moodle_url('/admin/tasklogs.php');
 $sesskey  = sesskey();
 $cidvalue = s($contactid);
+// The push-completion form keeps its own member-ID value, independent of the
+// order-sync contact filter above, so the two fields don't mirror each other.
+$pushmembervalue = s(optional_param('pushmemberid', '', PARAM_TEXT));
 
 if ($cansync) {
     echo html_writer::start_div('card mb-4');
@@ -238,7 +241,7 @@ if ($canpush) {
     echo html_writer::start_div('form-group');
     echo html_writer::tag('label', get_string('pushmemberid', 'local_imisbridge'), ['for' => 'pushmemberid']);
     echo '<input type="text" id="pushmemberid" name="pushmemberid" class="form-control"'
-        . ' value="' . $cidvalue . '" placeholder="' . s(get_string('contactidplaceholder', 'local_imisbridge')) . '">';
+        . ' value="' . $pushmembervalue . '" placeholder="' . s(get_string('contactidplaceholder', 'local_imisbridge')) . '">';
     echo html_writer::end_div();
     echo html_writer::start_div('form-group');
     echo html_writer::tag('label', get_string('pushcourseid', 'local_imisbridge'), ['for' => 'pushcourseid']);
