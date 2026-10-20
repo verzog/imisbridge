@@ -258,9 +258,9 @@ final class observer_test extends \advanced_testcase {
         $rec = $DB->get_record('course_modules_completion', ['coursemoduleid' => $cm->id, 'userid' => $user->id]);
         $this->assertNotEmpty($rec, 'completion record should exist');
 
-        // update_state() may itself dispatch this observer (its completion event is
-        // triggered during the call), so clear the queue and count only the explicit
-        // invocation below — deterministic regardless of event buffering.
+        // Calling update_state() may itself dispatch this observer (its completion
+        // event fires during the call), so clear the queue and count only the
+        // explicit invocation below — deterministic regardless of event buffering.
         $DB->delete_records('task_adhoc');
 
         $event = \core\event\course_module_completion_updated::create([
