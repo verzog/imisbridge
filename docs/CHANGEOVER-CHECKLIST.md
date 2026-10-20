@@ -55,15 +55,25 @@ Resolve these before cutover — they are behaviour changes, not bugs:
 
 ## A. Pre-cutover — new plugin configured, all writes OFF
 
-- [ ] `local_imisbridge` installed on the live Moodle.
-- [ ] **iMIS ID source = ID number** (SAML matches `UNIQUEID` → `idnumber`, so that
-  is the authoritative field; see `DIRECT-REST-ARCHITECTURE.md` §3).
-- [ ] WSDL URL + ATS AuthToken set for the intended iMIS/bridge environment; the
-  `service_endpoint` override set if the WSDL embeds a different environment's
-  address (see the trap in `TESTING.md`).
-- [ ] **Every write toggle disabled** to start: completion push, quiz push, the
-  three login syncs, and the three nightly tasks — so nothing fires before you are
-  ready.
+Order matters here — disable writes **before** entering any endpoint.
+
+- [ ] `local_imisbridge` installed on the live Moodle; **pause Moodle cron** for the
+  configuration window.
+- [ ] **Disable every write toggle FIRST, before saving any endpoint.** The eight
+  automatic writes default to enabled (and an *unset* value is treated as enabled),
+  so saving a WSDL first would make the new plugin live while the vendor is still
+  active. Turn off: completion push, quiz push, module-completion push, the three
+  login syncs, and the three nightly tasks.
+- [ ] **Transport = ATS SOAP bridge** (the default) for this changeover — the ATS
+  test/prod bridge is SOAP. If `transport = rest`, the WSDL / `service_endpoint`
+  settings below are **ignored** and writes go to `rest_base_url` instead (a
+  different environment) — not what you want here. The direct iMIS REST transport is
+  a separate path (`DIRECT-REST-ARCHITECTURE.md`).
+- [ ] **iMIS ID source = ID number** (SAML matches `UNIQUEID` → `idnumber`, the
+  authoritative field; see `DIRECT-REST-ARCHITECTURE.md` §3).
+- [ ] Only now set the **WSDL URL + ATS AuthToken** for the intended iMIS/bridge
+  environment; set the `service_endpoint` override if the WSDL embeds a different
+  environment's address (the trap in `TESTING.md`).
 - [ ] The three parity decisions above are resolved.
 
 ## B. Outbound parity — the new plugin must write the SAME record
@@ -74,14 +84,26 @@ Resolve these before cutover — they are behaviour changes, not bugs:
   Compare against an existing vendor-written record for continuity with the
   history already in iMIS.
 - [ ] Submit a graded quiz and confirm the score lands correctly.
-- [ ] Confirm each call in the **audit log** (operation, status, any fault).
+- [ ] Confirm each call in the **audit log** (operation, status, any fault) — but
+  **do not treat a logged "success" as proof the record landed.** The audit status
+  is transport-level (the SOAP call returned without throwing); it does **not**
+  inspect the ATS `ResultsBase` ResultCode / ResultMessage / Exception, so an
+  application-level rejection in a valid SOAP response still logs "success" and the
+  task will not retry. Confirm the activity actually appears in iMIS.
 
 ## C. Inbound provisioning — verify the core-functions service
 
 - [ ] On the inbound web-service (e.g. "ATS iMIS Bridge"), the service account's
   role holds `moodle/user:create`, `moodle/user:update`, `moodle/user:viewdetails`,
-  `enrol/manual:enrol`, `enrol/manual:unenrol`, **and `moodle/role:assign`** (the
-  last is required by `enrol_manual_enrol_users` and is easy to miss).
+  **`moodle/user:viewalldetails`**, `enrol/manual:enrol`, `enrol/manual:unenrol`,
+  **and `moodle/role:assign`**. Two easy-to-miss ones:
+  - `moodle/role:assign` — required by `enrol_manual_enrol_users` to assign the
+    Student role (not shown in the function's "required capabilities").
+  - `moodle/user:viewalldetails` — without it (Moodle 5.1+) `core_user_get_users` can
+    omit `username` / `idnumber` from the result and then drop the match, so ATS
+    concludes an existing member is **absent**, calls create, and hits the exact
+    already-exists failure this is meant to prevent. (Alternatively, configure
+    `idnumber` as a displayed identity field.)
 - [ ] Service set to **authorised users only**, with the service account added; not
   exposed on the mobile service.
 - [ ] Web services + the **REST protocol** enabled; the REST endpoint
@@ -107,8 +129,10 @@ Resolve these before cutover — they are behaviour changes, not bugs:
 
 - [ ] **Only one plugin's observers active at a time.** With both installed,
   `course_completed` fires **both** observers and produces duplicate iMIS records.
-  **Disable or uninstall the vendor `local_imis` plugin** (or disable its
-  observers) before enabling the new plugin's writes.
+  **Disable the vendor `local_imis` plugin's observers** before enabling the new
+  plugin's writes — but **do NOT uninstall it yet.** Keep it installed (disabled)
+  through the rollback window so a switch-back stays config-only (see G); uninstall
+  only after post-cutover sign-off (F).
 - [ ] Enable the new plugin's write toggles.
 - [ ] Decide on the login/nightly syncs: if ATS now pushes enrolments inbound, the
   new plugin's login/nightly **pull** syncs may be redundant or conflicting —
@@ -116,21 +140,36 @@ Resolve these before cutover — they are behaviour changes, not bugs:
 
 ## F. Post-cutover verification (first 24–48 hours)
 
-- [ ] Audit log shows both directions succeeding, **no errors** and **no duplicate**
-  activity records.
+- [ ] **Outbound:** the plugin **audit log** shows completion/quiz writes
+  succeeding, **no errors** and **no duplicate** activity records (with the
+  ResultsBase caveat from B — confirm the records in iMIS, not just the log status).
+- [ ] **Inbound** create/enrol calls run through Moodle's **core** functions and
+  **bypass the plugin audit log entirely** — verify them via Moodle's web-service /
+  event logs (Site administration → Reports → Logs, and → Server → Web services →
+  monitor) and/or ATS-side records, not the plugin log.
 - [ ] Spot-check one real registration (create + enrol) and one real completion
   (writeback) end to end in iMIS.
 - [ ] SAML login still works (`auth_saml2`, unchanged by the plugin swap).
-- [ ] Revoke the **old** `local_imis` token and disable its service.
+- [ ] **Only after the rollback window has closed and the changeover is confirmed:**
+  revoke the **old** `local_imis` token, disable its service, and uninstall the
+  vendor plugin.
 
 ## G. Rollback
 
-Config-only — both plugins' tables are logs/tracking, so there is no data to
-migrate:
+Config-only **provided the vendor plugin is still installed** (keep it
+installed-but-disabled through the rollback window — §E/§F). Both plugins' tables
+are logs/tracking, so there is no data to migrate. Do it **in this order** so no
+event is handled by both plugins during the switch-back (the single-writer
+invariant):
 
-- [ ] Re-enable the vendor plugin's observers and its token/service.
-- [ ] Disable the new plugin's write toggles.
+- [ ] **First, disable the new plugin's write toggles.**
+- [ ] Then re-enable the vendor plugin's observers and its token/service.
 - [ ] Repoint ATS `FN_*` back to the `local_imis_*` names and the old token.
+
+> If the vendor plugin was already **uninstalled**, rollback is **not** config-only:
+> Moodle purged its code, configuration and tables, so it must be **reinstalled and
+> reconfigured** first. This is exactly why §E keeps it installed-but-disabled until
+> sign-off.
 
 ---
 
