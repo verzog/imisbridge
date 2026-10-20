@@ -29,6 +29,21 @@ if ($hassiteconfig) {
 
     $ADMIN->add('localplugins', $settings);
 
+    // Register the sync and audit-log pages as admin external pages so they appear
+    // in the admin navigation and can be added to the admin bookmarks.
+    $ADMIN->add('localplugins', new admin_externalpage(
+        'local_imisbridge_sync',
+        get_string('manualsynccontrols', 'local_imisbridge'),
+        new moodle_url('/local/imisbridge/admin/sync.php'),
+        'moodle/site:config'
+    ));
+    $ADMIN->add('localplugins', new admin_externalpage(
+        'local_imisbridge_log',
+        get_string('openlog', 'local_imisbridge'),
+        new moodle_url('/local/imisbridge/admin/log.php'),
+        'moodle/site:config'
+    ));
+
     // Outbound transport: ATS SOAP middleware (default) or direct iMIS REST.
     $settings->add(new admin_setting_configselect(
         'local_imisbridge/transport',
