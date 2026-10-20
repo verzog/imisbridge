@@ -110,6 +110,17 @@ if ($hassiteconfig) {
         PARAM_ALPHANUMEXT
     ));
 
+    // SOAP ResultCodes treated as success. Blank = judge failures only by the
+    // response's Exception field; set the real ATS success code(s) to also flag an
+    // unexpected ResultCode as a failure.
+    $settings->add(new admin_setting_configtext(
+        'local_imisbridge/soap_success_result_codes',
+        get_string('soap_success_result_codes', 'local_imisbridge'),
+        get_string('soap_success_result_codes_desc', 'local_imisbridge'),
+        '',
+        PARAM_RAW_TRIMMED
+    ));
+
     // Direct iMIS REST transport settings (used when Transport = Direct iMIS REST).
     $settings->add(new admin_setting_heading(
         'local_imisbridge/restheading',
