@@ -151,24 +151,44 @@ final class imis_client_test extends \advanced_testcase {
     }
 
     /**
-     * A populated Exception in the ResultsBase is an application-level failure.
+     * A populated Exception->Message (ATS's object shape) is a failure.
      *
      * @return void
      */
     public function test_result_error_exception(): void {
         $result = json_decode(json_encode([
-            'ResultsBase' => ['ResultCode' => '5', 'ResultMessage' => 'rejected', 'Exception' => 'Bad productId'],
+            'ResultsBase' => [
+                'ResultCode'    => '5',
+                'ResultMessage' => 'rejected',
+                'Exception'     => ['Message' => 'Bad productId', 'Source' => 'ATS'],
+            ],
         ]));
         $this->assertSame('Bad productId', imis_client::result_error($result));
     }
 
     /**
-     * An empty Exception with no configured success codes is a success.
+     * A scalar Exception string is also treated as a failure (defensive).
+     *
+     * @return void
+     */
+    public function test_result_error_scalar_exception(): void {
+        $result = json_decode(json_encode(['ResultsBase' => ['Exception' => 'plain error']]));
+        $this->assertSame('plain error', imis_client::result_error($result));
+    }
+
+    /**
+     * The real success shape (ResultCode 0, an all-empty Exception object) is a success.
      *
      * @return void
      */
     public function test_result_error_empty_exception_no_codes(): void {
-        $result = json_decode(json_encode(['ResultsBase' => ['ResultCode' => '0', 'Exception' => '']]));
+        $result = json_decode(json_encode([
+            'ResultsBase' => [
+                'ResultCode'    => '0',
+                'ResultMessage' => '',
+                'Exception'     => ['Message' => '', 'Source' => '', 'StackTrace' => ''],
+            ],
+        ]));
         $this->assertNull(imis_client::result_error($result));
     }
 
@@ -193,7 +213,7 @@ final class imis_client_test extends \advanced_testcase {
      * @return void
      */
     public function test_result_error_createactivity_wrapper(): void {
-        $result = json_decode(json_encode(['createActivityResult' => ['Exception' => 'nope']]));
+        $result = json_decode(json_encode(['createActivityResult' => ['Exception' => ['Message' => 'nope']]]));
         $this->assertSame('nope', imis_client::result_error($result));
     }
 

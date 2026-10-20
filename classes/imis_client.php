@@ -269,7 +269,7 @@ class imis_client {
             return null;
         }
 
-        $exception = (isset($rb->Exception) && is_scalar($rb->Exception)) ? trim((string)$rb->Exception) : '';
+        $exception = self::exception_message($rb);
         if ($exception !== '') {
             return $exception;
         }
@@ -285,6 +285,31 @@ class imis_client {
         }
 
         return null;
+    }
+
+    /**
+     * Extract a failure message from a ResultsBase Exception, if one is populated.
+     *
+     * ATS returns Exception as an object ({Message, Source, StackTrace, …}) that is
+     * present but all-empty on success, so only a non-empty `Exception->Message`
+     * (or a non-empty scalar Exception) counts as a failure. An empty exception
+     * object is a success.
+     *
+     * @param object $rb The ResultsBase (or equivalent status object).
+     * @return string The exception message, or '' when there is no failure.
+     */
+    public static function exception_message(object $rb): string {
+        if (!isset($rb->Exception)) {
+            return '';
+        }
+        $exception = $rb->Exception;
+        if (is_scalar($exception)) {
+            return trim((string)$exception);
+        }
+        if (is_object($exception) && isset($exception->Message) && is_scalar($exception->Message)) {
+            return trim((string)$exception->Message);
+        }
+        return '';
     }
 
     /**
