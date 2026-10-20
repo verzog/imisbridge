@@ -88,18 +88,6 @@ class util {
     }
 
     /**
-     * The active outbound transport: 'soap' (ATS middleware) or 'rest' (direct iMIS).
-     *
-     * Defaults to 'soap' so existing installations keep the ATS path. Only an
-     * explicit 'rest' selects the direct iMIS REST transport.
-     *
-     * @return string One of 'soap' or 'rest'.
-     */
-    public static function transport(): string {
-        return (get_config('local_imisbridge', 'transport') === 'rest') ? 'rest' : 'soap';
-    }
-
-    /**
      * Whether the plugin has the minimum configuration to talk to the external system.
      *
      * Delegates to the active provider's static check, so automatic writes skip

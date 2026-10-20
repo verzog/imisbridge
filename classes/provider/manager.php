@@ -51,10 +51,14 @@ class manager {
     /**
      * The connection-setting value of the active provider.
      *
+     * Resolved against the registry so any registered provider's key is honoured;
+     * an unset or unregistered value falls back to the SOAP bridge (the default).
+     *
      * @return string
      */
     public static function active_key(): string {
-        return \local_imisbridge\util::transport();
+        $configured = (string)get_config('local_imisbridge', 'transport');
+        return isset(self::providers()[$configured]) ? $configured : 'soap';
     }
 
     /**
@@ -63,8 +67,7 @@ class manager {
      * @return string
      */
     public static function active_provider_class(): string {
-        $map = self::providers();
-        return $map[self::active_key()] ?? \local_imisbridge\imis_client::class;
+        return self::providers()[self::active_key()];
     }
 
     /**
