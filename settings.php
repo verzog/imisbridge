@@ -44,16 +44,14 @@ if ($hassiteconfig) {
         'moodle/site:config'
     ));
 
-    // Outbound transport: ATS SOAP middleware (default) or direct iMIS REST.
+    // Which provider connects to the external system. The choices come from the
+    // provider registry, so adding a provider class makes it selectable here.
     $settings->add(new admin_setting_configselect(
         'local_imisbridge/transport',
         get_string('transport', 'local_imisbridge'),
         get_string('transport_desc', 'local_imisbridge'),
         'soap',
-        [
-            'soap' => get_string('transport_soap', 'local_imisbridge'),
-            'rest' => get_string('transport_rest', 'local_imisbridge'),
-        ]
+        \local_imisbridge\provider\manager::menu()
     ));
 
     // WSDL endpoint.

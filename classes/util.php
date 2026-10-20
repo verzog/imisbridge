@@ -100,18 +100,17 @@ class util {
     }
 
     /**
-     * Whether the plugin has the minimum configuration to talk to iMIS.
+     * Whether the plugin has the minimum configuration to talk to the external system.
      *
-     * Neither client can be built without its endpoint, so automatic writes skip
-     * cleanly (rather than throwing in cron) until the active transport is
-     * configured: the SOAP path needs a WSDL URL, the REST path a base URL.
+     * Delegates to the active provider's static check, so automatic writes skip
+     * cleanly (rather than throwing in cron) until that provider is configured.
+     * The check must not construct a client — each provider's constructor requires
+     * live connection settings and throws without them.
      *
      * @return bool
      */
     public static function is_configured(): bool {
-        if (self::transport() === 'rest') {
-            return !empty(get_config('local_imisbridge', 'rest_base_url'));
-        }
-        return !empty(get_config('local_imisbridge', 'wsdl_url'));
+        $class = provider\manager::active_provider_class();
+        return $class::is_configured();
     }
 }

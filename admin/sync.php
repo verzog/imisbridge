@@ -37,33 +37,23 @@ $error      = '';
 $testoutput = '';
 $syncoutput = '';
 
+// Manual order/group sync and the connection test are offered by providers that
+// support inbound sync (the ATS SOAP bridge). A provider that only receives pushed
+// records (direct REST) does not, so these controls are gated on that capability.
+$providerclass = \local_imisbridge\provider\manager::active_provider_class();
+$cansync       = is_a($providerclass, \local_imisbridge\provider\org_sync_provider::class, true);
+
 if ($action === 'testconnection' && confirm_sesskey()) {
-    // Read-only: verify connectivity without writing any data. GetBridgeSettings
-    // sends the AuthToken when one is configured; a profile lookup (contact ID)
+    // Read-only: verify connectivity without writing any data. The provider's
+    // diagnostics send the AuthToken when configured; a profile lookup (contact ID)
     // always exercises it.
     try {
-        $client = new \local_imisbridge\imis_client();
-        // Show where requests will actually be sent (override vs WSDL address) so
-        // a WSDL that advertises the wrong environment is caught before writing.
-        $override = \local_imisbridge\imis_client::get_effective_endpoint();
-        if ($override !== null) {
-            $endpointline = get_string('endpoint_override_active', 'local_imisbridge', $override);
+        $provider = \local_imisbridge\provider\manager::org_sync_instance();
+        if ($provider === null) {
+            $error = get_string('providernotsupported', 'local_imisbridge', $providerclass::label());
         } else {
-            $wsdladdr     = \local_imisbridge\imis_client::read_wsdl_endpoint();
-            $endpointline = ($wsdladdr !== null)
-                ? get_string('endpoint_from_wsdl', 'local_imisbridge', $wsdladdr)
-                : get_string('endpoint_from_wsdl_unknown', 'local_imisbridge');
+            $testoutput = $provider->diagnostics(!empty($contactid) ? $contactid : null);
         }
-        $out  = $endpointline . PHP_EOL . PHP_EOL;
-        $out .= 'GetBridgeSettings:' . PHP_EOL . var_export($client->get_bridge_settings(), true);
-        if (!empty($contactid)) {
-            $out .= PHP_EOL . PHP_EOL . 'MoodleGetUserProfile(' . $contactid . '):' . PHP_EOL
-                . var_export($client->get_contact_by_id($contactid), true);
-            $out .= PHP_EOL . PHP_EOL . get_string('testcredentialsok', 'local_imisbridge');
-        } else {
-            $out .= PHP_EOL . PHP_EOL . get_string('testcredentialsnote', 'local_imisbridge');
-        }
-        $testoutput = $out;
     } catch (\Throwable $e) {
         $error = get_string('syncfailed', 'local_imisbridge', $e->getMessage());
     }
@@ -97,41 +87,45 @@ if ($action === 'testconnection' && confirm_sesskey()) {
     \core_php_time_limit::raise(300);
 
     try {
-        $client = new \local_imisbridge\imis_client();
-        $scope  = $cid
-            ? get_string('forcontact', 'local_imisbridge', s($contactid))
-            : get_string('allusers', 'local_imisbridge');
+        $provider = \local_imisbridge\provider\manager::org_sync_instance();
+        if ($provider === null) {
+            $error = get_string('providernotsupported', 'local_imisbridge', $providerclass::label());
+        } else {
+            $scope = $cid
+                ? get_string('forcontact', 'local_imisbridge', s($contactid))
+                : get_string('allusers', 'local_imisbridge');
 
-        // Collect each call's raw result so a manual sync of a few records can be
-        // eyeballed on this page without opening the audit log.
-        $results = [];
-        switch ($action) {
-            case 'enrollments':
-                $results['SendNewOrdersToMoodle'] = $client->sync_orders($cid);
-                break;
+            // Collect each call's raw result so a manual sync of a few records can be
+            // eyeballed on this page without opening the audit log.
+            $results = [];
+            switch ($action) {
+                case 'enrollments':
+                    $results['SendNewOrdersToMoodle'] = $provider->sync_orders($cid);
+                    break;
 
-            case 'cancellations':
-                $results['SendCancelledOrdersToMoodle'] = $client->sync_cancelled_orders($cid);
-                break;
+                case 'cancellations':
+                    $results['SendCancelledOrdersToMoodle'] = $provider->sync_cancelled_orders($cid);
+                    break;
 
-            case 'groups':
-                $results['UpdateMoodleGroups'] = $client->update_groups($cid);
-                break;
+                case 'groups':
+                    $results['UpdateMoodleGroups'] = $provider->update_groups($cid);
+                    break;
 
-            case 'all':
-                $results['SendNewOrdersToMoodle']       = $client->sync_orders($cid);
-                $results['SendCancelledOrdersToMoodle'] = $client->sync_cancelled_orders($cid);
-                $results['UpdateMoodleGroups']          = $client->update_groups($cid);
-                break;
+                case 'all':
+                    $results['SendNewOrdersToMoodle']       = $provider->sync_orders($cid);
+                    $results['SendCancelledOrdersToMoodle'] = $provider->sync_cancelled_orders($cid);
+                    $results['UpdateMoodleGroups']          = $provider->update_groups($cid);
+                    break;
+            }
+
+            $message = get_string('syncdone', 'local_imisbridge', $scope);
+
+            $out = '';
+            foreach ($results as $op => $res) {
+                $out .= $op . ':' . PHP_EOL . var_export($res, true) . PHP_EOL . PHP_EOL;
+            }
+            $syncoutput = trim($out);
         }
-
-        $message = get_string('syncdone', 'local_imisbridge', $scope);
-
-        $out = '';
-        foreach ($results as $op => $res) {
-            $out .= $op . ':' . PHP_EOL . var_export($res, true) . PHP_EOL . PHP_EOL;
-        }
-        $syncoutput = trim($out);
     } catch (\Exception $e) {
         $error = get_string('syncfailed', 'local_imisbridge', $e->getMessage());
     }
@@ -152,33 +146,42 @@ $logsurl  = new moodle_url('/admin/tasklogs.php');
 $sesskey  = sesskey();
 $cidvalue = s($contactid);
 
-echo html_writer::start_div('card mb-4');
-echo html_writer::start_div('card-body');
-echo html_writer::tag('h5', get_string('filtercontactid', 'local_imisbridge'), ['class' => 'card-title']);
-echo '<form method="post" action="">';
-echo '<input type="hidden" name="sesskey" value="' . $sesskey . '">';
-echo html_writer::start_div('form-group');
-echo html_writer::tag('label', get_string('contactid', 'local_imisbridge'), ['for' => 'contactid']);
-echo '<input type="text" id="contactid" name="contactid" class="form-control"'
-    . ' value="' . $cidvalue . '" placeholder="' . s(get_string('contactidplaceholder', 'local_imisbridge')) . '">';
-echo html_writer::tag('small', get_string('contactidhelp', 'local_imisbridge'), ['class' => 'form-text text-muted']);
-echo html_writer::end_div();
-echo html_writer::start_div('mt-3 d-flex gap-2 flex-wrap');
-echo '<button type="submit" name="action" value="enrollments" class="btn btn-primary">'
-    . s(get_string('sync_enrollments', 'local_imisbridge')) . '</button>';
-echo '<button type="submit" name="action" value="cancellations" class="btn btn-warning">'
-    . s(get_string('sync_cancellations', 'local_imisbridge')) . '</button>';
-echo '<button type="submit" name="action" value="groups" class="btn btn-info">'
-    . s(get_string('sync_groups', 'local_imisbridge')) . '</button>';
-echo '<button type="submit" name="action" value="all" class="btn btn-success">'
-    . s(get_string('sync_all', 'local_imisbridge')) . '</button>';
-echo '<button type="submit" name="action" value="testconnection" class="btn btn-outline-secondary">'
-    . s(get_string('testconnection', 'local_imisbridge')) . '</button>';
-echo html_writer::end_div();
-echo html_writer::tag('small', get_string('testconnection_help', 'local_imisbridge'), ['class' => 'form-text text-muted mt-2']);
-echo '</form>';
-echo html_writer::end_div();
-echo html_writer::end_div();
+if ($cansync) {
+    echo html_writer::start_div('card mb-4');
+    echo html_writer::start_div('card-body');
+    echo html_writer::tag('h5', get_string('filtercontactid', 'local_imisbridge'), ['class' => 'card-title']);
+    echo '<form method="post" action="">';
+    echo '<input type="hidden" name="sesskey" value="' . $sesskey . '">';
+    echo html_writer::start_div('form-group');
+    echo html_writer::tag('label', get_string('contactid', 'local_imisbridge'), ['for' => 'contactid']);
+    echo '<input type="text" id="contactid" name="contactid" class="form-control"'
+        . ' value="' . $cidvalue . '" placeholder="' . s(get_string('contactidplaceholder', 'local_imisbridge')) . '">';
+    echo html_writer::tag('small', get_string('contactidhelp', 'local_imisbridge'), ['class' => 'form-text text-muted']);
+    echo html_writer::end_div();
+    echo html_writer::start_div('mt-3 d-flex gap-2 flex-wrap');
+    echo '<button type="submit" name="action" value="enrollments" class="btn btn-primary">'
+        . s(get_string('sync_enrollments', 'local_imisbridge')) . '</button>';
+    echo '<button type="submit" name="action" value="cancellations" class="btn btn-warning">'
+        . s(get_string('sync_cancellations', 'local_imisbridge')) . '</button>';
+    echo '<button type="submit" name="action" value="groups" class="btn btn-info">'
+        . s(get_string('sync_groups', 'local_imisbridge')) . '</button>';
+    echo '<button type="submit" name="action" value="all" class="btn btn-success">'
+        . s(get_string('sync_all', 'local_imisbridge')) . '</button>';
+    echo '<button type="submit" name="action" value="testconnection" class="btn btn-outline-secondary">'
+        . s(get_string('testconnection', 'local_imisbridge')) . '</button>';
+    echo html_writer::end_div();
+    echo html_writer::tag('small', get_string('testconnection_help', 'local_imisbridge'), ['class' => 'form-text text-muted mt-2']);
+    echo '</form>';
+    echo html_writer::end_div();
+    echo html_writer::end_div();
+} else {
+    // The active provider receives pushed records but has no manual order/group
+    // sync or connection test; say so instead of showing controls that would fail.
+    echo $OUTPUT->notification(
+        get_string('providernotsupported', 'local_imisbridge', $providerclass::label()),
+        'notifymessage'
+    );
+}
 
 if ($testoutput !== '') {
     echo html_writer::start_div('card mb-4');

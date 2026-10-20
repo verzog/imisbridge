@@ -43,7 +43,7 @@ namespace local_imisbridge;
  * @copyright  2024 Vernon Spain
  * @license    http://www.gnu.org/copyleft/gpl.html GNU GPL v3 or later
  */
-class rest_client {
+class rest_client implements \local_imisbridge\provider\provider_interface {
     /** @var string Canonical activity type for the per-course completion record. */
     public const ACTIVITY_MOODLE = 'MOODLE';
 
@@ -84,6 +84,118 @@ class rest_client {
 
         $timeout = (int)get_config('local_imisbridge', 'ws_timeout');
         $this->timeout = ($timeout > 0) ? $timeout : 30;
+    }
+
+    /**
+     * A short human-readable name for this provider.
+     *
+     * @return string
+     */
+    public static function label(): string {
+        return get_string('transport_rest', 'local_imisbridge');
+    }
+
+    /**
+     * Whether the REST provider has the minimum configuration to connect (a base URL).
+     *
+     * @return bool
+     */
+    public static function is_configured(): bool {
+        return !empty(get_config('local_imisbridge', 'rest_base_url'));
+    }
+
+    /**
+     * The direct REST provider pushes records; it has no inbound order/group sync.
+     *
+     * @param string $capability One of the provider CAP_* constants.
+     * @return bool
+     */
+    public static function supports(string $capability): bool {
+        return $capability === \local_imisbridge\provider\provider_interface::CAP_PUSH;
+    }
+
+    /**
+     * Push a course completion: upsert the canonical MOODLE activity (status COMPLETE).
+     *
+     * @param \stdClass $data The queued push data.
+     * @return void
+     */
+    public function push_completion(\stdClass $data): void {
+        $courseid = (string)($data->coursenum ?? '');
+        $this->upsert_completion(
+            (string)$data->imisid,
+            $courseid,
+            'COMPLETE',
+            (float)($data->score ?? 0),
+            (string)($data->completiondate ?? date('Y-m-d')),
+            'Moodle course ' . $courseid . ' completion',
+            self::extra_columns($data)
+        );
+    }
+
+    /**
+     * Push an assessment score: append a MOODLENOTE row so the course-level record is untouched.
+     *
+     * @param \stdClass $data The queued push data.
+     * @return void
+     */
+    public function push_score(\stdClass $data): void {
+        $courseid = (string)($data->coursenum ?? '');
+        $this->add_note(
+            (string)$data->imisid,
+            $courseid,
+            strtoupper((string)($data->status ?? '')),
+            (float)($data->score ?? 0),
+            (string)($data->completiondate ?? date('Y-m-d')),
+            'Moodle course ' . $courseid . ' score',
+            self::extra_columns($data)
+        );
+    }
+
+    /**
+     * Push a supplementary module-completion note as a MOODLENOTE activity.
+     *
+     * @param \stdClass $data The queued push data.
+     * @return void
+     */
+    public function push_module_note(\stdClass $data): void {
+        $this->add_note(
+            (string)$data->imisid,
+            (string)($data->coursenum ?? ''),
+            (string)($data->status ?? ''),
+            (float)($data->score ?? 0),
+            (string)($data->date ?? date('Y-m-d')),
+            'Module completion: ' . (string)($data->cmname ?? ''),
+            ['UF_5' => (int)($data->cmid ?? 0)]
+        );
+    }
+
+    /**
+     * Map the push data onto the optional, operator-configured iMIS columns.
+     *
+     * Each mapping is applied only when its column-name setting is non-empty, so
+     * columns whose raw names are not yet confirmed against iMIS are simply not
+     * sent rather than guessed.
+     *
+     * @param \stdClass $data The queued push data.
+     * @return array Column name => value pairs to set on the activity.
+     */
+    private static function extra_columns(\stdClass $data): array {
+        $map = [
+            'rest_col_credittype'     => $data->credittype ?? '',
+            'rest_col_creditvalue'    => (float)($data->creditvalue ?? 0),
+            'rest_col_grantdate'      => $data->grantdate ?? '',
+            'rest_col_completiondate' => $data->completiondate ?? '',
+        ];
+
+        $extra = [];
+        foreach ($map as $setting => $value) {
+            $column = trim((string)get_config('local_imisbridge', $setting));
+            if ($column !== '') {
+                $extra[$column] = $value;
+            }
+        }
+        return $extra;
     }
 
     /**

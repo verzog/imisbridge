@@ -53,14 +53,18 @@ class sync_groups_task extends \core\task\scheduled_task {
         }
 
         if (!\local_imisbridge\util::is_configured()) {
-            mtrace('iMIS Bridge: no iMIS WSDL configured; skipping group sync.');
+            mtrace('iMIS Bridge: external system not configured; skipping group sync.');
+            return;
+        }
+
+        $provider = \local_imisbridge\provider\manager::org_sync_instance();
+        if ($provider === null) {
+            mtrace('iMIS Bridge: active provider does not support group sync; skipping group sync.');
             return;
         }
 
         mtrace('iMIS Bridge: Starting group sync...');
         try {
-            $client = new \local_imisbridge\imis_client();
-
             // Incremental sync uses a watermark this task manages itself, rather than
             // the scheduled-task last-run time. A disabled run returns early without
             // advancing it, so re-enabling the task does not skip changes made while
@@ -72,7 +76,7 @@ class sync_groups_task extends \core\task\scheduled_task {
             // are re-checked next time (a safe overlap) rather than missed.
             $windowstart = time();
 
-            $result = $client->update_groups(null, null, $lastupdated);
+            $result = $provider->update_groups(null, null, $lastupdated);
 
             // Advance the watermark only after a successful sync.
             set_config('groups_last_sync', $windowstart, 'local_imisbridge');
