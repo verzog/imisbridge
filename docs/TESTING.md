@@ -170,8 +170,12 @@ merely by running it from a test Moodle.
    these are not interchangeable:
    - **Completion/quiz pushes** are token-bearing, so a **scoped test AuthToken
      / test product** confines them to a throwaway iMIS contact and product.
-     There is no manual push button; trigger the push through the event itself —
-     have your test user complete the test course or submit the graded quiz. The
+     You can trigger the push through the event itself (have your test user
+     complete the test course or submit the graded quiz) or with the **Push
+     completion (test)** control on the manual sync page, which sends one
+     completion for a Member ID and course on demand; both honour the _Push
+     course completions_ setting, and both are token-bearing. The manual control
+     writes to whatever Member ID you enter, so use a throwaway/dev contact. The
      push sends the user's **configured iMIS ID field** (_iMIS contact ID source_:
      username, ID number, or email), so set **that field** — not necessarily the
      username — on the test user to the throwaway iMIS contact ID, and confirm it
