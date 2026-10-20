@@ -69,19 +69,25 @@ if ($action === 'testconnection' && confirm_sesskey()) {
     try {
         if (!$canpush) {
             $error = get_string('pushnotsupported', 'local_imisbridge');
+        } else if (!\local_imisbridge\util::is_enabled('push_completions')) {
+            // Honour the same kill switch the observer and push task obey.
+            $error = get_string('pushdisabled', 'local_imisbridge');
         } else if ($pushmember === '' || $pushcourse <= 0) {
             $error = get_string('pushmissingfields', 'local_imisbridge');
         } else if (!\local_imisbridge\util::is_configured()) {
-            $error = get_string('providernotsupported', 'local_imisbridge', $providerclass::label());
+            $error = get_string('notconfigured', 'local_imisbridge', $providerclass::label());
         } else {
             $course = $DB->get_record('course', ['id' => $pushcourse], 'id');
             if (!$course) {
                 $error = get_string('pushnocourse', 'local_imisbridge', $pushcourse);
             } else {
-                // Use the matching Moodle user's grade when one exists, else send 0.
-                $field  = \local_imisbridge\util::imis_id_source();
-                $user   = $DB->get_record('user', [$field => $pushmember], 'id');
-                $userid = $user ? (int)$user->id : 0;
+                // Derive the score from the matching Moodle user's grade, but only when
+                // the member ID maps to exactly one user: the id field can be non-unique
+                // (idnumber, email, or usernames across MNet hosts), and an arbitrary
+                // match could attach the wrong grade. No/ambiguous match sends score 0.
+                $field   = \local_imisbridge\util::imis_id_source();
+                $matches = $DB->get_records('user', [$field => $pushmember], '', 'id', 0, 2);
+                $userid  = (count($matches) === 1) ? (int)reset($matches)->id : 0;
 
                 $data = \local_imisbridge\observer::completion_push_data($pushmember, $course, $userid);
                 \local_imisbridge\provider\manager::instance()->push_completion($data);
