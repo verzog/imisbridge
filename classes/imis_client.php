@@ -300,7 +300,7 @@ class imis_client {
         if (isset($result->ResultsBase) && is_object($result->ResultsBase)) {
             return $result->ResultsBase;
         }
-        // createActivity wraps its payload; the status may sit on the wrapper.
+        // On createActivity the status may sit on the result wrapper, not a ResultsBase.
         if (isset($result->createActivityResult) && is_object($result->createActivityResult)) {
             $wrapper = $result->createActivityResult;
             if (isset($wrapper->ResultsBase) && is_object($wrapper->ResultsBase)) {
