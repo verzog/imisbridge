@@ -109,8 +109,11 @@ Order matters here — disable writes **before** entering any endpoint.
 > functions** (`core_user_*`, `enrol_manual_*`) exposed on an external service, with
 > ATS's `FN_*` mappings repointed to those core names (§D). The vendor's
 > `local_imis_*` wrappers are *replaced by configuration*, not re-implemented in the
-> new plugin — and core `enrol_manual_enrol_users` actually avoids the vendor's
-> hidden-course `require_login` trap. A single-plugin alternative (adding external
+> new plugin — and core `enrol_manual_enrol_users` avoids the vendor's broken
+> hidden-course handling **provided the service account can access the course**:
+> its `validate_context()` still runs `require_login()`, so the account needs
+> `moodle/course:view` (+ `viewhiddencourses` for hidden courses) — see the recipe
+> below. A single-plugin alternative (adding external
 > functions + a `db/services.php` to `local_imisbridge` and pointing `FN_*` at them)
 > is heavier — more code and capability surface. Prefer the core route **unless**
 > the existing-user test below shows ATS strands the enrol when
@@ -146,6 +149,14 @@ Order matters here — disable writes **before** entering any endpoint.
      `moodle/site:viewuseridentity` on this role, so granting `viewalldetails` is
      simpler.)
    - `enrol/manual:enrol`, `enrol/manual:unenrol`
+   - ★ **`moodle/course:view`** — "View courses without participation". Without it,
+     `enrol_manual_enrol_users` → `validate_context()` → `require_login($course)`
+     fails for a service account that isn't enrolled, with
+     `requireloginerror: Course or activity not accessible` — **even on a visible
+     course**. (Confirmed on the dev end-to-end test: this was the final blocker.)
+   - ★ **`moodle/course:viewhiddencourses`** (and `moodle/category:viewhiddencategories`)
+     — so the same access check also passes when the target course/category is
+     **hidden** (the usual prod case: courses hidden until launch).
    - ★ **`moodle/role:assign`** — needed by `enrol_manual_enrol_users` to assign the
      Student role (`ROLE_ID`).
    - `local/imisbridge:readcompletions` — only if this token also serves the pull.
@@ -169,7 +180,8 @@ Then verify:
   inbound is restricted).
 - [ ] End-to-end: ATS pushes a registration → a **new** user is created and
   enrolled into the mapped course with the Student role, **including a hidden
-  course** (the core function avoids the vendor's `require_login` trap).
+  course** (needs `moodle/course:view` + `viewhiddencourses` on the service
+  account — see the recipe; this was the final blocker on the dev test).
 - [ ] Re-send for an **existing** user → confirm it does not error-and-strand the
   enrol (decision 3).
 
@@ -215,6 +227,45 @@ bridge, to check before an inbound test:
   hostname alone is ambiguous.
 - Reference values: `AUTH_MODE = saml2`, `ROLE_ID = 5` (Student enrol role),
   `ACTIVITYTYPE = MOODLE`.
+
+### Inbound troubleshooting (from the dev end-to-end test)
+
+The order → enrol path was proven end-to-end on dev. The gotchas hit along the
+way, each with the symptom that identifies it:
+
+- **`FN_*` transposition.** It is easy to swap `FN_CORE_USER_CREATE_USERS` and
+  `FN_CORE_USER_GET_USERS` (map create → `core_user_get_users` and vice versa).
+  The create/get calls then run backwards. Double-check each `FN_*` value matches
+  its key.
+- **Push trigger must be server-side and IP-allowlisted.** The ATS `wsmoodle`
+  service only accepts calls from **allowlisted IPs** — a call from a workstation
+  browser is denied with `ResultCode 2` / "Error checking security header …
+  WebService Access is denied" (the IP is named in the message). The Moodle
+  server is allowlisted (so the plugin's push works); for the scheduled push,
+  **iDMS runs server-side** and the **iMIS/iDMS server's egress IP must also be
+  allowlisted on `wsmoodle`**. There is no way to trigger it from a browser.
+- **403 from Moodle = a host-layer block, not Moodle perms.** A
+  `(403) Forbidden` on the `/webservice/rest/server.php` callback means the
+  request was blocked **before reaching Moodle** (Moodle permission/token errors
+  come back HTTP 200 with an XML `<EXCEPTION>`). On the dev host (YunoHost /
+  `*.nohost.me`), the **SSO portal (SSOwat)** blocks unauthenticated external
+  requests — make the webservice path **public** for the Moodle app; generally,
+  allowlist the ATS egress IP / open a WAF rule for `/webservice/rest/server.php`.
+- **`requireloginerror: Course or activity not accessible`** on enrol means the
+  service account cannot access the target course — it needs **`moodle/course:view`**
+  (and `viewhiddencourses` for a hidden course), per §C. This is true even for a
+  **visible** course, because the account is not enrolled.
+- **REST only, no SOAP.** The service account needs `webservice/rest:use`, not
+  `webservice/soap:use` — the bridge calls Moodle over REST; the only SOAP is the
+  plugin acting as a SOAP *client* to ATS, which uses no Moodle web service.
+
+### Division of labour on this install
+
+Inbound (user create + enrol/unenrol) is driven by **iDMS push → `wsmoodle` →
+Moodle core web-service functions** — *not* by the plugin's `SendNewOrdersToMoodle`
+SOAP pull. So on this install the plugin's **order/cancellation/group sync is not
+the enrolment mechanism** and its login/nightly sync toggles stay **off**;
+`local_imisbridge` owns only the **outbound** completion/score push.
 
 ## E. Cutover — avoid double-writes (critical)
 
