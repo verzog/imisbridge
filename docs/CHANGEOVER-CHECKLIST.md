@@ -83,6 +83,16 @@ Order matters here — disable writes **before** entering any endpoint.
   start/completion/grant dates, credit**, under the right contact (`idnumber`).
   Compare against an existing vendor-written record for continuity with the
   history already in iMIS.
+
+> **Never change `mdl_course.id` to line up with iMIS.** The course id is a primary
+> key referenced across ~30 tables (enrolments, context, modules, grades,
+> completions); editing it directly in the DB orphans the enrolments and breaks the
+> course (it vanishes from "My courses"). Align on the **iMIS** side instead: the
+> `MOODLE_PRODUCTS` row maps `Description = <numeric Moodle course id>` →
+> `Code = <iMIS product code>`. Let Moodle assign the course id and map it in iMIS;
+> or, if you need the plugin to send something other than the raw id, add a
+> product-identifier-source setting rather than touching the id.
+
 - [ ] Submit a graded quiz and confirm the score lands correctly.
 - [ ] Confirm each call in the **audit log** (operation, status, any fault). As of
   1.11.0 a populated `Exception` in the SOAP `ResultsBase` is surfaced as an error
@@ -93,6 +103,17 @@ Order matters here — disable writes **before** entering any endpoint.
   alone.
 
 ## C. Inbound provisioning — verify the core-functions service
+
+> **`local_imisbridge` provides no inbound functions by design.** Inbound
+> provisioning (create user, enrol, unenrol) is done by **core Moodle web-service
+> functions** (`core_user_*`, `enrol_manual_*`) exposed on an external service, with
+> ATS's `FN_*` mappings repointed to those core names (§D). The vendor's
+> `local_imis_*` wrappers are *replaced by configuration*, not re-implemented in the
+> new plugin — and core `enrol_manual_enrol_users` actually avoids the vendor's
+> hidden-course `require_login` trap. A single-plugin alternative (adding external
+> functions + a `db/services.php` to `local_imisbridge` and pointing `FN_*` at them)
+> is possible but adds code and capability surface for no benefit over the core
+> route, so it is **not** recommended.
 
 - [ ] On the inbound web-service (e.g. "ATS iMIS Bridge"), the service account's
   role holds `moodle/user:create`, `moodle/user:update`, `moodle/user:viewdetails`,
@@ -125,6 +146,36 @@ Order matters here — disable writes **before** entering any endpoint.
 - [ ] `REST_ENDPOINT` unchanged (`/webservice/rest/server.php`).
 - [ ] The outbound `wsmoodle` endpoint + AuthToken aligned with the new plugin's
   settings.
+
+### Observed bridge config (`MOODLE_SETTINGS`) & environment gotchas
+
+The ATS bridge reads these keys from an iMIS General Lookup. Traps seen on a dev
+bridge, to check before an inbound test:
+
+- **`COURSE_URL`** — the Moodle callback/link base. Found on the dev bridge pointing
+  at the **production** Moodle. Repoint to the dev Moodle
+  (`https://<dev-moodle>/course/view.php?id=`) **before** running any order/group
+  sync, or the enrol/unenrol callbacks fire against production.
+- **`REST_ENDPOINT`** — the Moodle web-service the bridge calls to enrol/create.
+  Must be the **Moodle** site's `/webservice/rest/server.php`. Found on the dev
+  bridge pointing at the **iMIS** host instead, where no Moodle WS answers — so
+  inbound silently goes nowhere. Fix the host before testing inbound.
+- **`WEBSERVICE_TOKEN`** — the Moodle token for that endpoint. Treat as a secret and
+  rotate it if exposed. It must belong to the **same** Moodle `REST_ENDPOINT` points
+  at, on a service account holding the §C capabilities.
+- **`GROUP_IQA_NAME`** — empty → `UpdateMoodleGroups` is a no-op (no group query
+  configured). Expected unless group sync is set up.
+- **New-order selection is an IQA** under `IQA_FOLDER_NAME` (the bridge's Moodle IQA
+  folder). `SendNewOrdersToMoodle` returning **"No orders found"** for a known
+  registration means that IQA returns nothing — verify the order's **product code
+  matches the `MOODLE_PRODUCTS` `Code`** (a *copied* event usually gets a new code)
+  and that the order meets the IQA's state / "unsent" criteria. Open and run the IQA
+  in iMIS to see exactly what it returns.
+- **SSO URLs** (`LOGIN_URL` / `NOT_AUTHORIZED_URL`) point at the iMIS instance the
+  ATS host is wired to — a reliable way to confirm dev vs prod when the outbound
+  hostname alone is ambiguous.
+- Reference values: `AUTH_MODE = saml2`, `ROLE_ID = 5` (Student enrol role),
+  `ACTIVITYTYPE = MOODLE`.
 
 ## E. Cutover — avoid double-writes (critical)
 
