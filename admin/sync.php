@@ -42,6 +42,8 @@ $syncoutput = '';
 // records (direct REST) does not, so these controls are gated on that capability.
 $providerclass = \local_imisbridge\provider\manager::active_provider_class();
 $cansync       = is_a($providerclass, \local_imisbridge\provider\org_sync_provider::class, true);
+// Every provider can push records, so the manual "push completion" test applies to all.
+$canpush       = $providerclass::supports(\local_imisbridge\provider\provider_interface::CAP_PUSH);
 
 if ($action === 'testconnection' && confirm_sesskey()) {
     // Read-only: verify connectivity without writing any data. The provider's
@@ -53,6 +55,41 @@ if ($action === 'testconnection' && confirm_sesskey()) {
             $error = get_string('providernotsupported', 'local_imisbridge', $providerclass::label());
         } else {
             $testoutput = $provider->diagnostics(!empty($contactid) ? $contactid : null);
+        }
+    } catch (\Throwable $e) {
+        $error = get_string('syncfailed', 'local_imisbridge', $e->getMessage());
+    }
+} else if ($action === 'pushcompletion' && confirm_sesskey()) {
+    // Manual test: push one completion record (MoodleUpdate) for a member and course
+    // on demand, so the write path can be exercised without completing a course and
+    // waiting for cron. Writes a real record to the active external system.
+    global $DB;
+    $pushmember = trim(optional_param('pushmemberid', '', PARAM_TEXT));
+    $pushcourse = optional_param('pushcourseid', 0, PARAM_INT);
+    try {
+        if (!$canpush) {
+            $error = get_string('pushnotsupported', 'local_imisbridge');
+        } else if ($pushmember === '' || $pushcourse <= 0) {
+            $error = get_string('pushmissingfields', 'local_imisbridge');
+        } else if (!\local_imisbridge\util::is_configured()) {
+            $error = get_string('providernotsupported', 'local_imisbridge', $providerclass::label());
+        } else {
+            $course = $DB->get_record('course', ['id' => $pushcourse], 'id');
+            if (!$course) {
+                $error = get_string('pushnocourse', 'local_imisbridge', $pushcourse);
+            } else {
+                // Use the matching Moodle user's grade when one exists, else send 0.
+                $field  = \local_imisbridge\util::imis_id_source();
+                $user   = $DB->get_record('user', [$field => $pushmember], 'id');
+                $userid = $user ? (int)$user->id : 0;
+
+                $data = \local_imisbridge\observer::completion_push_data($pushmember, $course, $userid);
+                \local_imisbridge\provider\manager::instance()->push_completion($data);
+
+                $message    = get_string('pushdone', 'local_imisbridge', s($pushmember));
+                $syncoutput = 'push_completion:' . PHP_EOL . var_export($data, true) . PHP_EOL . PHP_EOL
+                    . get_string('pushaudithint', 'local_imisbridge');
+            }
         }
     } catch (\Throwable $e) {
         $error = get_string('syncfailed', 'local_imisbridge', $e->getMessage());
@@ -181,6 +218,34 @@ if ($cansync) {
         get_string('providernotsupported', 'local_imisbridge', $providerclass::label()),
         'notifymessage'
     );
+}
+
+if ($canpush) {
+    // On-demand completion push: fire one MoodleUpdate for a member and course so the
+    // write path can be exercised without completing a course and waiting for cron.
+    echo html_writer::start_div('card mb-4');
+    echo html_writer::start_div('card-body');
+    echo html_writer::tag('h5', get_string('pushtest', 'local_imisbridge'), ['class' => 'card-title']);
+    echo html_writer::tag('p', get_string('pushcompletion_help', 'local_imisbridge'), ['class' => 'text-muted']);
+    echo '<form method="post" action="">';
+    echo '<input type="hidden" name="sesskey" value="' . $sesskey . '">';
+    echo html_writer::start_div('form-group');
+    echo html_writer::tag('label', get_string('pushmemberid', 'local_imisbridge'), ['for' => 'pushmemberid']);
+    echo '<input type="text" id="pushmemberid" name="pushmemberid" class="form-control"'
+        . ' value="' . $cidvalue . '" placeholder="' . s(get_string('contactidplaceholder', 'local_imisbridge')) . '">';
+    echo html_writer::end_div();
+    echo html_writer::start_div('form-group');
+    echo html_writer::tag('label', get_string('pushcourseid', 'local_imisbridge'), ['for' => 'pushcourseid']);
+    echo '<input type="number" id="pushcourseid" name="pushcourseid" class="form-control" min="1">';
+    echo html_writer::tag('small', get_string('pushcourseidhelp', 'local_imisbridge'), ['class' => 'form-text text-muted']);
+    echo html_writer::end_div();
+    echo html_writer::start_div('mt-3');
+    echo '<button type="submit" name="action" value="pushcompletion" class="btn btn-primary">'
+        . s(get_string('pushcompletion', 'local_imisbridge')) . '</button>';
+    echo html_writer::end_div();
+    echo '</form>';
+    echo html_writer::end_div();
+    echo html_writer::end_div();
 }
 
 if ($testoutput !== '') {

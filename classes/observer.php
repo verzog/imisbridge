@@ -107,18 +107,53 @@ class observer {
             return;
         }
 
-        $today = date('Y-m-d');
+        $data = self::completion_push_data($imisid, $course, (int)$user->id);
         self::queue_activity_push(
-            'push_completions',
-            $imisid,
-            self::course_number($course),
-            self::course_credit_value((int)$course->id),
-            $today,
-            $today,
-            $today,
-            'Pass',
-            self::course_score((int)$course->id, (int)$user->id)
+            $data->toggle,
+            $data->imisid,
+            $data->coursenum,
+            $data->creditvalue,
+            $data->startdate,
+            $data->completiondate,
+            $data->grantdate,
+            $data->status,
+            $data->score
         );
+    }
+
+    /**
+     * Build the completion push payload for a user and course.
+     *
+     * Shared by the automatic course-completion observer and the manual
+     * "push completion" test control on the sync admin page, so both send an
+     * identical record. The status is always a pass (a completion event, or an
+     * admin explicitly pushing a completion); the score and credit value come
+     * from the course and its gradebook.
+     *
+     * @param string    $imisid The member ID to record the activity against.
+     * @param \stdClass $course A course record carrying at least the numeric id.
+     * @param int       $userid The Moodle user ID, for the course grade (0 if unknown).
+     * @return \stdClass The push payload (matching push_activity_task's custom data).
+     */
+    public static function completion_push_data(string $imisid, \stdClass $course, int $userid): \stdClass {
+        $credittype = get_config('local_imisbridge', 'credit_type');
+        if (empty($credittype)) {
+            $credittype = 'CEU';
+        }
+        $today = date('Y-m-d');
+
+        return (object)[
+            'toggle'         => 'push_completions',
+            'imisid'         => $imisid,
+            'coursenum'      => self::course_number($course),
+            'credittype'     => $credittype,
+            'creditvalue'    => self::course_credit_value((int)$course->id),
+            'startdate'      => $today,
+            'completiondate' => $today,
+            'grantdate'      => $today,
+            'status'         => 'Pass',
+            'score'          => self::course_score((int)$course->id, $userid),
+        ];
     }
 
     /**

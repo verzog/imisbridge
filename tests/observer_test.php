@@ -338,4 +338,25 @@ final class observer_test extends \advanced_testcase {
         $tasks = \core\task\manager::get_adhoc_tasks(sync_user_task::class);
         $this->assertCount(0, $tasks);
     }
+
+    /**
+     * completion_push_data builds a pass record keyed on the numeric course id.
+     *
+     * @return void
+     */
+    public function test_completion_push_data(): void {
+        $this->resetAfterTest();
+
+        $course = $this->getDataGenerator()->create_course();
+        $data   = observer::completion_push_data('20018', $course, 0);
+
+        $this->assertSame('push_completions', $data->toggle);
+        $this->assertSame('20018', $data->imisid);
+        $this->assertSame((string)$course->id, $data->coursenum);
+        $this->assertSame('Pass', $data->status);
+        $this->assertSame('CEU', $data->credittype);
+        $this->assertSame(0.0, $data->creditvalue);
+        $this->assertSame(0.0, $data->score);
+        $this->assertSame(date('Y-m-d'), $data->completiondate);
+    }
 }
