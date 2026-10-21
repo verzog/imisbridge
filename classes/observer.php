@@ -175,8 +175,8 @@ class observer {
      */
     public static function module_note_data(string $imisid, \stdClass $cm, int $userid): ?\stdClass {
         global $DB, $CFG;
-        // module_status() references the COMPLETION_* constants; the manual push
-        // path does not go through the observer that includes this library.
+        // The module_status() mapping references the COMPLETION_* constants; the
+        // manual push path does not go through the observer that includes them.
         require_once($CFG->libdir . '/completionlib.php');
 
         // Re-check graded here, not just at listing time: the push is a separate
