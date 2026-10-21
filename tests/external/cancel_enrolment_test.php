@@ -111,6 +111,36 @@ final class cancel_enrolment_test extends \advanced_testcase {
     }
 
     /**
+     * Cancelling removes only the role the enrolment granted; a manually assigned
+     * role (an admin override) in the same course is preserved.
+     *
+     * @return void
+     */
+    public function test_cancel_preserves_manual_role(): void {
+        global $DB;
+
+        $course  = $this->getDataGenerator()->create_course();
+        $user    = $this->getDataGenerator()->create_user();
+        $context = \context_course::instance($course->id);
+        $studentroleid = $DB->get_field('role', 'id', ['shortname' => 'student'], MUST_EXIST);
+        $teacherroleid = $DB->get_field('role', 'id', ['shortname' => 'editingteacher'], MUST_EXIST);
+
+        // Enrolled as Student (role assigned via the enrol component) plus a manual
+        // Teacher override (component '').
+        $this->getDataGenerator()->enrol_user($user->id, $course->id, $studentroleid);
+        role_assign($teacherroleid, $user->id, $context->id);
+
+        $this->call([['userid' => $user->id, 'courseid' => $course->id]]);
+
+        // The enrol-granted Student role is gone; the manual Teacher override stays.
+        $this->assertFalse(user_has_role_assignment($user->id, $studentroleid, $context->id));
+        $this->assertTrue(user_has_role_assignment($user->id, $teacherroleid, $context->id));
+        // Still enrolled, but suspended.
+        $this->assertTrue(is_enrolled($context, $user));
+        $this->assertFalse(is_enrolled($context, $user, '', true));
+    }
+
+    /**
      * A user who is not enrolled in the course yields a clean "notenrolled"
      * outcome and changes nothing.
      *

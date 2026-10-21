@@ -90,7 +90,10 @@ class cancel_enrolment extends external_api {
 
         $params = self::validate_parameters(self::execute_parameters(), ['enrolments' => $enrolments]);
 
-        $plugins  = enrol_get_plugins(true);
+        // All installed enrol plugins, not only the enabled ones: an enrolment
+        // owned by a globally-disabled plugin must still be suspended, or it would
+        // grant access again if the plugin were later re-enabled.
+        $plugins  = enrol_get_plugins(false);
         $results  = [];
         $warnings = [];
 
@@ -118,6 +121,10 @@ class cancel_enrolment extends external_api {
                 continue;
             }
 
+            // Each entry is all-or-nothing: run its suspensions and role removals
+            // in one transaction, so a mid-entry failure rolls back to the starting
+            // state rather than leaving some enrolments suspended and others not.
+            $transaction = $DB->start_delegated_transaction();
             try {
                 // Suspend every enrolment the user holds in the course. Suspending
                 // keeps the enrolment row, grades and completion; it only removes
@@ -126,8 +133,7 @@ class cancel_enrolment extends external_api {
                 foreach (enrol_get_instances($courseid, false) as $instance) {
                     $plugin = $plugins[$instance->enrol] ?? null;
                     if ($plugin === null) {
-                        // The instance's enrol plugin is disabled; its enrolment
-                        // already grants no access and its API is unavailable.
+                        // No installed plugin for this instance (orphaned); skip.
                         continue;
                     }
                     $ue = $DB->get_record('user_enrolments', ['enrolid' => $instance->id, 'userid' => $userid]);
@@ -137,30 +143,43 @@ class cancel_enrolment extends external_api {
                     if ((int)$ue->status !== ENROL_USER_SUSPENDED) {
                         $plugin->update_user_enrol($instance, $userid, ENROL_USER_SUSPENDED);
                     }
+
+                    // Remove only the role(s) this enrolment granted — scoped by the
+                    // enrol component and instance id — so a manually assigned role
+                    // or a role from an unrelated component is never stripped. Role
+                    // unassignment deletes assignments only, never grades/completion.
+                    $roleparams = [
+                        'userid'    => $userid,
+                        'contextid' => $context->id,
+                        'component' => 'enrol_' . $instance->enrol,
+                        'itemid'    => $instance->id,
+                    ];
+                    if ($roleid > 0) {
+                        $roleparams['roleid'] = $roleid;
+                    }
+                    role_unassign_all($roleparams);
+
                     $suspended++;
                 }
 
-                // Remove the role(s) in the course context so the learner has no
-                // role there. role_unassign_all only deletes role assignments, never
-                // the enrolment or its grades/completion. It matches by the given
-                // fields and, with the default includemanual = false, removes the
-                // automated (enrol-component) assignments — which the inbound enrol
-                // created — while leaving a manual admin override in place.
-                $roleparams = ['userid' => $userid, 'contextid' => $context->id];
-                if ($roleid > 0) {
-                    $roleparams['roleid'] = $roleid;
-                }
-                role_unassign_all($roleparams);
+                $transaction->allow_commit();
 
                 $results[] = self::result(
                     $userid,
                     $courseid,
                     $suspended,
-                    true,
+                    $suspended > 0,
                     $suspended > 0 ? 'cancelled' : 'notenrolled'
                 );
             } catch (\Throwable $e) {
-                // Non-destructive path, so a failure leaves data intact; report it.
+                // Roll back this entry's partial work so nothing is half-applied,
+                // then carry on with the rest of the batch. rollback() rethrows the
+                // original exception by contract; swallow it to keep processing.
+                try {
+                    $transaction->rollback($e);
+                } catch (\Throwable $ignore) {
+                    $ignore = null;
+                }
                 $warnings[] = self::warn($index, $courseid, 'error', $e->getMessage());
                 $results[]  = self::result($userid, $courseid, 0, false, 'error');
             }
