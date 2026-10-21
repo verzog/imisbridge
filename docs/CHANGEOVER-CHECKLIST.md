@@ -121,6 +121,22 @@ Order matters here — disable writes **before** entering any endpoint.
 > a custom wrapper can treat "already exists" as success so processing continues,
 > which avoids that outage pattern and core cannot. Decide from that test.
 
+> **Cancellation — suspend instead of unenrol.** Core `enrol_manual_unenrol_users`
+> is the wrong tool for a cancelled order: it needs a manual-only `ueid` (so it
+> throws `invalidparameter` when ATS sends `userid`+`courseid` for a learner not
+> manually enrolled), and it **hard-unenrols**, deleting that enrolment's grades and
+> completion. To cancel without losing data, point the ATS
+> `FN_ENROL_MANUAL_UNENROL_USERS` mapping at **`local_imisbridge_cancel_enrolment`**
+> instead. It takes `enrolments: [{userid, courseid, roleid?}]` (what ATS already
+> resolves), and for each entry **suspends** every enrolment the user has in the
+> course (row, grades and completion all kept; access removed) and **unassigns** the
+> role in the course context. It never unenrols or deletes, so an error cannot lose
+> data. Grant the service-account role **`local/imisbridge:cancelenrolment`** and add
+> the function to the inbound service (it is also exposed on the plugin's own
+> `iMIS bridge` service). `roleid` is optional: omit or send 0 to remove every role
+> the user holds in the course, or send the enrol role id (`ROLE_ID`, e.g. 5) to
+> remove just that one.
+
 **Build recipe** (what was set up on dev; repeat on prod at cutover):
 
 1. Site admin → Advanced features → **Enable web services**; then Server → Web

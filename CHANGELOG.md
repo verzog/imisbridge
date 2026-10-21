@@ -4,6 +4,27 @@ All notable changes to the iMIS Bridge plugin (`local_imisbridge`) are documente
 in this file. The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.18.0] - 2026-10-21
+
+### Added
+- **Inbound "cancel enrolment" web-service function that suspends instead of
+  unenrolling** (`local_imisbridge_cancel_enrolment`). The ATS cancellation path
+  (`SendCancelledOrdersToMoodle`) called core `enrol_manual_unenrol_users`, which
+  (a) needs a manual-only `ueid` — so it failed with `invalidparameter` when the
+  ATS sent `userid`+`courseid` for a learner not manually enrolled — and (b) hard
+  unenrols, deleting that enrolment's grades and completion. The new function takes
+  `userid`+`courseid` (what the ATS already resolves) and, for each of the user's
+  enrolments in the course, **suspends** it (the enrolment row, grades and
+  completion all remain; only access is removed) and **unassigns** the role in the
+  course context. It never unenrols or deletes, so an error cannot lose data — each
+  entry is processed independently and failures are returned as warnings. Fully
+  reversible by a later re-enrol.
+  - New capability `local/imisbridge:cancelenrolment` (course context, no data-loss
+    risk flag, granted to no role by default), exposed on the `iMIS bridge` service.
+  - To adopt: grant the capability to the inbound service-account role and point the
+    ATS `FN_ENROL_MANUAL_UNENROL_USERS` mapping at `local_imisbridge_cancel_enrolment`
+    (see `docs/CHANGEOVER-CHECKLIST.md`).
+
 ## [1.17.3] - 2026-10-21
 
 ### Changed

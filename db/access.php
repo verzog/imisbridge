@@ -43,4 +43,17 @@ $capabilities = [
         'contextlevel' => CONTEXT_SYSTEM,
         'archetypes'   => [],
     ],
+
+    // Cancel a user's enrolment through the inbound web service: suspend the
+    // enrolment and remove their role in the course. The check runs in the course
+    // context, so a system-context service role (as the changeover recipe assigns)
+    // satisfies it for every course. It is non-destructive - nothing is unenrolled
+    // or deleted - so it carries no data-loss risk flag, unlike core unenrol.
+    //
+    // Granted to no role by default. Assign it to the inbound service-account role.
+    'local/imisbridge:cancelenrolment' => [
+        'captype'      => 'write',
+        'contextlevel' => CONTEXT_COURSE,
+        'archetypes'   => [],
+    ],
 ];

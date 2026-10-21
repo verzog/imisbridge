@@ -51,6 +51,7 @@ $string['imis_id_source_idnumber'] = 'ID number';
 $string['imis_id_source_username'] = 'Username';
 $string['imis_wsdl_url'] = 'ATS SOAP bridge WSDL URL';
 $string['imis_wsdl_url_desc'] = 'The WSDL endpoint for the ATS Moodle web service (for example, https://your-ats-host/wsmoodle.asmx?WSDL). Ask ATS for the correct URL for your environment. Used only by the ATS SOAP bridge provider; no sync or connection test runs until this is set.';
+$string['imisbridge:cancelenrolment'] = 'Cancel an enrolment (suspend and remove role, without unenrolling) through the membership bridge web service';
 $string['imisbridge:readcompletions'] = 'Read course completions and grades through the membership bridge web service';
 $string['last_sync'] = 'Last sync time';
 $string['log_count'] = '{$a} log entries match.';
