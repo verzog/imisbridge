@@ -294,17 +294,25 @@ way, each with the symptom that identifies it:
   **visible** course, because the account is not enrolled.
 - **`accessexception: Access control exception` on cancel/unenrol** (e.g.
   `MoodleClass.unenrolMoodleUser ERROR ... Error:accessexception`, `ResultCode 10`)
-  means the service account lacks a capability for the unenrol/cancel in **that
-  course's** context. The usual cause is a **hidden course**: `validate_context()`
-  runs `require_login()`, which fails when the account cannot see the course — so
-  grant **`moodle/course:viewhiddencourses`** (and
-  `moodle/category:viewhiddencategories`), alongside `moodle/course:view` and the
-  operation's own capability (**`enrol/manual:unenrol`** for core unenrol, or
-  **`local/imisbridge:cancelenrolment`** for `local_imisbridge_cancel_enrolment`).
-  Tell-tale: the **same** cancel works on a visible course but fails on a hidden one.
-  The `local_imisbridge_cancel_enrolment` function needs these view capabilities too
-  (it also calls `validate_context()`), so granting its own capability alone is not
-  enough for a hidden course.
+  is a **`webservice_access_exception`** from Moodle's web-service layer — the
+  function the ATS is calling is **not available to the token's external service**.
+  It is **not** a course-capability failure (that reports `nopermissions` /
+  "Sorry, but you do not currently have permissions"), so adding course capabilities
+  (`course:view`, `viewhiddencourses`, `enrol/manual:unenrol`) does **not** fix it,
+  and the course being hidden or visible is irrelevant. Tell-tale: enrol
+  (`SendNewOrdersToMoodle`) works on the same token but cancel does not — meaning the
+  enrol function is in the service and the unenrol/cancel function is not. Fix: add
+  the function that `FN_ENROL_MANUAL_UNENROL_USERS` maps to (core
+  `enrol_manual_unenrol_users`, or `local_imisbridge_cancel_enrolment`) to the
+  external service the ATS token uses (Site admin → Server → Web services → External
+  services → *service* → Functions), and confirm the token user is an authorised user
+  of it. When mapping to **`local_imisbridge_cancel_enrolment`**: it only exists after
+  the plugin is **deployed and upgraded** (its `db/services.php` then registers it and
+  adds it to the plugin's own `iMIS bridge` service), and the service-account role
+  must hold **`local/imisbridge:cancelenrolment`** (checked inside the function; a
+  missing one surfaces as `nopermissions`, not `accessexception`). The function also
+  calls `validate_context()`, so it still needs `course:view` (+ `viewhiddencourses`
+  for a hidden course) as in §C.
 - **Transient `Could not connect to host` on a sync** (while **Test connection**
   still passes) is a **reachability blip**, not a config or credential fault. Test
   connection only does reads (ATS answers them); a sync additionally makes ATS call
