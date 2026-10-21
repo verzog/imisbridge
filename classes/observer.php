@@ -157,6 +157,53 @@ class observer {
     }
 
     /**
+     * Build the data for a module-completion MOODLENOTE push.
+     *
+     * Shared by the course_module_completion_updated observer and the manual
+     * "push activity note" admin test. The status is taken from the learner's
+     * actual completion state for the module when present, otherwise it defaults
+     * to COMPLETE (so the manual test still exercises the createActivity path);
+     * the score is the learner's real grade for the module (0 when ungraded or
+     * not yet graded).
+     *
+     * @param string    $imisid The iMIS contact ID.
+     * @param \stdClass $cm     The course-module record (needs id, course, modname, instance, name).
+     * @param int       $userid The Moodle user ID (0 when the member maps to no single user).
+     * @return \stdClass The queued push data.
+     */
+    public static function module_note_data(string $imisid, \stdClass $cm, int $userid): \stdClass {
+        global $DB;
+
+        $status = 'COMPLETE';
+        if ($userid > 0) {
+            $completion = $DB->get_record('course_modules_completion', [
+                'coursemoduleid' => $cm->id,
+                'userid'         => $userid,
+            ]);
+            if (!empty($completion)) {
+                $mapped = self::module_status((int)$completion->completionstate);
+                if ($mapped !== null) {
+                    $status = $mapped;
+                }
+            }
+        }
+
+        $score = self::module_grade($cm, $userid)[1];
+
+        return (object)[
+            'toggle'    => 'push_module_completions',
+            'imisid'    => $imisid,
+            'coursenum' => (string)$cm->course,
+            'cmid'      => (int)$cm->id,
+            'modname'   => $cm->modname,
+            'cmname'    => format_string($cm->name),
+            'status'    => $status,
+            'score'     => $score,
+            'date'      => date('Y-m-d'),
+        ];
+    }
+
+    /**
      * Triggered on quiz attempt submission. Queues a graded record push to iMIS.
      *
      * Preview attempts (teacher previews) and ungraded quizzes are ignored.

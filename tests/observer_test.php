@@ -359,4 +359,31 @@ final class observer_test extends \advanced_testcase {
         $this->assertSame(0.0, $data->score);
         $this->assertSame(date('Y-m-d'), $data->completiondate);
     }
+
+    /**
+     * module_note_data() builds a supplementary note (never a completion): it
+     * targets the push_module_completions toggle and carries the course module.
+     *
+     * @covers \local_imisbridge\observer::module_note_data
+     * @return void
+     */
+    public function test_module_note_data(): void {
+        $this->resetAfterTest();
+
+        $course = $this->getDataGenerator()->create_course();
+        $assign = $this->getDataGenerator()->create_module('assign', ['course' => $course->id]);
+        $cm     = get_coursemodule_from_id('', $assign->cmid);
+
+        $data = observer::module_note_data('21886', $cm, 0);
+
+        $this->assertSame('push_module_completions', $data->toggle);
+        $this->assertSame('21886', $data->imisid);
+        $this->assertSame((string)$course->id, $data->coursenum);
+        $this->assertSame((int)$cm->id, $data->cmid);
+        $this->assertSame('assign', $data->modname);
+        // No matched Moodle user (userid 0): status defaults to COMPLETE, score 0.
+        $this->assertSame('COMPLETE', $data->status);
+        $this->assertSame(0.0, $data->score);
+        $this->assertSame(date('Y-m-d'), $data->date);
+    }
 }

@@ -680,7 +680,12 @@ class imis_client implements \local_imisbridge\provider\org_sync_provider {
      */
     public function create_activity(array $data): mixed {
         $data['AuthToken'] = $this->get_api_auth_token();
-        $result = $this->call('createActivity', $data, $data['ContactID'] ?? null, $data['ProductCode'] ?? null);
+        // Match the vendor's proven call exactly: the WSDL operation is PascalCase
+        // 'CreateActivity' (SOAP operation names are case-sensitive, so the old
+        // lowercase 'createActivity' faulted and no note ever landed), and empty
+        // fields are dropped so the service does not reject stray empty elements.
+        $data = array_filter($data, static fn($value) => $value !== '' && $value !== null);
+        $result = $this->call('CreateActivity', $data, $data['ContactID'] ?? null, $data['ProductCode'] ?? null);
         return $result->createActivityResult ?? null;
     }
 

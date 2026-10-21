@@ -36,6 +36,11 @@ $message    = '';
 $error      = '';
 $testoutput = '';
 $syncoutput = '';
+$noteoutput = '';
+// Set by the "list activities" step to the graded modules the operator can pick from.
+$modulechoices = null;
+$notemember    = '';
+$notecourse    = 0;
 
 // Manual order/group sync and the connection test are offered by providers that
 // support inbound sync (the ATS SOAP bridge). A provider that only receives pushed
@@ -94,6 +99,75 @@ if ($action === 'testconnection' && confirm_sesskey()) {
 
                 $message    = get_string('pushdone', 'local_imisbridge', s($pushmember));
                 $syncoutput = 'push_completion:' . PHP_EOL . var_export($data, true) . PHP_EOL . PHP_EOL
+                    . get_string('pushaudithint', 'local_imisbridge');
+            }
+        }
+    } catch (\Throwable $e) {
+        $error = get_string('syncfailed', 'local_imisbridge', $e->getMessage());
+    }
+} else if ($action === 'listmodules' && confirm_sesskey()) {
+    // Read-only: list the course's graded activities so the operator can pick one
+    // to push a MOODLENOTE for. Local data only - nothing is sent to iMIS here.
+    global $DB, $CFG;
+    require_once($CFG->libdir . '/gradelib.php');
+    $notemember = trim(optional_param('pushmemberid', '', PARAM_TEXT));
+    $notecourse = optional_param('pushcourseid', 0, PARAM_INT);
+    if ($notemember === '' || $notecourse <= 0) {
+        $error = get_string('pushmissingfields', 'local_imisbridge');
+    } else {
+        $course = $DB->get_record('course', ['id' => $notecourse]);
+        if (!$course) {
+            $error = get_string('pushnocourse', 'local_imisbridge', $notecourse);
+        } else {
+            $modulechoices = [];
+            foreach (get_fast_modinfo($course)->get_cms() as $cm) {
+                $gradeitem = \grade_item::fetch([
+                    'itemtype'     => 'mod',
+                    'itemmodule'   => $cm->modname,
+                    'iteminstance' => $cm->instance,
+                ]);
+                if ($gradeitem) {
+                    $modulechoices[(int)$cm->id] = format_string($cm->name) . ' (' . $cm->modname . ')';
+                }
+            }
+            if (empty($modulechoices)) {
+                $error = get_string('pushnotenoactivities', 'local_imisbridge');
+                $modulechoices = null;
+            }
+        }
+    }
+} else if ($action === 'pushnote' && confirm_sesskey()) {
+    // Manual test: push one module-completion MOODLENOTE (createActivity) for a
+    // member and a chosen course module. Writes a real record to the active system.
+    global $DB;
+    $pushmember = trim(optional_param('pushmemberid', '', PARAM_TEXT));
+    $pushcmid   = optional_param('pushcmid', 0, PARAM_INT);
+    try {
+        if (!$canpush) {
+            $error = get_string('pushnotsupported', 'local_imisbridge');
+        } else if (!\local_imisbridge\util::is_enabled_optin('push_module_completions')) {
+            // Honour the same opt-in toggle the module-completion observer obeys.
+            $error = get_string('pushnotedisabled', 'local_imisbridge');
+        } else if ($pushmember === '' || $pushcmid <= 0) {
+            $error = get_string('pushmissingfields', 'local_imisbridge');
+        } else if (!\local_imisbridge\util::is_configured()) {
+            $error = get_string('notconfigured', 'local_imisbridge', $providerclass::label());
+        } else {
+            $cm = get_coursemodule_from_id('', $pushcmid);
+            if (!$cm) {
+                $error = get_string('pushnotenomodule', 'local_imisbridge', $pushcmid);
+            } else {
+                // Resolve the member to a single Moodle user for the real status/score,
+                // the same way the completion test does; no/ambiguous match sends 0.
+                $field   = \local_imisbridge\util::imis_id_source();
+                $matches = $DB->get_records('user', [$field => $pushmember], '', 'id', 0, 2);
+                $userid  = (count($matches) === 1) ? (int)reset($matches)->id : 0;
+
+                $data = \local_imisbridge\observer::module_note_data($pushmember, $cm, $userid);
+                \local_imisbridge\provider\manager::instance()->push_module_note($data);
+
+                $message    = get_string('pushnotedone', 'local_imisbridge', s($pushmember));
+                $noteoutput = 'push_module_note:' . PHP_EOL . var_export($data, true) . PHP_EOL . PHP_EOL
                     . get_string('pushaudithint', 'local_imisbridge');
             }
         }
@@ -257,6 +331,62 @@ if ($canpush) {
     echo html_writer::end_div();
 }
 
+if ($canpush) {
+    // On-demand module-note push: pick a real graded activity in a course and fire
+    // one createActivity MOODLENOTE, so the supplementary-note path can be verified
+    // without a live quiz submission and completion event.
+    echo html_writer::start_div('card mb-4');
+    echo html_writer::start_div('card-body');
+    echo html_writer::tag('h5', get_string('pushnotetest', 'local_imisbridge'), ['class' => 'card-title']);
+    echo html_writer::tag('p', get_string('pushnotetest_help', 'local_imisbridge'), ['class' => 'text-muted']);
+
+    // Step 1: member + course, then list the course's graded activities.
+    echo '<form method="post" action="">';
+    echo '<input type="hidden" name="sesskey" value="' . $sesskey . '">';
+    echo html_writer::start_div('form-group');
+    echo html_writer::tag('label', get_string('pushmemberid', 'local_imisbridge'), ['for' => 'notememberid']);
+    echo '<input type="text" id="notememberid" name="pushmemberid" class="form-control"'
+        . ' value="' . s($notemember) . '" placeholder="' . s(get_string('contactidplaceholder', 'local_imisbridge')) . '">';
+    echo html_writer::end_div();
+    echo html_writer::start_div('form-group');
+    echo html_writer::tag('label', get_string('pushcourseid', 'local_imisbridge'), ['for' => 'notecourseid']);
+    echo '<input type="number" id="notecourseid" name="pushcourseid" class="form-control" min="1"'
+        . ' value="' . ($notecourse > 0 ? (int)$notecourse : '') . '">';
+    echo html_writer::tag('small', get_string('pushcourseidhelp', 'local_imisbridge'), ['class' => 'form-text text-muted']);
+    echo html_writer::end_div();
+    echo html_writer::start_div('mt-3');
+    echo '<button type="submit" name="action" value="listmodules" class="btn btn-outline-primary">'
+        . s(get_string('pushnotelist', 'local_imisbridge')) . '</button>';
+    echo html_writer::end_div();
+    echo '</form>';
+
+    // Step 2: pick one of the listed graded activities and push its note.
+    if (!empty($modulechoices)) {
+        echo html_writer::empty_tag('hr');
+        echo '<form method="post" action="">';
+        echo '<input type="hidden" name="sesskey" value="' . $sesskey . '">';
+        echo '<input type="hidden" name="pushmemberid" value="' . s($notemember) . '">';
+        echo html_writer::start_div('form-group');
+        echo html_writer::tag('label', get_string('pushnoteactivity', 'local_imisbridge'), ['for' => 'pushcmid']);
+        echo html_writer::select(
+            $modulechoices,
+            'pushcmid',
+            '',
+            ['' => get_string('choosedots')],
+            ['id' => 'pushcmid', 'class' => 'custom-select']
+        );
+        echo html_writer::end_div();
+        echo html_writer::start_div('mt-3');
+        echo '<button type="submit" name="action" value="pushnote" class="btn btn-primary">'
+            . s(get_string('pushnote', 'local_imisbridge')) . '</button>';
+        echo html_writer::end_div();
+        echo '</form>';
+    }
+
+    echo html_writer::end_div();
+    echo html_writer::end_div();
+}
+
 if ($testoutput !== '') {
     echo html_writer::start_div('card mb-4');
     echo html_writer::start_div('card-body');
@@ -272,6 +402,16 @@ if ($syncoutput !== '') {
     echo html_writer::tag('h5', get_string('syncresult', 'local_imisbridge'), ['class' => 'card-title']);
     echo html_writer::tag('p', get_string('syncresulthelp', 'local_imisbridge'), ['class' => 'text-muted']);
     echo html_writer::tag('pre', s($syncoutput), ['class' => 'bg-light p-3']);
+    echo html_writer::end_div();
+    echo html_writer::end_div();
+}
+
+if ($noteoutput !== '') {
+    echo html_writer::start_div('card mb-4');
+    echo html_writer::start_div('card-body');
+    echo html_writer::tag('h5', get_string('pushnotetest', 'local_imisbridge'), ['class' => 'card-title']);
+    echo html_writer::tag('p', get_string('syncresulthelp', 'local_imisbridge'), ['class' => 'text-muted']);
+    echo html_writer::tag('pre', s($noteoutput), ['class' => 'bg-light p-3']);
     echo html_writer::end_div();
     echo html_writer::end_div();
 }
