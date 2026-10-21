@@ -388,6 +388,44 @@ final class observer_test extends \advanced_testcase {
     }
 
     /**
+     * module_note_data() sends the learner's RAW gradebook grade, not a
+     * percentage — matching the vendor's module notes, which carry the raw item
+     * grade. A 15/20 grade is sent as 15, not 75(%).
+     *
+     * @covers \local_imisbridge\observer::module_note_data
+     * @return void
+     */
+    public function test_module_note_data_sends_raw_grade(): void {
+        global $DB;
+        $this->resetAfterTest();
+
+        $course = $this->getDataGenerator()->create_course();
+        $assign = $this->getDataGenerator()->create_module('assign', ['course' => $course->id, 'grade' => 20]);
+        $cm     = get_coursemodule_from_id('', $assign->cmid);
+        $user   = $this->getDataGenerator()->create_user();
+
+        $gradeitem = \grade_item::fetch([
+            'itemtype'     => 'mod',
+            'itemmodule'   => 'assign',
+            'iteminstance' => $assign->id,
+        ]);
+        $DB->insert_record('grade_grades', (object)[
+            'itemid'       => $gradeitem->id,
+            'userid'       => $user->id,
+            'finalgrade'   => 15.0,
+            'rawgrademax'  => $gradeitem->grademax,
+            'rawgrademin'  => $gradeitem->grademin,
+            'timecreated'  => 1000,
+            'timemodified' => 1000,
+        ]);
+
+        $data = observer::module_note_data('21886', $cm, (int)$user->id);
+
+        // Raw grade 15 (out of 20), not the 75% a percentage would give.
+        $this->assertEqualsWithDelta(15.0, (float)$data->score, 0.001);
+    }
+
+    /**
      * module_note_data() returns null for an ungraded module, so the manual push
      * path rejects it: ungraded activities are never sent (the same invariant the
      * automatic observer enforces).

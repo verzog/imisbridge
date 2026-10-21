@@ -51,15 +51,18 @@ $nosingleusernotice = function (string $field, string $member, int $matchcount):
 // score of 0 can be traced to the member->user match or the gradebook grade (never the
 // raw activity attempt) rather than guessed at. Shared by both push tests; $gradelabel
 // names the grade read ("activity" or "course-total"). $detail is a *_detail object
-// (module_grade_detail/course_score_detail) or null when no user matched. Rendered
-// inside a <pre> via s().
+// (module_grade_detail/course_score_detail) or null when no user matched. $sentscore is
+// the value actually written to the record and $sentdesc describes it (the activity note
+// sends the raw grade, the completion sends a percentage). Rendered in a <pre> via s().
 $scoretrace = function (
     string $field,
     string $member,
     array $matches,
     int $userid,
     ?\stdClass $detail,
-    string $gradelabel
+    string $gradelabel,
+    float $sentscore,
+    string $sentdesc
 ): string {
     $lines = [
         'score resolution:',
@@ -67,7 +70,7 @@ $scoretrace = function (
             . ' Moodle user(s) on field "' . $field . '" (need exactly 1)',
     ];
     if ($userid === 0) {
-        $lines[] = '  -> no single user: score sent as 0';
+        $lines[] = '  -> no single user: score sent as ' . $sentscore;
         return implode(PHP_EOL, $lines);
     }
     $lines[] = '  -> Moodle user id ' . $userid;
@@ -78,7 +81,7 @@ $scoretrace = function (
     $lines[] = '  ' . $gradelabel . ' grade item ' . $detail->itemid . ', grademax ' . $detail->grademax;
     $lines[] = '  gradebook finalgrade '
         . ($detail->hasgrade ? (string)$detail->finalgrade : 'null (no gradebook grade recorded)');
-    $lines[] = '  -> score sent ' . $detail->score . '%';
+    $lines[] = '  -> score sent ' . $sentscore . ' (' . $sentdesc . ')';
     if (!$detail->hasgrade) {
         $lines[] = '  NOTE: the gradebook grade for this item is empty, so 0 was sent. A mark on an'
             . ' activity attempt does not count until it reaches the gradebook (check the Grader report'
@@ -154,7 +157,17 @@ if ($action === 'testconnection' && confirm_sesskey()) {
                 $coursedetail = ($userid > 0)
                     ? \local_imisbridge\observer::course_score_detail((int)$course->id, $userid)
                     : null;
-                $syncoutput = $scoretrace($field, $pushmember, $matches, $userid, $coursedetail, 'course-total') . PHP_EOL
+                $trace = $scoretrace(
+                    $field,
+                    $pushmember,
+                    $matches,
+                    $userid,
+                    $coursedetail,
+                    'course-total',
+                    (float)$data->score,
+                    'percent of course total'
+                );
+                $syncoutput = $trace . PHP_EOL
                     . 'push_completion:' . PHP_EOL . var_export($data, true) . PHP_EOL . PHP_EOL
                     . get_string('pushaudithint', 'local_imisbridge');
             }
@@ -234,7 +247,17 @@ if ($action === 'testconnection' && confirm_sesskey()) {
 
                     $message    = get_string('pushnotedone', 'local_imisbridge', s($pushmember));
                     $notedetail = ($userid > 0) ? \local_imisbridge\observer::module_grade_detail($cm, $userid) : null;
-                    $noteoutput = $scoretrace($field, $pushmember, $matches, $userid, $notedetail, 'activity') . PHP_EOL
+                    $trace = $scoretrace(
+                        $field,
+                        $pushmember,
+                        $matches,
+                        $userid,
+                        $notedetail,
+                        'activity',
+                        (float)$data->score,
+                        'raw gradebook grade'
+                    );
+                    $noteoutput = $trace . PHP_EOL
                         . 'push_module_note:' . PHP_EOL . var_export($data, true) . PHP_EOL . PHP_EOL
                         . get_string('pushaudithint', 'local_imisbridge');
                 }

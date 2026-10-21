@@ -163,10 +163,11 @@ class observer {
      * "push activity note" admin test. The status is taken from the learner's
      * actual completion state for the module when present, otherwise it defaults
      * to COMPLETE (so the manual test still exercises the createActivity path);
-     * the score is the learner's real grade for the module (0 when not yet
-     * graded). Graded modules only: returns null for an ungraded module so the
-     * caller rejects the write, upholding the same invariant the automatic
-     * observer enforces.
+     * the score is the learner's **raw** gradebook grade for the module (0 when
+     * not yet graded), matching the vendor's module notes, which carry the raw
+     * item grade rather than a percentage. Graded modules only: returns null for
+     * an ungraded module so the caller rejects the write, upholding the same
+     * invariant the automatic observer enforces.
      *
      * @param string    $imisid The iMIS contact ID.
      * @param \stdClass $cm     The course-module record (needs id, course, modname, instance, name).
@@ -182,10 +183,12 @@ class observer {
         // Re-check graded here, not just at listing time: the push is a separate
         // request, so the grade item could have been removed since the activity
         // was listed (or pushcmid posted directly for an ungraded module).
-        [$graded, $score] = self::module_grade($cm, $userid);
-        if (!$graded) {
+        $grade = self::module_grade_detail($cm, $userid);
+        if (!$grade->graded) {
             return null;
         }
+        // Send the raw gradebook grade (the actual mark), not a percentage.
+        $score = $grade->finalgrade ?? 0.0;
 
         $status = 'COMPLETE';
         if ($userid > 0) {
@@ -337,10 +340,12 @@ class observer {
         }
 
         // Graded modules only: skip a module that has no grade item.
-        [$graded, $score] = self::module_grade($cm, (int)$user->id);
-        if (!$graded) {
+        $grade = self::module_grade_detail($cm, (int)$user->id);
+        if (!$grade->graded) {
             return;
         }
+        // Send the raw gradebook grade (the actual mark), not a percentage.
+        $score = $grade->finalgrade ?? 0.0;
 
         $task = new task\push_module_note_task();
         $task->set_custom_data([
@@ -379,26 +384,16 @@ class observer {
     }
 
     /**
-     * The learner's grade for a course module, and whether the module is graded.
-     *
-     * @param \stdClass $cm     The course-module record (needs modname, instance).
-     * @param int       $userid The Moodle user ID.
-     * @return array [bool $isgraded, float $percentage]. $isgraded is false when the
-     *               module has no grade item (so the caller skips it).
-     */
-    private static function module_grade(\stdClass $cm, int $userid): array {
-        $detail = self::module_grade_detail($cm, $userid);
-        return [$detail->graded, $detail->score];
-    }
-
-    /**
-     * Detailed view of the learner's grade for a module, for the manual test
-     * controls to explain how a score was resolved (why it is 0, in particular).
+     * Detailed view of the learner's grade for a module. The single source of a
+     * module's grade: the note builders read `graded` (whether to send at all) and
+     * the raw `finalgrade` (what the note carries), and the manual test control
+     * uses the rest to explain how a score was resolved (why it is 0, in particular).
      *
      * Reports the grade item and the learner's gradebook grade, not the raw
      * activity attempt: a module can show a mark in its own report while the
      * gradebook final grade is still empty (not regraded, hidden, or overridden),
-     * which is exactly when a note would carry score 0.
+     * which is exactly when a note would carry score 0. `score` is the percentage;
+     * `finalgrade` is the raw grade the note actually sends.
      *
      * @param \stdClass $cm     The course-module record (needs modname, instance).
      * @param int       $userid The Moodle user ID (0 when no single user matched).
