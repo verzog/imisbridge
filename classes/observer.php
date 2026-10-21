@@ -220,7 +220,9 @@ class observer {
     /**
      * Triggered on quiz attempt submission. Queues a graded record push to iMIS.
      *
-     * Preview attempts (teacher previews) and ungraded quizzes are ignored.
+     * Preview attempts (teacher previews) and ungraded quizzes are ignored. The
+     * score sent is the raw quiz grade (rescaled to the quiz's maximum grade), not
+     * a percentage, matching the module notes; pass/fail still uses the percentage.
      *
      * @param \mod_quiz\event\attempt_submitted $event The attempt submitted event.
      * @return void
@@ -264,10 +266,17 @@ class observer {
             return;
         }
 
-        // Calculate percentage score and pass/fail status.
-        $score    = self::calculate_percentage((float)($attempt->sumgrades ?? 0), (float)$quiz->sumgrades);
+        // Pass/fail uses the attempt percentage against the quiz pass mark, but the
+        // score sent is the raw quiz grade (rescaled to the quiz's maximum grade),
+        // not a percentage — matching the module notes, which carry the raw grade.
+        $percent  = self::calculate_percentage((float)($attempt->sumgrades ?? 0), (float)$quiz->sumgrades);
         $passmark = !empty($quiz->gradepass) ? (float)$quiz->gradepass : 50.0;
-        $status   = self::passfail_status($score, $passmark);
+        $status   = self::passfail_status($percent, $passmark);
+        $score    = self::quiz_raw_grade(
+            (float)($attempt->sumgrades ?? 0),
+            (float)$quiz->sumgrades,
+            (float)$quiz->grade
+        );
         $finish   = !empty($attempt->timefinish) ? date('Y-m-d', $attempt->timefinish) : date('Y-m-d');
         $start    = !empty($attempt->timestart) ? date('Y-m-d', $attempt->timestart) : date('Y-m-d');
 
@@ -555,6 +564,30 @@ class observer {
             return 0.0;
         }
         return round(($attemptsum / $quizsum) * 100, 2);
+    }
+
+    /**
+     * The learner's raw quiz grade for an attempt, rescaled to the quiz's maximum
+     * grade — the actual grade (e.g. 8/10, 80/100), not a percentage — so quiz
+     * scores match the module notes, which carry the raw grade.
+     *
+     * Mirrors Moodle's own quiz_rescale_grade (attempt marks / max marks * max
+     * grade), rounded to two places. Returns 0 when the quiz is ungraded: a max
+     * grade of 0 makes the quiz grade item GRADE_TYPE_NONE (no scaled grade), and a
+     * non-positive max marks guards against divide-by-zero.
+     *
+     * @param float $attemptsum The learner's summed marks for the attempt.
+     * @param float $maxmarks   The quiz's maximum summed marks (quiz->sumgrades).
+     * @param float $maxgrade   The quiz's maximum grade (quiz->grade); 0 is ungraded.
+     * @return float
+     */
+    public static function quiz_raw_grade(float $attemptsum, float $maxmarks, float $maxgrade): float {
+        if ($maxmarks <= 0) {
+            return 0.0;
+        }
+        // A max grade of 0 is an ungraded quiz (GRADE_TYPE_NONE); the rescale below
+        // then yields 0, so no arbitrary question-weight points reach the record.
+        return round(($attemptsum / $maxmarks) * $maxgrade, 2);
     }
 
     /**

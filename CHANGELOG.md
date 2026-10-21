@@ -4,6 +4,19 @@ All notable changes to the iMIS Bridge plugin (`local_imisbridge`) are documente
 in this file. The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.17.3] - 2026-10-21
+
+### Changed
+- **Quiz-score pushes (the "Moodle course N score" MOODLENOTE) now carry the raw
+  quiz grade, not a percentage.** Previously a quiz submission sent the attempt
+  percentage (a full-marks attempt went out as `100`); it is now sent as the
+  learner's actual quiz grade, rescaled to the quiz's maximum grade (8/10 marks on
+  a quiz graded out of 100 is `80`; out of 10 is `8`). This matches the raw grades
+  the module-completion notes now send, and the vendor's historical item grades.
+  Pass/Fail status is unchanged (still derived from the attempt percentage against
+  the quiz pass mark). Backed by a new pure `observer::quiz_raw_grade()` helper
+  with unit tests.
+
 ## [1.17.2] - 2026-10-21
 
 ### Changed
