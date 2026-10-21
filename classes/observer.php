@@ -501,20 +501,49 @@ class observer {
      * @return float
      */
     private static function course_score(int $courseid, int $userid): float {
+        return self::course_score_detail($courseid, $userid)->score;
+    }
+
+    /**
+     * Detailed view of the learner's final course grade, for the "Push completion
+     * (test)" control to explain how a score was resolved (why it is 0, in
+     * particular). Reports the course-total grade item and the learner's gradebook
+     * grade, not any single activity attempt.
+     *
+     * @param int $courseid The Moodle course ID.
+     * @param int $userid   The Moodle user ID (0 when no single user matched).
+     * @return \stdClass {score:float, itemid:?int, grademax:?float, finalgrade:?float,
+     *                    hasgrade:bool}
+     */
+    public static function course_score_detail(int $courseid, int $userid): \stdClass {
         global $CFG;
         require_once($CFG->libdir . '/gradelib.php');
 
         $gradeitem = \grade_item::fetch_course_item($courseid);
         if (!$gradeitem) {
-            return 0.0;
+            // No course-total grade item: the course has no gradable content.
+            return (object)[
+                'score'      => 0.0,
+                'itemid'     => null,
+                'grademax'   => null,
+                'finalgrade' => null,
+                'hasgrade'   => false,
+            ];
         }
 
-        $grade = \grade_grade::fetch(['itemid' => $gradeitem->id, 'userid' => $userid]);
-        if (!$grade || $grade->finalgrade === null) {
-            return 0.0;
-        }
+        $grade      = \grade_grade::fetch(['itemid' => $gradeitem->id, 'userid' => $userid]);
+        $finalgrade = ($grade && $grade->finalgrade !== null) ? (float)$grade->finalgrade : null;
+        $score = ($finalgrade === null)
+            ? 0.0
+            : self::calculate_percentage($finalgrade, (float)$gradeitem->grademax);
 
-        return self::calculate_percentage((float)$grade->finalgrade, (float)$gradeitem->grademax);
+        return (object)[
+            'score'      => $score,
+            'itemid'     => (int)$gradeitem->id,
+            'grademax'   => (float)$gradeitem->grademax,
+            'finalgrade' => $finalgrade,
+            'hasgrade'   => ($finalgrade !== null),
+        ];
     }
 
     /**
