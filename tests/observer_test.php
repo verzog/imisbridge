@@ -53,6 +53,26 @@ final class observer_test extends \advanced_testcase {
     }
 
     /**
+     * The raw quiz grade is the attempt rescaled to the quiz maximum grade, not a
+     * percentage: 8/10 marks on a quiz graded out of 100 is 80, and on a quiz
+     * graded out of 10 is 8.
+     *
+     * @return void
+     */
+    public function test_quiz_raw_grade(): void {
+        // 8 of 10 marks, quiz graded out of 100 -> 80 (not 80%).
+        $this->assertSame(80.0, observer::quiz_raw_grade(8.0, 10.0, 100.0));
+        // 8 of 10 marks, quiz graded out of 10 -> 8.
+        $this->assertSame(8.0, observer::quiz_raw_grade(8.0, 10.0, 10.0));
+        // Full marks out of 10 -> 10 (the raw grade, not 100%).
+        $this->assertSame(10.0, observer::quiz_raw_grade(10.0, 10.0, 10.0));
+        // No gradebook maximum: fall back to the raw summed marks.
+        $this->assertSame(8.0, observer::quiz_raw_grade(8.0, 10.0, 0.0));
+        // Non-gradable attempt: guard divide-by-zero.
+        $this->assertSame(0.0, observer::quiz_raw_grade(8.0, 0.0, 100.0));
+    }
+
+    /**
      * A score at or above the pass mark is a pass; below is a fail.
      *
      * @return void
