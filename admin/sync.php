@@ -157,10 +157,17 @@ if ($action === 'testconnection' && confirm_sesskey()) {
                 $coursedetail = ($userid > 0)
                     ? \local_imisbridge\observer::course_score_detail((int)$course->id, $userid)
                     : null;
-                $syncoutput = $scoretrace(
-                    $field, $pushmember, $matches, $userid, $coursedetail, 'course-total',
-                    (float)$data->score, 'percent of course total'
-                ) . PHP_EOL
+                $trace = $scoretrace(
+                    $field,
+                    $pushmember,
+                    $matches,
+                    $userid,
+                    $coursedetail,
+                    'course-total',
+                    (float)$data->score,
+                    'percent of course total'
+                );
+                $syncoutput = $trace . PHP_EOL
                     . 'push_completion:' . PHP_EOL . var_export($data, true) . PHP_EOL . PHP_EOL
                     . get_string('pushaudithint', 'local_imisbridge');
             }
@@ -240,10 +247,17 @@ if ($action === 'testconnection' && confirm_sesskey()) {
 
                     $message    = get_string('pushnotedone', 'local_imisbridge', s($pushmember));
                     $notedetail = ($userid > 0) ? \local_imisbridge\observer::module_grade_detail($cm, $userid) : null;
-                    $noteoutput = $scoretrace(
-                        $field, $pushmember, $matches, $userid, $notedetail, 'activity',
-                        (float)$data->score, 'raw gradebook grade'
-                    ) . PHP_EOL
+                    $trace = $scoretrace(
+                        $field,
+                        $pushmember,
+                        $matches,
+                        $userid,
+                        $notedetail,
+                        'activity',
+                        (float)$data->score,
+                        'raw gradebook grade'
+                    );
+                    $noteoutput = $trace . PHP_EOL
                         . 'push_module_note:' . PHP_EOL . var_export($data, true) . PHP_EOL . PHP_EOL
                         . get_string('pushaudithint', 'local_imisbridge');
                 }
