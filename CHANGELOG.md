@@ -4,6 +4,29 @@ All notable changes to the iMIS Bridge plugin (`local_imisbridge`) are documente
 in this file. The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.17.1] - 2026-10-21
+
+### Changed
+- **The push test controls now warn when a member ID does not resolve to exactly one
+  Moodle user.** Both "Push completion (test)" and "Push activity note (test)" derive
+  the score (and, for the note, the status) by looking up the Moodle user whose
+  configured Member ID source field equals the entered member ID. When that lookup
+  found no user, or more than one, the controls silently sent a placeholder score of
+  `0`, which was easily mistaken for a real grade. They now still send the record but
+  display a warning naming the field queried and whether the match was zero or
+  non-unique, so an operator can tell a wrong ID-source setting or a missing/duplicate
+  field value from a genuine zero score. (The automatic completion/quiz observers are
+  unaffected — they use the authoritative user from the event.)
+- **Both push test outputs now show how the score was resolved.** The "Push activity
+  note (test)" and "Push completion (test)" result panes trace the member→user match,
+  the grade item (the activity's grade item, or the course total) and grademax, and the
+  learner's gradebook **final grade** — so a score of `0` can be read straight off as
+  "no single user", "no grade item", or "gradebook final grade is empty" (a mark on an
+  activity attempt does not count until it reaches the gradebook; a hidden, locked or
+  not-yet-regraded grade reads as empty). Backed by new public
+  `observer::module_grade_detail()` and `observer::course_score_detail()` helpers,
+  unit-tested for the with-grade, without-grade, and no-grade-item cases.
+
 ## [1.17.0] - 2026-10-21
 
 ### Fixed

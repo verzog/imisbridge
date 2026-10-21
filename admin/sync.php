@@ -34,9 +34,58 @@ $action    = optional_param('action', '', PARAM_ALPHANUMEXT);
 $contactid = optional_param('contactid', '', PARAM_TEXT);
 $message    = '';
 $error      = '';
+$notice     = '';
 $testoutput = '';
 $syncoutput = '';
 $noteoutput = '';
+// Build the "member did not resolve to a single Moodle user" warning for the push
+// test controls, so a placeholder score (0) is never mistaken for a real grade. The
+// message reports the field queried and the match count, so the operator can tell a
+// zero match (wrong field/value, or the ID source points at the wrong field) from a
+// non-unique one.
+$nosingleusernotice = function (string $field, string $member, int $matchcount): string {
+    $a = (object)['field' => $field, 'member' => s($member)];
+    return get_string($matchcount > 1 ? 'pushnomatchmany' : 'pushnomatchnone', 'local_imisbridge', $a);
+};
+// Build a plain-text "how the score was resolved" trace for the push test output, so a
+// score of 0 can be traced to the member->user match or the gradebook grade (never the
+// raw activity attempt) rather than guessed at. Shared by both push tests; $gradelabel
+// names the grade read ("activity" or "course-total"). $detail is a *_detail object
+// (module_grade_detail/course_score_detail) or null when no user matched. Rendered
+// inside a <pre> via s().
+$scoretrace = function (
+    string $field,
+    string $member,
+    array $matches,
+    int $userid,
+    ?\stdClass $detail,
+    string $gradelabel
+): string {
+    $lines = [
+        'score resolution:',
+        '  member "' . $member . '" matched ' . count($matches)
+            . ' Moodle user(s) on field "' . $field . '" (need exactly 1)',
+    ];
+    if ($userid === 0) {
+        $lines[] = '  -> no single user: score sent as 0';
+        return implode(PHP_EOL, $lines);
+    }
+    $lines[] = '  -> Moodle user id ' . $userid;
+    if ($detail === null || $detail->itemid === null) {
+        $lines[] = '  no ' . $gradelabel . ' grade item (nothing to grade)';
+        return implode(PHP_EOL, $lines);
+    }
+    $lines[] = '  ' . $gradelabel . ' grade item ' . $detail->itemid . ', grademax ' . $detail->grademax;
+    $lines[] = '  gradebook finalgrade '
+        . ($detail->hasgrade ? (string)$detail->finalgrade : 'null (no gradebook grade recorded)');
+    $lines[] = '  -> score sent ' . $detail->score . '%';
+    if (!$detail->hasgrade) {
+        $lines[] = '  NOTE: the gradebook grade for this item is empty, so 0 was sent. A mark on an'
+            . ' activity attempt does not count until it reaches the gradebook (check the Grader report'
+            . ' for this user; a hidden, locked or not-yet-regraded grade reads as empty).';
+    }
+    return implode(PHP_EOL, $lines);
+};
 // Set by the "list activities" step to the graded modules the operator can pick from.
 $modulechoices = null;
 $notemember    = '';
@@ -93,12 +142,20 @@ if ($action === 'testconnection' && confirm_sesskey()) {
                 $field   = \local_imisbridge\util::imis_id_source();
                 $matches = $DB->get_records('user', [$field => $pushmember], '', 'id', 0, 2);
                 $userid  = (count($matches) === 1) ? (int)reset($matches)->id : 0;
+                if ($userid === 0) {
+                    // No single user behind the member: the score is a placeholder 0.
+                    $notice = $nosingleusernotice($field, $pushmember, count($matches));
+                }
 
                 $data = \local_imisbridge\observer::completion_push_data($pushmember, $course, $userid);
                 \local_imisbridge\provider\manager::instance()->push_completion($data);
 
                 $message    = get_string('pushdone', 'local_imisbridge', s($pushmember));
-                $syncoutput = 'push_completion:' . PHP_EOL . var_export($data, true) . PHP_EOL . PHP_EOL
+                $coursedetail = ($userid > 0)
+                    ? \local_imisbridge\observer::course_score_detail((int)$course->id, $userid)
+                    : null;
+                $syncoutput = $scoretrace($field, $pushmember, $matches, $userid, $coursedetail, 'course-total') . PHP_EOL
+                    . 'push_completion:' . PHP_EOL . var_export($data, true) . PHP_EOL . PHP_EOL
                     . get_string('pushaudithint', 'local_imisbridge');
             }
         }
@@ -162,6 +219,10 @@ if ($action === 'testconnection' && confirm_sesskey()) {
                 $field   = \local_imisbridge\util::imis_id_source();
                 $matches = $DB->get_records('user', [$field => $pushmember], '', 'id', 0, 2);
                 $userid  = (count($matches) === 1) ? (int)reset($matches)->id : 0;
+                if ($userid === 0) {
+                    // No single user behind the member: the status and score are placeholders.
+                    $notice = $nosingleusernotice($field, $pushmember, count($matches));
+                }
 
                 $data = \local_imisbridge\observer::module_note_data($pushmember, $cm, $userid);
                 if ($data === null) {
@@ -172,7 +233,9 @@ if ($action === 'testconnection' && confirm_sesskey()) {
                     \local_imisbridge\provider\manager::instance()->push_module_note($data);
 
                     $message    = get_string('pushnotedone', 'local_imisbridge', s($pushmember));
-                    $noteoutput = 'push_module_note:' . PHP_EOL . var_export($data, true) . PHP_EOL . PHP_EOL
+                    $notedetail = ($userid > 0) ? \local_imisbridge\observer::module_grade_detail($cm, $userid) : null;
+                    $noteoutput = $scoretrace($field, $pushmember, $matches, $userid, $notedetail, 'activity') . PHP_EOL
+                        . 'push_module_note:' . PHP_EOL . var_export($data, true) . PHP_EOL . PHP_EOL
                         . get_string('pushaudithint', 'local_imisbridge');
                 }
             }
@@ -258,6 +321,10 @@ echo $OUTPUT->header();
 
 if ($message) {
     echo $OUTPUT->notification($message, 'notifysuccess');
+}
+if ($notice) {
+    // A record was still sent, but with placeholder status/score: warn, don't block.
+    echo $OUTPUT->notification($notice, 'notifywarning');
 }
 if ($error) {
     echo $OUTPUT->notification($error, 'notifyproblem');

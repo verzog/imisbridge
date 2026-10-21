@@ -387,6 +387,25 @@ class observer {
      *               module has no grade item (so the caller skips it).
      */
     private static function module_grade(\stdClass $cm, int $userid): array {
+        $detail = self::module_grade_detail($cm, $userid);
+        return [$detail->graded, $detail->score];
+    }
+
+    /**
+     * Detailed view of the learner's grade for a module, for the manual test
+     * controls to explain how a score was resolved (why it is 0, in particular).
+     *
+     * Reports the grade item and the learner's gradebook grade, not the raw
+     * activity attempt: a module can show a mark in its own report while the
+     * gradebook final grade is still empty (not regraded, hidden, or overridden),
+     * which is exactly when a note would carry score 0.
+     *
+     * @param \stdClass $cm     The course-module record (needs modname, instance).
+     * @param int       $userid The Moodle user ID (0 when no single user matched).
+     * @return \stdClass {graded:bool, score:float, itemid:?int, grademax:?float,
+     *                    finalgrade:?float, hasgrade:bool}
+     */
+    public static function module_grade_detail(\stdClass $cm, int $userid): \stdClass {
         global $CFG;
         require_once($CFG->libdir . '/gradelib.php');
 
@@ -396,16 +415,32 @@ class observer {
             'iteminstance' => $cm->instance,
         ]);
         if (!$gradeitem) {
-            return [false, 0.0];
+            // No grade item: the module is ungraded, so the caller skips it.
+            return (object)[
+                'graded'     => false,
+                'score'      => 0.0,
+                'itemid'     => null,
+                'grademax'   => null,
+                'finalgrade' => null,
+                'hasgrade'   => false,
+            ];
         }
 
-        $grade = \grade_grade::fetch(['itemid' => $gradeitem->id, 'userid' => $userid]);
-        if (!$grade || $grade->finalgrade === null) {
-            // A graded module with no grade yet — still graded; send 0.
-            return [true, 0.0];
-        }
+        $grade      = \grade_grade::fetch(['itemid' => $gradeitem->id, 'userid' => $userid]);
+        $finalgrade = ($grade && $grade->finalgrade !== null) ? (float)$grade->finalgrade : null;
+        // A graded module with no gradebook grade yet still counts as graded; send 0.
+        $score = ($finalgrade === null)
+            ? 0.0
+            : self::calculate_percentage($finalgrade, (float)$gradeitem->grademax);
 
-        return [true, self::calculate_percentage((float)$grade->finalgrade, (float)$gradeitem->grademax)];
+        return (object)[
+            'graded'     => true,
+            'score'      => $score,
+            'itemid'     => (int)$gradeitem->id,
+            'grademax'   => (float)$gradeitem->grademax,
+            'finalgrade' => $finalgrade,
+            'hasgrade'   => ($finalgrade !== null),
+        ];
     }
 
     /**
@@ -466,20 +501,49 @@ class observer {
      * @return float
      */
     private static function course_score(int $courseid, int $userid): float {
+        return self::course_score_detail($courseid, $userid)->score;
+    }
+
+    /**
+     * Detailed view of the learner's final course grade, for the "Push completion
+     * (test)" control to explain how a score was resolved (why it is 0, in
+     * particular). Reports the course-total grade item and the learner's gradebook
+     * grade, not any single activity attempt.
+     *
+     * @param int $courseid The Moodle course ID.
+     * @param int $userid   The Moodle user ID (0 when no single user matched).
+     * @return \stdClass {score:float, itemid:?int, grademax:?float, finalgrade:?float,
+     *                    hasgrade:bool}
+     */
+    public static function course_score_detail(int $courseid, int $userid): \stdClass {
         global $CFG;
         require_once($CFG->libdir . '/gradelib.php');
 
         $gradeitem = \grade_item::fetch_course_item($courseid);
         if (!$gradeitem) {
-            return 0.0;
+            // No course-total grade item: the course has no gradable content.
+            return (object)[
+                'score'      => 0.0,
+                'itemid'     => null,
+                'grademax'   => null,
+                'finalgrade' => null,
+                'hasgrade'   => false,
+            ];
         }
 
-        $grade = \grade_grade::fetch(['itemid' => $gradeitem->id, 'userid' => $userid]);
-        if (!$grade || $grade->finalgrade === null) {
-            return 0.0;
-        }
+        $grade      = \grade_grade::fetch(['itemid' => $gradeitem->id, 'userid' => $userid]);
+        $finalgrade = ($grade && $grade->finalgrade !== null) ? (float)$grade->finalgrade : null;
+        $score = ($finalgrade === null)
+            ? 0.0
+            : self::calculate_percentage($finalgrade, (float)$gradeitem->grademax);
 
-        return self::calculate_percentage((float)$grade->finalgrade, (float)$gradeitem->grademax);
+        return (object)[
+            'score'      => $score,
+            'itemid'     => (int)$gradeitem->id,
+            'grademax'   => (float)$gradeitem->grademax,
+            'finalgrade' => $finalgrade,
+            'hasgrade'   => ($finalgrade !== null),
+        ];
     }
 
     /**

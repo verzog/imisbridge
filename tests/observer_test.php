@@ -405,4 +405,112 @@ final class observer_test extends \advanced_testcase {
 
         $this->assertNull(observer::module_note_data('21886', $cm, 0));
     }
+
+    /**
+     * module_grade_detail() reports the grade item and the learner's gradebook
+     * grade. A graded module with a recorded grade yields the percentage; with no
+     * recorded gradebook grade it is still "graded" but score 0 and hasgrade false
+     * (the exact shape behind a note that carries score 0 for a graded activity).
+     *
+     * @covers \local_imisbridge\observer::module_grade_detail
+     * @return void
+     */
+    public function test_module_grade_detail_reads_gradebook(): void {
+        global $DB;
+        $this->resetAfterTest();
+
+        $course = $this->getDataGenerator()->create_course();
+        $assign = $this->getDataGenerator()->create_module('assign', ['course' => $course->id, 'grade' => 100]);
+        $cm     = get_coursemodule_from_id('', $assign->cmid);
+        $user   = $this->getDataGenerator()->create_user();
+
+        // No gradebook grade yet: graded, but score 0 and hasgrade false.
+        $empty = observer::module_grade_detail($cm, (int)$user->id);
+        $this->assertTrue($empty->graded);
+        $this->assertFalse($empty->hasgrade);
+        $this->assertNull($empty->finalgrade);
+        $this->assertSame(0.0, $empty->score);
+        $this->assertNotNull($empty->itemid);
+
+        // Record a gradebook grade of 75/100 and re-read: 75%.
+        $gradeitem = \grade_item::fetch([
+            'itemtype'     => 'mod',
+            'itemmodule'   => 'assign',
+            'iteminstance' => $assign->id,
+        ]);
+        $DB->insert_record('grade_grades', (object)[
+            'itemid'       => $gradeitem->id,
+            'userid'       => $user->id,
+            'finalgrade'   => 75.0,
+            'rawgrademax'  => $gradeitem->grademax,
+            'rawgrademin'  => $gradeitem->grademin,
+            'timecreated'  => 1000,
+            'timemodified' => 1000,
+        ]);
+
+        $graded = observer::module_grade_detail($cm, (int)$user->id);
+        $this->assertTrue($graded->hasgrade);
+        $this->assertEqualsWithDelta(75.0, (float)$graded->finalgrade, 0.001);
+        $this->assertEqualsWithDelta(75.0, (float)$graded->score, 0.001);
+    }
+
+    /**
+     * module_grade_detail() reports an ungraded module (no grade item) as not
+     * graded, so the manual test can say "ungraded" rather than a misleading 0.
+     *
+     * @covers \local_imisbridge\observer::module_grade_detail
+     * @return void
+     */
+    public function test_module_grade_detail_ungraded(): void {
+        $this->resetAfterTest();
+
+        $course = $this->getDataGenerator()->create_course();
+        $page   = $this->getDataGenerator()->create_module('page', ['course' => $course->id]);
+        $cm     = get_coursemodule_from_id('', $page->cmid);
+
+        $detail = observer::module_grade_detail($cm, 0);
+        $this->assertFalse($detail->graded);
+        $this->assertFalse($detail->hasgrade);
+        $this->assertNull($detail->itemid);
+    }
+
+    /**
+     * course_score_detail() reports the course-total grade item and the learner's
+     * gradebook grade: no recorded grade reads as score 0 / hasgrade false, a
+     * recorded course total reads as its percentage.
+     *
+     * @covers \local_imisbridge\observer::course_score_detail
+     * @return void
+     */
+    public function test_course_score_detail_reads_course_total(): void {
+        global $DB;
+        $this->resetAfterTest();
+
+        $course = $this->getDataGenerator()->create_course();
+        $user   = $this->getDataGenerator()->create_user();
+
+        // No gradebook grade yet: score 0, hasgrade false, but the course-total item exists.
+        $empty = observer::course_score_detail((int)$course->id, (int)$user->id);
+        $this->assertNull($empty->finalgrade);
+        $this->assertFalse($empty->hasgrade);
+        $this->assertSame(0.0, $empty->score);
+        $this->assertNotNull($empty->itemid);
+
+        // Record a course total of 80 and re-read: 80%.
+        $gradeitem = \grade_item::fetch_course_item((int)$course->id);
+        $DB->insert_record('grade_grades', (object)[
+            'itemid'       => $gradeitem->id,
+            'userid'       => $user->id,
+            'finalgrade'   => 80.0,
+            'rawgrademax'  => $gradeitem->grademax,
+            'rawgrademin'  => $gradeitem->grademin,
+            'timecreated'  => 1000,
+            'timemodified' => 1000,
+        ]);
+
+        $graded = observer::course_score_detail((int)$course->id, (int)$user->id);
+        $this->assertTrue($graded->hasgrade);
+        $this->assertEqualsWithDelta(80.0, (float)$graded->finalgrade, 0.001);
+        $this->assertEqualsWithDelta(80.0, (float)$graded->score, 0.001);
+    }
 }
