@@ -69,6 +69,71 @@ final class imis_client_test extends \advanced_testcase {
     }
 
     /**
+     * MoodleUpdate sends the fixed 'Completion' record discriminator with an
+     * empty value, so the ATS service actually writes the record. A credit type
+     * in `type` returns ResultCode 0 but lands nothing.
+     *
+     * @return void
+     */
+    public function test_build_moodleupdate_params_record_contract(): void {
+        $params = imis_client::build_moodleupdate_params(
+            '21886',
+            '7',
+            '2026-10-21',
+            '2026-10-21',
+            '2026-10-21',
+            'complete',
+            8.33
+        );
+
+        $this->assertSame('Completion', $params['type']);
+        $this->assertSame('', $params['value']);
+        $this->assertSame('21886', $params['userId']);
+        $this->assertSame('7', $params['productId']);
+        $this->assertSame(8.33, $params['score']);
+    }
+
+    /**
+     * Status is upper-cased to the ATS vocabulary before it is sent.
+     *
+     * @return void
+     */
+    public function test_build_moodleupdate_params_uppercases_status(): void {
+        $complete = imis_client::build_moodleupdate_params('1', '2', '', '', '', 'Pass', 0.0);
+        $this->assertSame('PASS', $complete['status']);
+
+        $fromcompletion = imis_client::build_moodleupdate_params('1', '2', '', '', '', 'COMPLETE', 0.0);
+        $this->assertSame('COMPLETE', $fromcompletion['status']);
+    }
+
+    /**
+     * A score / module note is an append-only MOODLENOTE that carries its status
+     * and score in UserField3/UserField4 and never the completion discriminator,
+     * so it can never overwrite the canonical completion record.
+     *
+     * @return void
+     */
+    public function test_build_note_params_is_append_only_moodlenote(): void {
+        $params = imis_client::build_note_params(
+            '21886',
+            '7',
+            'Moodle course 7 score',
+            'pass',
+            8.33,
+            '2026-10-21',
+            ['Note2' => 'score']
+        );
+
+        $this->assertSame('MOODLENOTE', $params['ActivityType']);
+        $this->assertSame('PASS', $params['UserField3']);
+        $this->assertSame(8.33, $params['UserField4']);
+        $this->assertSame('score', $params['Note2']);
+        // A note must never carry the MoodleUpdate completion discriminator.
+        $this->assertArrayNotHasKey('type', $params);
+        $this->assertArrayNotHasKey('value', $params);
+    }
+
+    /**
      * A non-empty endpoint is passed through as the SOAP `location` override.
      *
      * @return void

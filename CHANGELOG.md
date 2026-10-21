@@ -4,6 +4,38 @@ All notable changes to the iMIS Bridge plugin (`local_imisbridge`) are documente
 in this file. The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.16.0] - 2026-10-21
+
+### Fixed
+- **Completion pushes now land in iMIS.** The SOAP `MoodleUpdate` was sending the
+  configured credit type (default `CEU`) in the `type` field, `0` in `value`, and
+  `Pass` in `status`. The ATS service treats `type` as a fixed record
+  discriminator and only writes the completion onto the registration when it is
+  the literal **`Completion`** — so our pushes returned `ResultCode 0` (accepted)
+  but silently landed nothing. Now matches the vendor's proven contract: `type`
+  is always `Completion`, `value` is empty, and `status` is upper-cased to the ATS
+  vocabulary (`COMPLETE` for a finished course, `PASS`/`FAIL` for a graded
+  result). Verified against the reconstructed vendor source (`local_imis`).
+
+- **SOAP quiz-score pushes are now append-only MOODLENOTE records, not
+  `MoodleUpdate`.** With `type='Completion'` now effective, routing a graded quiz
+  submission through `MoodleUpdate` would have let a re-attempt overwrite the
+  course's canonical `COMPLETE` status and final grade. `imis_client::push_score()`
+  now writes a `createActivity`/MOODLENOTE record (as the REST transport and the
+  vendor already did), preserving the invariant that only a course-completion
+  event may write the completion record.
+
+### Changed
+- The MoodleUpdate and MOODLENOTE parameter arrays are now built by pure,
+  unit-tested helpers (`imis_client::build_moodleupdate_params()` and
+  `build_note_params()`). `update_activity_record()` keeps its original public
+  signature — `$credittype` / `$creditvalue` are retained for backward
+  compatibility but are no longer transmitted (the ATS `MoodleUpdate` call never
+  carried them; iMIS derives the credit from the product). The `credit_type` /
+  `credit_field` settings continue to feed the optional REST extra-columns mapping.
+- `docs/VENDOR-ARCHITECTURE.md` now documents the full `MoodleUpdate` /
+  `createActivity` field contract learned from the vendor source.
+
 ## [1.8.0] - 2026-10-19
 
 ### Fixed

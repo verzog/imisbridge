@@ -127,10 +127,40 @@ works. See `DESIGN-NOTES.md` §2.)
 | `LOGIN_URL`                 | `.../ATS/SAMLPASSTHRU.aspx`                         |
 | `XMLRPC_ENDPOINT`           | NA (unused)                                        |
 
-## Reverse direction (for completeness)
+## Reverse direction — Moodle → iMIS (completions, grades)
 
-Moodle → iMIS (course completions, grades) is a **separate** channel, logged in
-the vendor's `local_imis_logs` table as `moodle_update` / `create_activity`
-actions. It kept working throughout the inbound outage, which is how we proved
-the two systems could still communicate and localised the fault to the inbound
-token.
+A **separate** channel over the ATS SOAP service, logged in the vendor's
+`local_imis_logs` table as `moodle_update` / `create_activity` actions. It kept
+working throughout the inbound outage, which is how we proved the two systems
+could still communicate and localised the fault to the inbound token.
+
+The vendor source (reconstructed from `local_imis`) shows two operations:
+
+**`MoodleUpdate`** — the course-level completion / progress record. The vendor's
+`moodleupdate_data` always sends a fixed shape; only the contact, course, status,
+score and dates vary:
+
+| SOAP field                           | Value                                            |
+|--------------------------------------|--------------------------------------------------|
+| `userId`                             | iMIS ContactID (Moodle `user.idnumber`)          |
+| `productId`                          | Moodle course id (maps to the iMIS product)      |
+| `type`                               | **`Completion`** — a literal record discriminator, **not** a credit type |
+| `value`                              | **empty**                                        |
+| `status`                             | `COMPLETE`, `INPROGRESS`, `NOTSTARTED`, `PASS` or `FAIL` |
+| `score`                              | course grade                                     |
+| `startDate` / `completionDate` / `grantDate` | `Y-m-d`                                  |
+
+**The service only writes the record when `type` is exactly `Completion`.** Any
+other `type` (e.g. a credit type such as `CEU`) returns `ResultCode 0` but lands
+nothing — a silent no-op. `status` is the Moodle completion state mapped to the
+uppercase ATS vocabulary (`COMPLETE` for a finished course, `INPROGRESS` for a
+grade-in-progress). The CEU credit amount is **not** carried here — iMIS derives
+it from the product on its own side. (Our plugin originally sent `type=CEU`,
+`value=0`, `status=Pass`, which is why pushes returned success but never
+appeared; fixed to match this contract.)
+
+**`createActivity`** — a richer per-module activity record (ATS `ActivityType`,
+e.g. `MOODLENOTE`) carrying the module name, feedback as the note, and the
+per-module status/score in `UserField3`/`UserField4` with the course module id in
+`UserField5`. Used for case-study / module-level completions, separate from the
+course-level `MoodleUpdate`.
