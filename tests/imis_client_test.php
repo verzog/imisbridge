@@ -69,6 +69,44 @@ final class imis_client_test extends \advanced_testcase {
     }
 
     /**
+     * MoodleUpdate sends the fixed 'Completion' record discriminator with an
+     * empty value, so the ATS service actually writes the record. A credit type
+     * in `type` returns ResultCode 0 but lands nothing.
+     *
+     * @return void
+     */
+    public function test_build_moodleupdate_params_record_contract(): void {
+        $params = imis_client::build_moodleupdate_params(
+            '21886',
+            '7',
+            '2026-10-21',
+            '2026-10-21',
+            '2026-10-21',
+            'complete',
+            8.33
+        );
+
+        $this->assertSame('Completion', $params['type']);
+        $this->assertSame('', $params['value']);
+        $this->assertSame('21886', $params['userId']);
+        $this->assertSame('7', $params['productId']);
+        $this->assertSame(8.33, $params['score']);
+    }
+
+    /**
+     * Status is upper-cased to the ATS vocabulary before it is sent.
+     *
+     * @return void
+     */
+    public function test_build_moodleupdate_params_uppercases_status(): void {
+        $complete = imis_client::build_moodleupdate_params('1', '2', '', '', '', 'Pass', 0.0);
+        $this->assertSame('PASS', $complete['status']);
+
+        $fromcompletion = imis_client::build_moodleupdate_params('1', '2', '', '', '', 'COMPLETE', 0.0);
+        $this->assertSame('COMPLETE', $fromcompletion['status']);
+    }
+
+    /**
      * A non-empty endpoint is passed through as the SOAP `location` override.
      *
      * @return void

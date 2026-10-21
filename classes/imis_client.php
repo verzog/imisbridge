@@ -126,7 +126,8 @@ class imis_client implements \local_imisbridge\provider\org_sync_provider {
 
     /**
      * Send an activity record to iMIS. The SOAP bridge treats completions and
-     * scores identically — both are a MoodleUpdate carrying the record's status.
+     * scores identically — both are a MoodleUpdate carrying the record's status
+     * (COMPLETE for a completion, PASS/FAIL for a graded result).
      *
      * @param \stdClass $data The queued push data.
      * @return void
@@ -135,8 +136,6 @@ class imis_client implements \local_imisbridge\provider\org_sync_provider {
         $this->update_activity_record(
             imisid:          (string)$data->imisid,
             moodlecoursenum: (string)($data->coursenum ?? ''),
-            credittype:      (string)($data->credittype ?? 'CEU'),
-            creditvalue:     (float)($data->creditvalue ?? 0),
             startdate:       (string)($data->startdate ?? ''),
             completiondate:  (string)($data->completiondate ?? ''),
             grantdate:       (string)($data->grantdate ?? ''),
@@ -633,44 +632,87 @@ class imis_client implements \local_imisbridge\provider\org_sync_provider {
      *
      * Requires AuthToken as of 2025 ATS security update.
      *
+     * The MoodleUpdate `type` field is the record discriminator, not a credit
+     * type: the ATS service only writes the record onto the registration when it
+     * is the literal 'Completion' (the vendor bridge always sent this), and it
+     * leaves `value` empty. Sending anything else returns ResultCode 0 but writes
+     * nothing. Status is one of the ATS vocabulary - COMPLETE, INPROGRESS,
+     * NOTSTARTED, PASS, FAIL - so it is upper-cased here.
+     *
      * @param string $imisid          iMIS contact ID (from the configured Moodle user field).
      * @param string $moodlecoursenum Moodle course number (maps to iMIS product code).
-     * @param string $credittype      Type of credit hour.
-     * @param float  $creditvalue     Number of credit hours awarded.
      * @param string $startdate       Course start date (Y-m-d).
      * @param string $completiondate  Course completion date (Y-m-d).
      * @param string $grantdate       Date credit hours were granted (Y-m-d).
-     * @param string $status          Pass or Fail.
+     * @param string $status          Record status (COMPLETE, INPROGRESS, PASS, FAIL, ...).
      * @param float  $score           Last test score.
      * @return mixed The SOAP result.
      */
     public function update_activity_record(
         string $imisid,
         string $moodlecoursenum,
-        string $credittype,
-        float $creditvalue,
         string $startdate,
         string $completiondate,
         string $grantdate,
         string $status,
         float $score
     ): mixed {
-        $params = [
-            'AuthToken'      => $this->get_api_auth_token(),
-            'userId'         => $imisid,
-            'productId'      => $moodlecoursenum,
-            'type'           => $credittype,
-            'value'          => $creditvalue,
-            'startDate'      => $startdate,
-            'completionDate' => $completiondate,
-            'grantDate'      => $grantdate,
-            'status'         => $status,
-            'score'          => $score,
-        ];
+        $params = array_merge(
+            ['AuthToken' => $this->get_api_auth_token()],
+            self::build_moodleupdate_params(
+                $imisid,
+                $moodlecoursenum,
+                $startdate,
+                $completiondate,
+                $grantdate,
+                $status,
+                $score
+            )
+        );
         $result = $this->call('MoodleUpdate', $params, $imisid, $moodlecoursenum);
         // The response body is a ResultsBase (ResultCode/ResultMessage/Exception),
         // not a MoodleUpdateResult wrapper.
         return $result->ResultsBase ?? null;
+    }
+
+    /**
+     * Build the MoodleUpdate SOAP parameters (without the AuthToken).
+     *
+     * Kept pure and static so the record contract is unit-testable: `type` is the
+     * fixed 'Completion' discriminator and `value` is empty, because the ATS
+     * service only writes the completion onto the registration for that exact
+     * shape (anything else returns ResultCode 0 but lands nothing). Status is
+     * upper-cased to the ATS vocabulary (COMPLETE, INPROGRESS, PASS, FAIL, ...).
+     *
+     * @param string $imisid          iMIS contact ID.
+     * @param string $moodlecoursenum Moodle course number (maps to iMIS product code).
+     * @param string $startdate       Course start date (Y-m-d).
+     * @param string $completiondate  Course completion date (Y-m-d).
+     * @param string $grantdate       Grant date (Y-m-d).
+     * @param string $status          Record status (COMPLETE, INPROGRESS, PASS, FAIL, ...).
+     * @param float  $score           Last test score.
+     * @return array The MoodleUpdate parameters.
+     */
+    public static function build_moodleupdate_params(
+        string $imisid,
+        string $moodlecoursenum,
+        string $startdate,
+        string $completiondate,
+        string $grantdate,
+        string $status,
+        float $score
+    ): array {
+        return [
+            'userId'         => $imisid,
+            'productId'      => $moodlecoursenum,
+            'type'           => 'Completion',
+            'value'          => '',
+            'startDate'      => $startdate,
+            'completionDate' => $completiondate,
+            'grantDate'      => $grantdate,
+            'status'         => strtoupper($status),
+            'score'          => $score,
+        ];
     }
 
     // BRIDGE SETTINGS.

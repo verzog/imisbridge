@@ -151,7 +151,7 @@ class observer {
             'startdate'      => $today,
             'completiondate' => $today,
             'grantdate'      => $today,
-            'status'         => 'Pass',
+            'status'         => 'COMPLETE',
             'score'          => self::course_score((int)$course->id, $userid),
         ];
     }

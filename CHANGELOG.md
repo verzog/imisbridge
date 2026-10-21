@@ -4,6 +4,29 @@ All notable changes to the iMIS Bridge plugin (`local_imisbridge`) are documente
 in this file. The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.16.0] - 2026-10-21
+
+### Fixed
+- **Completion pushes now land in iMIS.** The SOAP `MoodleUpdate` was sending the
+  configured credit type (default `CEU`) in the `type` field, `0` in `value`, and
+  `Pass` in `status`. The ATS service treats `type` as a fixed record
+  discriminator and only writes the completion onto the registration when it is
+  the literal **`Completion`** — so our pushes returned `ResultCode 0` (accepted)
+  but silently landed nothing. Now matches the vendor's proven contract: `type`
+  is always `Completion`, `value` is empty, and `status` is upper-cased to the ATS
+  vocabulary (`COMPLETE` for a finished course, `PASS`/`FAIL` for a graded
+  result). Verified against the reconstructed vendor source (`local_imis`).
+
+### Changed
+- `imis_client::update_activity_record()` no longer takes `$credittype` /
+  `$creditvalue` arguments — the ATS `MoodleUpdate` call never carried a credit
+  type or value (iMIS derives the credit from the product). The MoodleUpdate
+  parameter array is now built by a pure, unit-tested
+  `imis_client::build_moodleupdate_params()`. The `credit_type` / `credit_field`
+  settings continue to feed the optional REST extra-columns mapping.
+- `docs/VENDOR-ARCHITECTURE.md` now documents the full `MoodleUpdate` /
+  `createActivity` field contract learned from the vendor source.
+
 ## [1.8.0] - 2026-10-19
 
 ### Fixed

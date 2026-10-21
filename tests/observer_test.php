@@ -353,7 +353,7 @@ final class observer_test extends \advanced_testcase {
         $this->assertSame('push_completions', $data->toggle);
         $this->assertSame('20018', $data->imisid);
         $this->assertSame((string)$course->id, $data->coursenum);
-        $this->assertSame('Pass', $data->status);
+        $this->assertSame('COMPLETE', $data->status);
         $this->assertSame('CEU', $data->credittype);
         $this->assertSame(0.0, $data->creditvalue);
         $this->assertSame(0.0, $data->score);
