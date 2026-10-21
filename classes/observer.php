@@ -571,23 +571,22 @@ class observer {
      * grade — the actual grade (e.g. 8/10, 80/100), not a percentage — so quiz
      * scores match the module notes, which carry the raw grade.
      *
-     * Mirrors Moodle's own rescaling (attempt marks / max marks * max grade),
-     * rounded to two places. Falls back to the raw summed marks when the quiz has
-     * no gradebook maximum, and returns 0 for a non-gradable attempt (guarding
-     * divide-by-zero).
+     * Mirrors Moodle's own quiz_rescale_grade (attempt marks / max marks * max
+     * grade), rounded to two places. Returns 0 when the quiz is ungraded: a max
+     * grade of 0 makes the quiz grade item GRADE_TYPE_NONE (no scaled grade), and a
+     * non-positive max marks guards against divide-by-zero.
      *
      * @param float $attemptsum The learner's summed marks for the attempt.
      * @param float $maxmarks   The quiz's maximum summed marks (quiz->sumgrades).
-     * @param float $maxgrade   The quiz's maximum grade (quiz->grade).
+     * @param float $maxgrade   The quiz's maximum grade (quiz->grade); 0 is ungraded.
      * @return float
      */
     public static function quiz_raw_grade(float $attemptsum, float $maxmarks, float $maxgrade): float {
         if ($maxmarks <= 0) {
             return 0.0;
         }
-        if ($maxgrade <= 0) {
-            return round($attemptsum, 2);
-        }
+        // A max grade of 0 is an ungraded quiz (GRADE_TYPE_NONE); the rescale below
+        // then yields 0, so no arbitrary question-weight points reach the record.
         return round(($attemptsum / $maxmarks) * $maxgrade, 2);
     }
 

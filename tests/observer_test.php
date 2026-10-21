@@ -66,8 +66,8 @@ final class observer_test extends \advanced_testcase {
         $this->assertSame(8.0, observer::quiz_raw_grade(8.0, 10.0, 10.0));
         // Full marks out of 10 -> 10 (the raw grade, not 100%).
         $this->assertSame(10.0, observer::quiz_raw_grade(10.0, 10.0, 10.0));
-        // No gradebook maximum: fall back to the raw summed marks.
-        $this->assertSame(8.0, observer::quiz_raw_grade(8.0, 10.0, 0.0));
+        // Max grade 0 is an ungraded quiz (GRADE_TYPE_NONE) -> 0, not raw marks.
+        $this->assertSame(0.0, observer::quiz_raw_grade(8.0, 10.0, 0.0));
         // Non-gradable attempt: guard divide-by-zero.
         $this->assertSame(0.0, observer::quiz_raw_grade(8.0, 0.0, 100.0));
     }
