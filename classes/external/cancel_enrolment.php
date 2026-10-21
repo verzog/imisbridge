@@ -67,8 +67,8 @@ class cancel_enrolment extends external_api {
                     'courseid' => new external_value(PARAM_INT, 'Moodle course id to cancel the user in.'),
                     'roleid'   => new external_value(
                         PARAM_INT,
-                        'Role to unassign in the course context. 0 (default) unassigns every role the '
-                            . 'user holds in that course.',
+                        'Role to unassign in the course context. 0 (default) unassigns each suspended '
+                            . 'enrolment\'s own default role (enrol.roleid), leaving other roles in place.',
                         VALUE_DEFAULT,
                         0
                     ),
@@ -144,20 +144,22 @@ class cancel_enrolment extends external_api {
                         $plugin->update_user_enrol($instance, $userid, ENROL_USER_SUSPENDED);
                     }
 
-                    // Remove only the role(s) this enrolment granted — scoped by the
-                    // enrol component and instance id — so a manually assigned role
-                    // or a role from an unrelated component is never stripped. Role
+                    // Remove the role this enrolment grants: the explicit roleid when
+                    // given, otherwise the instance's own default role (enrol.roleid).
+                    // Targeting one role id removes the learner's enrolment role (e.g.
+                    // Student) while leaving any other role — such as a manual teacher
+                    // override — in place. We cannot scope by component here: the manual
+                    // enrol plugin assigns its role with no component (roles unprotected),
+                    // so its assignment is indistinguishable from a manual one. Role
                     // unassignment deletes assignments only, never grades/completion.
-                    $roleparams = [
-                        'userid'    => $userid,
-                        'contextid' => $context->id,
-                        'component' => 'enrol_' . $instance->enrol,
-                        'itemid'    => $instance->id,
-                    ];
-                    if ($roleid > 0) {
-                        $roleparams['roleid'] = $roleid;
+                    $targetroleid = $roleid > 0 ? $roleid : (int)$instance->roleid;
+                    if ($targetroleid > 0) {
+                        role_unassign_all([
+                            'userid'    => $userid,
+                            'contextid' => $context->id,
+                            'roleid'    => $targetroleid,
+                        ]);
                     }
-                    role_unassign_all($roleparams);
 
                     $suspended++;
                 }

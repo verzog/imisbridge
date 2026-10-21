@@ -128,11 +128,12 @@ Order matters here — disable writes **before** entering any endpoint.
 > **`local_imisbridge_cancel_enrolment`** instead. It takes
 > `enrolments: [{userid, courseid, roleid?}]`, and for each entry **suspends** every
 > enrolment the user has in the course (row, grades and completion all kept; access
-> removed) and **unassigns the role that enrolment granted** — scoped by enrol
-> component and instance, so a manual admin override is left in place. It never
+> removed) and **unassigns the role that enrolment grants** — the enrolment
+> instance's own default role (`enrol.roleid`), or the `roleid` you pass — so another
+> role, such as a manual teacher/manager override, is left in place. It never
 > unenrols or deletes, and each entry is transactional, so an error cannot lose or
-> half-apply data. `roleid` is optional: 0/omitted removes the enrol-granted role(s)
-> for the suspended enrolments; a specific id removes just that role.
+> half-apply data. `roleid` is optional: 0/omitted targets each suspended enrolment's
+> default role; a specific id removes just that role.
 >
 > Grant the service-account role **`local/imisbridge:cancelenrolment`** and add the
 > function to the inbound service (it is also on the plugin's own `iMIS bridge`

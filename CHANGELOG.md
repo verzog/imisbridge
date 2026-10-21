@@ -14,8 +14,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   outcome for a cancelled order. The new function takes `userid`+`courseid` and, for
   each of the user's enrolments in the course, **suspends** it (the enrolment row,
   grades and completion all remain; only access is removed) and **unassigns the role
-  that enrolment granted** (scoped by enrol component + instance, so a manual admin
-  override is kept). It never unenrols or deletes, and each entry runs in its own
+  that enrolment grants** (the enrolment's default role, or a role id you pass, so
+  another role such as a manual teacher override is kept). It never unenrols or
+  deletes, and each entry runs in its own
   transaction, so an error cannot lose or half-apply data; failures are returned as
   warnings. Fully reversible by a later re-enrol.
   - New capability `local/imisbridge:cancelenrolment` (course context, no data-loss
