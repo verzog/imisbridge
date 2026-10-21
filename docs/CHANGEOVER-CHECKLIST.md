@@ -292,6 +292,29 @@ way, each with the symptom that identifies it:
   service account cannot access the target course — it needs **`moodle/course:view`**
   (and `viewhiddencourses` for a hidden course), per §C. This is true even for a
   **visible** course, because the account is not enrolled.
+- **`accessexception: Access control exception` on cancel/unenrol** (e.g.
+  `MoodleClass.unenrolMoodleUser ERROR ... Error:accessexception`, `ResultCode 10`)
+  means the service account lacks a capability for the unenrol/cancel in **that
+  course's** context. The usual cause is a **hidden course**: `validate_context()`
+  runs `require_login()`, which fails when the account cannot see the course — so
+  grant **`moodle/course:viewhiddencourses`** (and
+  `moodle/category:viewhiddencategories`), alongside `moodle/course:view` and the
+  operation's own capability (**`enrol/manual:unenrol`** for core unenrol, or
+  **`local/imisbridge:cancelenrolment`** for `local_imisbridge_cancel_enrolment`).
+  Tell-tale: the **same** cancel works on a visible course but fails on a hidden one.
+  The `local_imisbridge_cancel_enrolment` function needs these view capabilities too
+  (it also calls `validate_context()`), so granting its own capability alone is not
+  enough for a hidden course.
+- **Transient `Could not connect to host` on a sync** (while **Test connection**
+  still passes) is a **reachability blip**, not a config or credential fault. Test
+  connection only does reads (ATS answers them); a sync additionally makes ATS call
+  back into Moodle, so a connection error there points at the **ATS → Moodle** leg
+  being momentarily down — most often the Moodle web server/PHP-FPM restarting (e.g.
+  during a **PHP or package update**), or a dynamic-DNS host whose public IP /
+  port-forward changed on reboot. Confirm Moodle is reachable from **outside** the
+  server (`curl -v https://<moodle-host>/webservice/rest/server.php` should return
+  HTTP 200 with an `<EXCEPTION>invalidtoken</EXCEPTION>` body; run it off-box, since
+  on the server the name may resolve to `::1`/localhost), then re-run the sync.
 - **REST only, no SOAP.** The service account needs `webservice/rest:use`, not
   `webservice/soap:use` — the bridge calls Moodle over REST; the only SOAP is the
   plugin acting as a SOAP *client* to ATS, which uses no Moodle web service.
