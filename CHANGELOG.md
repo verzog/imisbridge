@@ -4,6 +4,26 @@ All notable changes to the iMIS Bridge plugin (`local_imisbridge`) are documente
 in this file. The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.17.0] - 2026-10-21
+
+### Fixed
+- **`createActivity` (MOODLENOTE) pushes used the wrong SOAP operation name.** The
+  call sent lowercase `createActivity`, but the ATS WSDL operation is PascalCase
+  `CreateActivity` and SOAP operation names are case-sensitive — so every note push
+  faulted and no supplementary note (quiz score / module completion) ever reached
+  iMIS. Now matches the vendor's proven call, including dropping empty fields from
+  the payload before sending.
+
+### Added
+- **"Push activity note (test)" control on the manual sync page.** Enter a member ID
+  and course, list the course's graded activities, then push one real `MOODLENOTE`
+  (`createActivity`) for a chosen activity — the note-path equivalent of the existing
+  "Push completion (test)" control, for verifying the write path without waiting for a
+  live submission and completion event. Gated on the `push_module_completions` opt-in.
+- `observer::module_note_data()`, a pure, unit-tested helper that builds the module-note
+  push data, shared by the `course_module_completion_updated` observer and the new
+  test control.
+
 ## [1.16.0] - 2026-10-21
 
 ### Fixed

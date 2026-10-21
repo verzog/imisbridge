@@ -157,6 +157,64 @@ class observer {
     }
 
     /**
+     * Build the data for a module-completion MOODLENOTE push.
+     *
+     * Shared by the course_module_completion_updated observer and the manual
+     * "push activity note" admin test. The status is taken from the learner's
+     * actual completion state for the module when present, otherwise it defaults
+     * to COMPLETE (so the manual test still exercises the createActivity path);
+     * the score is the learner's real grade for the module (0 when not yet
+     * graded). Graded modules only: returns null for an ungraded module so the
+     * caller rejects the write, upholding the same invariant the automatic
+     * observer enforces.
+     *
+     * @param string    $imisid The iMIS contact ID.
+     * @param \stdClass $cm     The course-module record (needs id, course, modname, instance, name).
+     * @param int       $userid The Moodle user ID (0 when the member maps to no single user).
+     * @return \stdClass|null The queued push data, or null when the module is ungraded.
+     */
+    public static function module_note_data(string $imisid, \stdClass $cm, int $userid): ?\stdClass {
+        global $DB, $CFG;
+        // The module_status() mapping references the COMPLETION_* constants; the
+        // manual push path does not go through the observer that includes them.
+        require_once($CFG->libdir . '/completionlib.php');
+
+        // Re-check graded here, not just at listing time: the push is a separate
+        // request, so the grade item could have been removed since the activity
+        // was listed (or pushcmid posted directly for an ungraded module).
+        [$graded, $score] = self::module_grade($cm, $userid);
+        if (!$graded) {
+            return null;
+        }
+
+        $status = 'COMPLETE';
+        if ($userid > 0) {
+            $completion = $DB->get_record('course_modules_completion', [
+                'coursemoduleid' => $cm->id,
+                'userid'         => $userid,
+            ]);
+            if (!empty($completion)) {
+                $mapped = self::module_status((int)$completion->completionstate);
+                if ($mapped !== null) {
+                    $status = $mapped;
+                }
+            }
+        }
+
+        return (object)[
+            'toggle'    => 'push_module_completions',
+            'imisid'    => $imisid,
+            'coursenum' => (string)$cm->course,
+            'cmid'      => (int)$cm->id,
+            'modname'   => $cm->modname,
+            'cmname'    => format_string($cm->name),
+            'status'    => $status,
+            'score'     => $score,
+            'date'      => date('Y-m-d'),
+        ];
+    }
+
+    /**
      * Triggered on quiz attempt submission. Queues a graded record push to iMIS.
      *
      * Preview attempts (teacher previews) and ungraded quizzes are ignored.
