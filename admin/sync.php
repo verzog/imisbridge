@@ -53,8 +53,14 @@ $nosingleusernotice = function (string $field, string $member, int $matchcount):
 // names the grade read ("activity" or "course-total"). $detail is a *_detail object
 // (module_grade_detail/course_score_detail) or null when no user matched. Rendered
 // inside a <pre> via s().
-$scoretrace = function (string $field, string $member, array $matches, int $userid,
-        ?\stdClass $detail, string $gradelabel): string {
+$scoretrace = function (
+    string $field,
+    string $member,
+    array $matches,
+    int $userid,
+    ?\stdClass $detail,
+    string $gradelabel
+): string {
     $lines = [
         'score resolution:',
         '  member "' . $member . '" matched ' . count($matches)
