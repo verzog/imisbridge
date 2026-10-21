@@ -47,6 +47,36 @@ $nosingleusernotice = function (string $field, string $member, int $matchcount):
     $a = (object)['field' => $field, 'member' => s($member)];
     return get_string($matchcount > 1 ? 'pushnomatchmany' : 'pushnomatchnone', 'local_imisbridge', $a);
 };
+// Build a plain-text "how the score was resolved" trace for the note test output, so a
+// score of 0 can be traced to the member->user match or the gradebook grade (never the
+// raw activity attempt) rather than guessed at. Rendered inside a <pre> via s().
+$scorediag = function (string $field, string $member, array $matches, int $userid, \stdClass $cm): string {
+    $lines = [
+        'score resolution:',
+        '  member "' . $member . '" matched ' . count($matches)
+            . ' Moodle user(s) on field "' . $field . '" (need exactly 1)',
+    ];
+    if ($userid === 0) {
+        $lines[] = '  -> no single user: status defaulted to COMPLETE and score sent as 0';
+        return implode(PHP_EOL, $lines);
+    }
+    $lines[] = '  -> Moodle user id ' . $userid;
+    $detail = \local_imisbridge\observer::module_grade_detail($cm, $userid);
+    if (!$detail->graded) {
+        $lines[] = '  activity has no grade item (ungraded)';
+        return implode(PHP_EOL, $lines);
+    }
+    $lines[] = '  grade item ' . $detail->itemid . ', grademax ' . $detail->grademax;
+    $lines[] = '  gradebook finalgrade '
+        . ($detail->hasgrade ? (string)$detail->finalgrade : 'null (no gradebook grade recorded)');
+    $lines[] = '  -> score sent ' . $detail->score . '%';
+    if (!$detail->hasgrade) {
+        $lines[] = '  NOTE: the gradebook final grade for this item is empty, so 0 was sent. A mark on'
+            . ' the activity attempt does not count until it reaches the gradebook (check the Grader'
+            . ' report for this user and activity; a hidden, locked or not-yet-regraded grade reads as empty).';
+    }
+    return implode(PHP_EOL, $lines);
+};
 // Set by the "list activities" step to the graded modules the operator can pick from.
 $modulechoices = null;
 $notemember    = '';
@@ -190,7 +220,8 @@ if ($action === 'testconnection' && confirm_sesskey()) {
                     \local_imisbridge\provider\manager::instance()->push_module_note($data);
 
                     $message    = get_string('pushnotedone', 'local_imisbridge', s($pushmember));
-                    $noteoutput = 'push_module_note:' . PHP_EOL . var_export($data, true) . PHP_EOL . PHP_EOL
+                    $noteoutput = $scorediag($field, $pushmember, $matches, $userid, $cm) . PHP_EOL
+                        . 'push_module_note:' . PHP_EOL . var_export($data, true) . PHP_EOL . PHP_EOL
                         . get_string('pushaudithint', 'local_imisbridge');
                 }
             }

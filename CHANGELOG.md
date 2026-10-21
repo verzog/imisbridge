@@ -17,6 +17,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   non-unique, so an operator can tell a wrong ID-source setting or a missing/duplicate
   field value from a genuine zero score. (The automatic completion/quiz observers are
   unaffected — they use the authoritative user from the event.)
+- **"Push activity note (test)" output now shows how the score was resolved.** The
+  result pane traces the member→user match, the grade item and grademax, and the
+  learner's gradebook **final grade** — so a score of `0` can be read straight off as
+  "no single user", "ungraded activity", or "gradebook final grade is empty" (a mark
+  on the activity attempt does not count until it reaches the gradebook; a hidden,
+  locked or not-yet-regraded grade reads as empty). Backed by a new public
+  `observer::module_grade_detail()` helper, unit-tested for the graded-with-grade,
+  graded-without-grade, and ungraded cases.
 
 ## [1.17.0] - 2026-10-21
 
