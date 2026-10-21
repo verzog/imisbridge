@@ -163,16 +163,29 @@ class observer {
      * "push activity note" admin test. The status is taken from the learner's
      * actual completion state for the module when present, otherwise it defaults
      * to COMPLETE (so the manual test still exercises the createActivity path);
-     * the score is the learner's real grade for the module (0 when ungraded or
-     * not yet graded).
+     * the score is the learner's real grade for the module (0 when not yet
+     * graded). Graded modules only: returns null for an ungraded module so the
+     * caller rejects the write, upholding the same invariant the automatic
+     * observer enforces.
      *
      * @param string    $imisid The iMIS contact ID.
      * @param \stdClass $cm     The course-module record (needs id, course, modname, instance, name).
      * @param int       $userid The Moodle user ID (0 when the member maps to no single user).
-     * @return \stdClass The queued push data.
+     * @return \stdClass|null The queued push data, or null when the module is ungraded.
      */
-    public static function module_note_data(string $imisid, \stdClass $cm, int $userid): \stdClass {
-        global $DB;
+    public static function module_note_data(string $imisid, \stdClass $cm, int $userid): ?\stdClass {
+        global $DB, $CFG;
+        // module_status() references the COMPLETION_* constants; the manual push
+        // path does not go through the observer that includes this library.
+        require_once($CFG->libdir . '/completionlib.php');
+
+        // Re-check graded here, not just at listing time: the push is a separate
+        // request, so the grade item could have been removed since the activity
+        // was listed (or pushcmid posted directly for an ungraded module).
+        [$graded, $score] = self::module_grade($cm, $userid);
+        if (!$graded) {
+            return null;
+        }
 
         $status = 'COMPLETE';
         if ($userid > 0) {
@@ -187,8 +200,6 @@ class observer {
                 }
             }
         }
-
-        $score = self::module_grade($cm, $userid)[1];
 
         return (object)[
             'toggle'    => 'push_module_completions',

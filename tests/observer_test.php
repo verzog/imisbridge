@@ -386,4 +386,23 @@ final class observer_test extends \advanced_testcase {
         $this->assertSame(0.0, $data->score);
         $this->assertSame(date('Y-m-d'), $data->date);
     }
+
+    /**
+     * module_note_data() returns null for an ungraded module, so the manual push
+     * path rejects it: ungraded activities are never sent (the same invariant the
+     * automatic observer enforces).
+     *
+     * @covers \local_imisbridge\observer::module_note_data
+     * @return void
+     */
+    public function test_module_note_data_ungraded_returns_null(): void {
+        $this->resetAfterTest();
+
+        $course = $this->getDataGenerator()->create_course();
+        // A page activity has no grade item, so it must never produce a note.
+        $page = $this->getDataGenerator()->create_module('page', ['course' => $course->id]);
+        $cm   = get_coursemodule_from_id('', $page->cmid);
+
+        $this->assertNull(observer::module_note_data('21886', $cm, 0));
+    }
 }

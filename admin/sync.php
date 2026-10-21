@@ -164,11 +164,17 @@ if ($action === 'testconnection' && confirm_sesskey()) {
                 $userid  = (count($matches) === 1) ? (int)reset($matches)->id : 0;
 
                 $data = \local_imisbridge\observer::module_note_data($pushmember, $cm, $userid);
-                \local_imisbridge\provider\manager::instance()->push_module_note($data);
+                if ($data === null) {
+                    // The module lost its grade item since it was listed (or pushcmid
+                    // was posted directly): ungraded activities are never sent.
+                    $error = get_string('pushnotenotgraded', 'local_imisbridge');
+                } else {
+                    \local_imisbridge\provider\manager::instance()->push_module_note($data);
 
-                $message    = get_string('pushnotedone', 'local_imisbridge', s($pushmember));
-                $noteoutput = 'push_module_note:' . PHP_EOL . var_export($data, true) . PHP_EOL . PHP_EOL
-                    . get_string('pushaudithint', 'local_imisbridge');
+                    $message    = get_string('pushnotedone', 'local_imisbridge', s($pushmember));
+                    $noteoutput = 'push_module_note:' . PHP_EOL . var_export($data, true) . PHP_EOL . PHP_EOL
+                        . get_string('pushaudithint', 'local_imisbridge');
+                }
             }
         }
     } catch (\Throwable $e) {
