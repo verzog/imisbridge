@@ -115,19 +115,36 @@ class imis_client implements \local_imisbridge\provider\org_sync_provider {
     }
 
     /**
-     * Push an assessment score record via MoodleUpdate.
+     * Push an assessment score as an append-only MOODLENOTE (createActivity).
+     *
+     * A score must NEVER be a MoodleUpdate: that owns the canonical completion
+     * record, and a quiz re-attempt after completion would otherwise overwrite
+     * the course's COMPLETE status and final grade with a per-attempt PASS/FAIL.
+     * Only a course-completion event may write the completion record - see the
+     * invariant in docs/DIRECT-REST-ARCHITECTURE.md. This mirrors the REST
+     * transport (rest_client::push_score) and the vendor's own behaviour.
      *
      * @param \stdClass $data The queued push data.
      * @return void
      */
     public function push_score(\stdClass $data): void {
-        $this->push_activity($data);
+        $courseid = (string)($data->coursenum ?? '');
+        $this->create_activity(self::build_note_params(
+            (string)$data->imisid,
+            $courseid,
+            'Moodle course ' . $courseid . ' score',
+            (string)($data->status ?? ''),
+            (float)($data->score ?? 0),
+            (string)($data->completiondate ?? date('Y-m-d')),
+            ['Note2' => 'score']
+        ));
     }
 
     /**
-     * Send an activity record to iMIS. The SOAP bridge treats completions and
-     * scores identically — both are a MoodleUpdate carrying the record's status
-     * (COMPLETE for a completion, PASS/FAIL for a graded result).
+     * Send the course-completion record to iMIS via MoodleUpdate.
+     *
+     * Used by push_completion() only. Scores and module notes are append-only
+     * MOODLENOTE records and must not route here (see push_score()).
      *
      * @param \stdClass $data The queued push data.
      * @return void
@@ -136,6 +153,8 @@ class imis_client implements \local_imisbridge\provider\org_sync_provider {
         $this->update_activity_record(
             imisid:          (string)$data->imisid,
             moodlecoursenum: (string)($data->coursenum ?? ''),
+            credittype:      (string)($data->credittype ?? 'CEU'),
+            creditvalue:     (float)($data->creditvalue ?? 0),
             startdate:       (string)($data->startdate ?? ''),
             completiondate:  (string)($data->completiondate ?? ''),
             grantdate:       (string)($data->grantdate ?? ''),
@@ -155,19 +174,57 @@ class imis_client implements \local_imisbridge\provider\org_sync_provider {
      */
     public function push_module_note(\stdClass $data): void {
         $cmname = (string)($data->cmname ?? '');
-        $this->create_activity([
-            'ContactID'    => (string)$data->imisid,
+        $this->create_activity(self::build_note_params(
+            (string)$data->imisid,
+            (string)($data->coursenum ?? ''),
+            'Module completion: ' . $cmname,
+            (string)($data->status ?? ''),
+            (float)($data->score ?? 0),
+            (string)($data->date ?? date('Y-m-d')),
+            [
+                'UserField5' => (int)($data->cmid ?? 0),
+                'Note2'      => 'modulecompletion',
+                'SourceCode' => (string)($data->modname ?? ''),
+                'Description' => $cmname,
+            ]
+        ));
+    }
+
+    /**
+     * Build an append-only MOODLENOTE activity record (createActivity payload).
+     *
+     * Kept pure and static so the append-only contract is unit-testable: these
+     * records carry their own status/score in UserField3/UserField4 and never
+     * the completion discriminator, so they can never overwrite the canonical
+     * completion record (see the invariant in docs/DIRECT-REST-ARCHITECTURE.md).
+     *
+     * @param string $imisid   iMIS contact ID.
+     * @param string $coursenum Moodle course number (maps to iMIS product code).
+     * @param string $note     The note text.
+     * @param string $status   Record status (upper-cased to the ATS vocabulary).
+     * @param float  $score    The score / grade.
+     * @param string $date     Transaction (ThruDate) in Y-m-d.
+     * @param array  $extra     Extra fields (e.g. UserField5, Note2) merged in.
+     * @return array The createActivity parameters (without the AuthToken).
+     */
+    public static function build_note_params(
+        string $imisid,
+        string $coursenum,
+        string $note,
+        string $status,
+        float $score,
+        string $date,
+        array $extra = []
+    ): array {
+        return array_merge([
+            'ContactID'    => $imisid,
             'ActivityType' => 'MOODLENOTE',
-            'Note'         => 'Module completion: ' . $cmname,
-            'ProductCode'  => (string)($data->coursenum ?? ''),
-            'UserField3'   => (string)($data->status ?? ''),
-            'UserField4'   => (float)($data->score ?? 0),
-            'UserField5'   => (int)($data->cmid ?? 0),
-            'Note2'        => 'modulecompletion',
-            'SourceCode'   => (string)($data->modname ?? ''),
-            'Description'  => $cmname,
-            'ThruDate'     => (string)($data->date ?? date('Y-m-d')),
-        ]);
+            'Note'         => $note,
+            'ProductCode'  => $coursenum,
+            'UserField3'   => strtoupper($status),
+            'UserField4'   => $score,
+            'ThruDate'     => $date,
+        ], $extra);
     }
 
     /**
@@ -639,8 +696,15 @@ class imis_client implements \local_imisbridge\provider\org_sync_provider {
      * nothing. Status is one of the ATS vocabulary - COMPLETE, INPROGRESS,
      * NOTSTARTED, PASS, FAIL - so it is upper-cased here.
      *
+     * `$credittype` and `$creditvalue` are kept in the signature for backward
+     * compatibility (this is a documented public API surface) but are no longer
+     * transmitted: the ATS MoodleUpdate contract carries no credit type or value
+     * - iMIS derives the credit from the product. See build_moodleupdate_params().
+     *
      * @param string $imisid          iMIS contact ID (from the configured Moodle user field).
      * @param string $moodlecoursenum Moodle course number (maps to iMIS product code).
+     * @param string $credittype      Retained for backward compatibility; not transmitted.
+     * @param float  $creditvalue     Retained for backward compatibility; not transmitted.
      * @param string $startdate       Course start date (Y-m-d).
      * @param string $completiondate  Course completion date (Y-m-d).
      * @param string $grantdate       Date credit hours were granted (Y-m-d).
@@ -651,12 +715,15 @@ class imis_client implements \local_imisbridge\provider\org_sync_provider {
     public function update_activity_record(
         string $imisid,
         string $moodlecoursenum,
+        string $credittype,
+        float $creditvalue,
         string $startdate,
         string $completiondate,
         string $grantdate,
         string $status,
         float $score
     ): mixed {
+        unset($credittype, $creditvalue);
         $params = array_merge(
             ['AuthToken' => $this->get_api_auth_token()],
             self::build_moodleupdate_params(

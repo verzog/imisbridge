@@ -17,13 +17,22 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   vocabulary (`COMPLETE` for a finished course, `PASS`/`FAIL` for a graded
   result). Verified against the reconstructed vendor source (`local_imis`).
 
+- **SOAP quiz-score pushes are now append-only MOODLENOTE records, not
+  `MoodleUpdate`.** With `type='Completion'` now effective, routing a graded quiz
+  submission through `MoodleUpdate` would have let a re-attempt overwrite the
+  course's canonical `COMPLETE` status and final grade. `imis_client::push_score()`
+  now writes a `createActivity`/MOODLENOTE record (as the REST transport and the
+  vendor already did), preserving the invariant that only a course-completion
+  event may write the completion record.
+
 ### Changed
-- `imis_client::update_activity_record()` no longer takes `$credittype` /
-  `$creditvalue` arguments — the ATS `MoodleUpdate` call never carried a credit
-  type or value (iMIS derives the credit from the product). The MoodleUpdate
-  parameter array is now built by a pure, unit-tested
-  `imis_client::build_moodleupdate_params()`. The `credit_type` / `credit_field`
-  settings continue to feed the optional REST extra-columns mapping.
+- The MoodleUpdate and MOODLENOTE parameter arrays are now built by pure,
+  unit-tested helpers (`imis_client::build_moodleupdate_params()` and
+  `build_note_params()`). `update_activity_record()` keeps its original public
+  signature — `$credittype` / `$creditvalue` are retained for backward
+  compatibility but are no longer transmitted (the ATS `MoodleUpdate` call never
+  carried them; iMIS derives the credit from the product). The `credit_type` /
+  `credit_field` settings continue to feed the optional REST extra-columns mapping.
 - `docs/VENDOR-ARCHITECTURE.md` now documents the full `MoodleUpdate` /
   `createActivity` field contract learned from the vendor source.
 

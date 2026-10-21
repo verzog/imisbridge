@@ -107,6 +107,33 @@ final class imis_client_test extends \advanced_testcase {
     }
 
     /**
+     * A score / module note is an append-only MOODLENOTE that carries its status
+     * and score in UserField3/UserField4 and never the completion discriminator,
+     * so it can never overwrite the canonical completion record.
+     *
+     * @return void
+     */
+    public function test_build_note_params_is_append_only_moodlenote(): void {
+        $params = imis_client::build_note_params(
+            '21886',
+            '7',
+            'Moodle course 7 score',
+            'pass',
+            8.33,
+            '2026-10-21',
+            ['Note2' => 'score']
+        );
+
+        $this->assertSame('MOODLENOTE', $params['ActivityType']);
+        $this->assertSame('PASS', $params['UserField3']);
+        $this->assertSame(8.33, $params['UserField4']);
+        $this->assertSame('score', $params['Note2']);
+        // A note must never carry the MoodleUpdate completion discriminator.
+        $this->assertArrayNotHasKey('type', $params);
+        $this->assertArrayNotHasKey('value', $params);
+    }
+
+    /**
      * A non-empty endpoint is passed through as the SOAP `location` override.
      *
      * @return void
