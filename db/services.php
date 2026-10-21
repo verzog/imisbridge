@@ -34,14 +34,29 @@ $functions = [
         'capabilities' => 'local/imisbridge:readcompletions',
         'ajax'        => false,
     ],
+    'local_imisbridge_cancel_enrolment' => [
+        'classname'   => 'local_imisbridge\\external\\cancel_enrolment',
+        'methodname'  => 'execute',
+        'description' => 'Cancel a user\'s enrolment in a course by suspending it and removing their role, '
+            . 'without unenrolling (so grades and completion are preserved). For the inbound '
+            . 'order-cancellation path; point the ATS unenrol function mapping at this.',
+        'type'        => 'write',
+        'capabilities' => 'local/imisbridge:cancelenrolment',
+        'ajax'        => false,
+    ],
 ];
 
-// A pre-built, restricted service so iMIS can be issued a token for just this
-// function. Enabled, but reaches nothing until the readcompletions capability
-// is granted to the token's user.
+// A pre-built, restricted service so iMIS can be issued a token for these
+// functions. Enabled, but each function reaches nothing until its capability is
+// granted to the token's user (readcompletions / cancelenrolment). The cancel
+// function may instead be added to the inbound core-functions service if the ATS
+// uses a separate inbound token (see docs/CHANGEOVER-CHECKLIST.md).
 $services = [
     'iMIS bridge' => [
-        'functions'       => ['local_imisbridge_get_completions_since'],
+        'functions'       => [
+            'local_imisbridge_get_completions_since',
+            'local_imisbridge_cancel_enrolment',
+        ],
         'restrictedusers' => 1,
         'enabled'         => 1,
         'shortname'       => 'local_imisbridge',

@@ -121,6 +121,34 @@ Order matters here — disable writes **before** entering any endpoint.
 > a custom wrapper can treat "already exists" as success so processing continues,
 > which avoids that outage pattern and core cannot. Decide from that test.
 
+> **Cancellation — suspend instead of unenrol.** For a cancelled order the
+> requirement is to **keep the learner's data**. Core `enrol_manual_unenrol_users`
+> **hard-unenrols**, deleting that enrolment's grades and completion — the wrong
+> outcome. Point the ATS `FN_ENROL_MANUAL_UNENROL_USERS` mapping at
+> **`local_imisbridge_cancel_enrolment`** instead. It takes
+> `enrolments: [{userid, courseid, roleid?}]`, and for each entry **suspends** every
+> enrolment the user has in the course (row, grades and completion all kept; access
+> removed) and **unassigns the role that enrolment grants** — the enrolment
+> instance's own default role (`enrol.roleid`), or the `roleid` you pass — so another
+> role, such as a manual teacher/manager override, is left in place. It never
+> unenrols or deletes, and each entry is transactional, so an error cannot lose or
+> half-apply data. `roleid` is optional: 0/omitted targets each suspended enrolment's
+> default role; a specific id removes just that role.
+>
+> Grant the service-account role **`local/imisbridge:cancelenrolment`** and add the
+> function to the inbound service (it is also on the plugin's own `iMIS bridge`
+> service).
+>
+> **On the live `invalidparameter` error (unconfirmed root cause):** the ATS logs
+> `User:<id> Course:<id>` for its unenrol call, but the actual ATS→Moodle REST
+> payload has not been captured, so do **not** assume remapping alone resolves it.
+> On Moodle 5.1 `enrol_manual_unenrol_users` accepts `enrolments[{userid, courseid}]`
+> and ignores a user not in the manual instance rather than rejecting it, so the
+> error likely comes from the real payload's schema. Capture that request and
+> reconcile its schema with the chosen function before relying on the remap to fix
+> the error. The suspend-not-unenrol behaviour above is the function's purpose
+> regardless of that diagnosis.
+
 **Build recipe** (what was set up on dev; repeat on prod at cutover):
 
 1. Site admin → Advanced features → **Enable web services**; then Server → Web
@@ -129,10 +157,12 @@ Order matters here — disable writes **before** entering any endpoint.
    "ATS iMIS Bridge"): **Enabled**, **Authorised users only**, not on the mobile
    service.
 3. Add its **functions**: `core_user_get_users`, `core_user_create_users`,
-   `core_user_update_users`, `enrol_manual_enrol_users`, `enrol_manual_unenrol_users`.
-   (`local_imisbridge_get_completions_since` can ride the same service if one token
-   also serves the outbound bulk pull; `core_webservice_get_site_info` is handy for a
-   connectivity check.)
+   `core_user_update_users`, `enrol_manual_enrol_users`, and — for cancellation —
+   **`local_imisbridge_cancel_enrolment`** (suspend + unassign role, keeping data; see
+   the cancellation callout above). Add core `enrol_manual_unenrol_users` as well only
+   if some flow still needs a hard unenrol. (`local_imisbridge_get_completions_since`
+   can ride the same service if one token also serves the outbound bulk pull;
+   `core_webservice_get_site_info` is handy for a connectivity check.)
 4. Create a dedicated **service-account** user and add it as an **authorised user**
    of the service.
 5. Give that account a role (system context) holding these capabilities. The
@@ -149,6 +179,10 @@ Order matters here — disable writes **before** entering any endpoint.
      `moodle/site:viewuseridentity` on this role, so granting `viewalldetails` is
      simpler.)
    - `enrol/manual:enrol`, `enrol/manual:unenrol`
+   - ★ **`local/imisbridge:cancelenrolment`** — required by
+     `local_imisbridge_cancel_enrolment` (the suspend-not-unenrol cancellation
+     function). Checked in the course context, so this system-context role covers
+     every course. Granted to no role by default.
    - ★ **`moodle/course:view`** — "View courses without participation". Without it,
      `enrol_manual_enrol_users` → `validate_context()` → `require_login($course)`
      fails for a service account that isn't enrolled, with
@@ -189,7 +223,10 @@ Then verify:
 
 - [ ] `FN_*` mappings changed from the `local_imis_*` names to the core names
   (`core_user_get_users`, `core_user_create_users`, `core_user_update_users`,
-  `enrol_manual_enrol_users`, `enrol_manual_unenrol_users`).
+  `enrol_manual_enrol_users`), with **`FN_ENROL_MANUAL_UNENROL_USERS` →
+  `local_imisbridge_cancel_enrolment`** so a cancellation suspends and removes the
+  role instead of hard-unenrolling (see the cancellation callout in §C). Leave it on
+  core `enrol_manual_unenrol_users` only if a hard unenrol is genuinely wanted.
 - [ ] `WEBSERVICE_TOKEN` → the new token on the new service.
 - [ ] `REST_ENDPOINT` unchanged (`/webservice/rest/server.php`).
 - [ ] The outbound `wsmoodle` endpoint + AuthToken aligned with the new plugin's
