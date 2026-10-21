@@ -4,6 +4,19 @@ All notable changes to the iMIS Bridge plugin (`local_imisbridge`) are documente
 in this file. The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.17.2] - 2026-10-21
+
+### Changed
+- **Module-completion notes (MOODLENOTE) now carry the learner's raw gradebook
+  grade, not a percentage.** Previously a 10/10 activity was sent as `100`; it is
+  now sent as `10`, matching the vendor's historical Course Notes (which carried
+  raw item grades such as `6.67`, `5.00`, `17.00`). Applies to both the automatic
+  `course_module_completion_updated` observer and the "Push activity note (test)"
+  control. Completion pushes (`MoodleUpdate`) are unchanged — the course score
+  stays a percentage of the course total, as the vendor's "Moodle course N score"
+  note does. The test output's score-resolution trace now labels the value it
+  sent ("raw gradebook grade" vs "percent of course total").
+
 ## [1.17.1] - 2026-10-21
 
 ### Changed
