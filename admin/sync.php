@@ -34,9 +34,19 @@ $action    = optional_param('action', '', PARAM_ALPHANUMEXT);
 $contactid = optional_param('contactid', '', PARAM_TEXT);
 $message    = '';
 $error      = '';
+$notice     = '';
 $testoutput = '';
 $syncoutput = '';
 $noteoutput = '';
+// Build the "member did not resolve to a single Moodle user" warning for the push
+// test controls, so a placeholder score (0) is never mistaken for a real grade. The
+// message reports the field queried and the match count, so the operator can tell a
+// zero match (wrong field/value, or the ID source points at the wrong field) from a
+// non-unique one.
+$nosingleusernotice = function (string $field, string $member, int $matchcount): string {
+    $a = (object)['field' => $field, 'member' => s($member)];
+    return get_string($matchcount > 1 ? 'pushnomatchmany' : 'pushnomatchnone', 'local_imisbridge', $a);
+};
 // Set by the "list activities" step to the graded modules the operator can pick from.
 $modulechoices = null;
 $notemember    = '';
@@ -93,6 +103,10 @@ if ($action === 'testconnection' && confirm_sesskey()) {
                 $field   = \local_imisbridge\util::imis_id_source();
                 $matches = $DB->get_records('user', [$field => $pushmember], '', 'id', 0, 2);
                 $userid  = (count($matches) === 1) ? (int)reset($matches)->id : 0;
+                if ($userid === 0) {
+                    // No single user behind the member: the score is a placeholder 0.
+                    $notice = $nosingleusernotice($field, $pushmember, count($matches));
+                }
 
                 $data = \local_imisbridge\observer::completion_push_data($pushmember, $course, $userid);
                 \local_imisbridge\provider\manager::instance()->push_completion($data);
@@ -162,6 +176,10 @@ if ($action === 'testconnection' && confirm_sesskey()) {
                 $field   = \local_imisbridge\util::imis_id_source();
                 $matches = $DB->get_records('user', [$field => $pushmember], '', 'id', 0, 2);
                 $userid  = (count($matches) === 1) ? (int)reset($matches)->id : 0;
+                if ($userid === 0) {
+                    // No single user behind the member: the status and score are placeholders.
+                    $notice = $nosingleusernotice($field, $pushmember, count($matches));
+                }
 
                 $data = \local_imisbridge\observer::module_note_data($pushmember, $cm, $userid);
                 if ($data === null) {
@@ -258,6 +276,10 @@ echo $OUTPUT->header();
 
 if ($message) {
     echo $OUTPUT->notification($message, 'notifysuccess');
+}
+if ($notice) {
+    // A record was still sent, but with placeholder status/score: warn, don't block.
+    echo $OUTPUT->notification($notice, 'notifywarning');
 }
 if ($error) {
     echo $OUTPUT->notification($error, 'notifyproblem');
