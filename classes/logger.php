@@ -102,7 +102,10 @@ class logger {
 
             $record = new \stdClass();
             $record->userid      = self::resolve_userid($imisid);
-            $record->operation   = $operation;
+            // The operation column is char(255); a long REST operation (e.g. an IQA
+            // GET URL with encoded prompts) can exceed that, so truncate defensively
+            // rather than let the insert throw.
+            $record->operation   = \core_text::substr((string)$operation, 0, 255);
             $record->imisid      = ($imisid === null || $imisid === '') ? null : $imisid;
             $record->productcode = ($productcode === null || $productcode === '') ? null : $productcode;
             $record->status      = $status;
