@@ -224,7 +224,7 @@ installed; on an earlier build these describe code that isn't present yet.
 | D1 | Login, then run cron | Per-user sync tasks run (`SendNewOrders`/`SendCancelled`/`UpdateGroups` per enabled toggles) | ☐ | Observers queue adhoc tasks. **Updated-version phase — these syncs drive the bridge's REST callback into Moodle; needs REST + inbound functions, not baseline.** The baseline login path is SSO only |
 | D2 | Course completion (toggle on) + cron | `MoodleUpdate` fires with course product + AuthToken; audit row | ☐ | |
 | D3 | Quiz submit (graded, non-preview) + cron | `CreateActivity` writes a `MOODLENOTE` ("Moodle course N score") with score/status; audit row; the course's `MOODLE` completion record is **not** changed | ☐ | Preview/ungraded skipped. Never `MoodleUpdate` (1.16.0) |
-| D6 | Module completion with `push_module_completions` on (default off) + cron | `CreateActivity` writes a `MOODLENOTE` (`Note2 = modulecompletion`) for a graded module; ungraded modules skipped | ☐ | Also testable with the *Push activity note (test)* control |
+| D6 | Module completion with `push_module_completions` on (default off) + cron | `CreateActivity` writes a `MOODLENOTE` (`Note2 = modulecompletion`) for a graded module; ungraded modules skipped | ☐ | Also testable with the *Push activity note (test)* control, which likewise needs the toggle on |
 | D4 | User with no iMIS ID | No task queued; no bogus call | ☐ | |
 | D5 | Transient SOAP failure on a push | Adhoc task retries (no data loss) | ☐ | Our advantage vs vendor fire-and-forget |
 
@@ -304,7 +304,7 @@ change groups on the Moodle it runs on. Go-live steps and prerequisites are in
 |----|------|----------|--------|-------|
 | L1 | Sync disabled (default) | Task logs "disabled … skipping"; no REST call | ☐ | |
 | L2 | Enabled, REST base URL blank | Task logs "REST connection not configured; skipping" | ☐ | Needed even with `transport = soap` |
-| L3 | Enabled, dry run on (default) | Log lists the groups/memberships it would change; **nothing** changes in Moodle | ☐ | |
+| L3 | Enabled, dry run on (default) | Log names each group it would **create** (with its member count), plus skips and guard trips; the summary line totals the members it would add/remove; **nothing** changes in Moodle | ☐ | For groups that already exist, only the totals are reported — not which members would change |
 | L4 | Dry run off | Groups created under grouping *Tutorials (iMIS)*; members match the panel | ☐ | |
 | L5 | Remove a member in iMIS, re-run | Removed from the Moodle group; still enrolled in the course | ☐ | |
 | L6 | Panel row for an unmapped code / unknown iMIS ID / unenrolled user | Row skipped with the matching reason in the log; others proceed | ☐ | Course lookup sends `&Parameter={code}/REG` (1.19.2) |
@@ -312,7 +312,7 @@ change groups on the Moodle it runs on. Go-live steps and prerequisites are in
 | L8 | A run would remove ≥10 members and more than the guard % (default 50) of one group | That group's removals skipped and logged; additions still made | ☐ | Small removals are never blocked |
 | L9 | Untick *Enable tutorial group sync* | Next run changes nothing; existing groups stay | ☐ | The rollback for this feature |
 | L10 | Hand-made group / hand-added member in a course | Left untouched by the sync | ☐ | It owns only `imis:`-idnumber groups and its own memberships |
-| L11 | Audit log after a run | `POST /token`, `GET /api/MoodleTutorialGroup`, `GET /api/iqa?…` rows, success; no "value too long" | ☐ | Needs ≥1.19.4 |
+| L11 | Audit log after a run | `GET /api/MoodleTutorialGroup` and `GET /api/iqa?…` rows, success; no "value too long" | ☐ | Needs ≥1.19.4. A successful token request is **not** logged; a `token` row appears only when authentication fails |
 
 ## M. Cancellation function (`local_imisbridge_cancel_enrolment`)
 

@@ -523,6 +523,8 @@ echo html_writer::start_tag('ul');
 echo html_writer::tag('li', get_string('schedule_enrollments', 'local_imisbridge'));
 echo html_writer::tag('li', get_string('schedule_cancellations', 'local_imisbridge'));
 echo html_writer::tag('li', get_string('schedule_groups', 'local_imisbridge'));
+echo html_writer::tag('li', get_string('schedule_tutorialgroups', 'local_imisbridge'));
+echo html_writer::tag('li', get_string('schedule_cleanup', 'local_imisbridge'));
 echo html_writer::end_tag('ul');
 // Primary link: the iMIS audit log shows what was actually sent to iMIS and the
 // result. The secondary link is Moodle's cron run output for the scheduled tasks.

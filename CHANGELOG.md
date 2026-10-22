@@ -39,7 +39,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **Settings help text corrected:** the tutorial sync switch no longer says
   "hourly"; the REST heading no longer says it applies only to the REST provider;
   the removal-guard text states the 10-member floor; the credit settings say they
-  are REST-only.
+  are REST-only; the REST base URL and connection-provider descriptions say the
+  tutorial sync uses the REST settings too.
+- **Sync admin page schedule list** no longer labels the times "UTC" (scheduled
+  tasks run in the server timezone), says they are defaults, and now lists the
+  tutorial group sync and audit-log cleanup tasks as well.
 
 ## [1.19.5] - 2026-10-22
 

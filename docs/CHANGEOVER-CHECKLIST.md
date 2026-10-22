@@ -480,7 +480,14 @@ log on long REST URLs).
   - `no Moodle course mapped` → missing/wrong `MOODLE_PRODUCTS` row (T1);
   - `no unique Moodle account for iMIS id …` → no Moodle user (or more than one)
     with that iMIS ID in the configured source field;
-  - `… not enrolled; skipped` → the member is not enrolled in that course yet (T2).
+  - `… not enrolled; skipped` → the member is not enrolled in that course yet (T2);
+  - `a group named '…' already exists with a different idnumber` → a hand-made group
+    has the same name; rename one of them.
+- [ ] Know what the dry run shows: each group it would **create** (with its member
+  count), every skip and guard trip, and the **totals** it would add/remove. For a
+  group that already exists it does **not** list which members would change — on
+  the first run every group is new, so this is a full preview; later, check
+  individual changes in the course after the live run.
 - [ ] When the dry-run output is what you expect, turn **dry run off** and run again.
 - [ ] In each course, *Participants → Groups*: the groups exist under **Tutorials
   (iMIS)** with exactly the members iMIS lists.
@@ -504,9 +511,10 @@ log on long REST URLs).
 - [ ] Schedule is **nightly at 02:45** by default (1.19.5). Staff can change it in
   *Site admin → Server → Scheduled tasks*; check it there after the upgrade — a task
   Moodle has flagged as customised keeps its old (hourly) timing until reset.
-- [ ] The audit log records the REST calls (`POST /token`, `GET
-  /api/MoodleTutorialGroup`, `GET /api/iqa?…`) with status **success** and no
-  "value too long" warnings in the task log.
+- [ ] The audit log records the REST reads (`GET /api/MoodleTutorialGroup`, `GET
+  /api/iqa?…`) with status **success** and no "value too long" warnings in the task
+  log. (A successful token request is not logged; a `token` error row means the
+  service-account login failed.)
 - [ ] **Rollback:** untick *Enable tutorial group sync*. That stops all further
   changes; existing groups and memberships stay as they are. (Clearing the WSDL does
   **not** stop this feature — it uses the REST settings.)

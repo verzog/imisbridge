@@ -118,7 +118,7 @@ redacted either way.
 | `GetBridgeSettings`, `MoodleGetUserProfile`, `getActivityByIDAndType`, `getIQARows` | Connection test / API | Read: some yes | Read only |
 | Completion push (`MoodleUpdate`) | Course completion | Yes | Writes status, score and the start/completion/grant dates to the canonical `MOODLE` activity record (credit is derived by iMIS from the product) |
 | Quiz score push (`CreateActivity`) | Graded quiz submission | Yes | Creates an append-only `MOODLENOTE` record ("Moodle course N score", `Note2 = score`). Never `MoodleUpdate`, so a re-attempt cannot overwrite the course's completion record (since 1.16.0) |
-| Module note (`CreateActivity`) | Module completion, only with _Push module completions_ on (default off; graded modules only), or the _Push activity note (test)_ control | Yes | Creates an append-only `MOODLENOTE` record (`Note2 = modulecompletion`) |
+| Module note (`CreateActivity`) | Module completion, or the _Push activity note (test)_ control — **both** require _Push module completions_ on (default off; graded modules only) | Yes | Creates an append-only `MOODLENOTE` record (`Note2 = modulecompletion`) |
 | Enrolment sync (`SendNewOrdersToMoodle`) | Login, nightly task, manual | No | Creates iMIS activity records **and** pushes an enrol notice to the bridge's configured Moodle |
 | Cancellation sync (`SendCancelledOrdersToMoodle`) | Login, nightly task, manual | No | Marks iMIS activity records cancelled **and** pushes an unenrol notice to the bridge's configured Moodle |
 | Group sync (`UpdateMoodleGroups`) | Login, nightly task, manual | No | Pushes group changes to the bridge's configured Moodle. Does **not** write iMIS records |
@@ -208,8 +208,9 @@ merely by running it from a test Moodle.
 ## 7. Scheduled tasks
 
 The plugin's scheduled tasks run via Moodle cron, at these default times (in the
-site's timezone; each is editable under _Site administration > Server > Scheduled
-tasks_):
+server timezone — _Site administration > General > Location settings > Default
+timezone_; each is editable under _Site administration > Server > Scheduled
+tasks_, which shows the actual next run):
 
 - 02:00 — enrolment sync (all users)
 - 02:15 — cancellation sync (all users)
