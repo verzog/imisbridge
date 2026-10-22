@@ -46,9 +46,6 @@ class rest_course_resolver implements course_resolver {
     /** @var string Default IQA document path for the lookup. */
     public const DEFAULT_QUERY = '$/_SCCA/Events/MoodleCourseLookup';
 
-    /** @var string Default prompt name the IQA expects the code under. */
-    public const DEFAULT_PROMPT = 'Code';
-
     /** @var string Default result column holding the Moodle course id. */
     public const DEFAULT_COLUMN = 'Description';
 
@@ -57,9 +54,6 @@ class rest_course_resolver implements course_resolver {
 
     /** @var string The IQA document path. */
     private string $queryname;
-
-    /** @var string The prompt name the code is passed under. */
-    private string $promptname;
 
     /** @var string The result column holding the course id. */
     private string $column;
@@ -76,9 +70,8 @@ class rest_course_resolver implements course_resolver {
         $this->client = $client ?? new rest_client();
 
         $query = (string)get_config('local_imisbridge', 'tutorial_course_iqa');
-        $this->queryname  = $query !== '' ? $query : self::DEFAULT_QUERY;
-        $this->promptname = self::DEFAULT_PROMPT;
-        $this->column     = self::DEFAULT_COLUMN;
+        $this->queryname = $query !== '' ? $query : self::DEFAULT_QUERY;
+        $this->column    = self::DEFAULT_COLUMN;
     }
 
     /**
@@ -99,7 +92,7 @@ class rest_course_resolver implements course_resolver {
         }
 
         $courseid = null;
-        $rows = $this->client->run_iqa($this->queryname, [$this->promptname => $code]);
+        $rows = $this->client->run_iqa($this->queryname, [$code]);
         foreach ($rows as $row) {
             $value = (int)(string)rest_client::property($row, $this->column);
             if ($value > 0 && $DB->record_exists('course', ['id' => $value])) {

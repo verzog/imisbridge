@@ -24,27 +24,34 @@
 
 namespace local_imisbridge\tutorial;
 
+use context_course;
 use local_imisbridge\util;
 
 /**
  * Reconciles Moodle course groups against the external tutorial-group rows.
  *
- * The source (a {@see reader}) is authoritative and the sync is one-way: for each
- * course it ensures a "Tutorials (iMIS)" grouping, creates one group per group name,
- * adds people who are in the rows but not the group, and removes people who are in
- * the group but no longer in the rows. It only ever touches its own groups and its
- * own memberships:
+ * The source (a {@see reader}) is authoritative and the sync is one-way: it ensures
+ * a "Tutorials (iMIS)" grouping per course, creates one group per group name, adds
+ * people in the rows and removes people no longer in them. It only ever touches its
+ * own groups and its own memberships:
  *
- * - Groups it creates carry an idnumber like `imis:ISC_26:tutorial-a`; groups
- *   without that prefix (teacher-made, say) are never read or changed.
+ * - Groups it creates carry an idnumber like `imis:ISC_26:tutorial-a-<hash>`, where
+ *   the hash is derived from the case-insensitive, trimmed group name so two spellings
+ *   of the same name collapse to one group while genuinely different names never do.
+ *   Groups without the `imis:` prefix (teacher-made, say) are never read or changed.
  * - Members are added with this plugin as the owning component, and only members it
  *   owns are considered for removal, so a manual addition is left alone.
  *
- * Safety is built in: an empty read suppresses all removals (never empty every
- * group at once), a per-group removal guard aborts removals that exceed a configured
- * share, and dry-run reports every change without writing. The engine depends only
- * on the two injected interfaces and Moodle's group API, so it is fully unit-testable
- * with no network.
+ * Reconciliation is global, keyed by (course, idnumber): every group the plugin has
+ * ever created is discovered site-wide, not just those for codes in the current read.
+ * So a group whose rows have all disappeared — or whose code now maps to a different
+ * course — is still visited and emptied (never deleted), rather than left stale.
+ *
+ * Safety is built in: an empty read suppresses all removals (never empty every group
+ * at once), a per-group removal guard with an absolute floor aborts removals that
+ * exceed a configured share, and dry-run reports every change without writing. The
+ * engine depends only on the two injected interfaces and Moodle's group API, so it is
+ * fully unit-testable with no network.
  *
  * @package    local_imisbridge
  * @copyright  2024 Vernon Spain
@@ -56,6 +63,9 @@ class group_sync {
 
     /** @var string idnumber of the per-course grouping the plugin's groups live in. */
     public const GROUPING_IDNUMBER = 'imis:tutorials';
+
+    /** @var string The idnumber prefix that marks a group as managed by this sync. */
+    public const IDNUMBER_PREFIX = 'imis:';
 
     /** @var reader The authoritative source of membership rows. */
     private reader $reader;
@@ -74,6 +84,9 @@ class group_sync {
 
     /** @var callable Sink for human-readable progress lines (defaults to mtrace). */
     private $trace;
+
+    /** @var array<int,int|null> Per-course grouping id cache. */
+    private array $groupingids = [];
 
     /**
      * Build the engine with its source, course mapping and run options.
@@ -96,13 +109,16 @@ class group_sync {
     }
 
     /**
-     * Run one reconciliation pass over every code present in the source rows.
+     * Run one reconciliation pass.
      *
-     * @return array A report: counts (groupscreated, membersadded, membersremoved,
-     *               rowsskipped, guardskipped, coursesprocessed), an aborted flag, and
-     *               a messages list.
+     * @return array A report: counts (coursesprocessed, groupscreated, membersadded,
+     *               membersremoved, rowsskipped, guardskipped), an aborted flag, and a
+     *               messages list.
      */
     public function run(): array {
+        global $DB, $CFG;
+        require_once($CFG->dirroot . '/group/lib.php');
+
         $report = [
             'coursesprocessed' => 0,
             'groupscreated'    => 0,
@@ -126,55 +142,60 @@ class group_sync {
             return $report;
         }
 
-        // Group the rows by code; each code maps to one Moodle course.
-        $bycode = [];
-        foreach ($rows as $row) {
-            if ($row->code === '' || $row->groupname === '' || $row->imisid === '') {
-                $report['rowsskipped']++;
-                continue;
-            }
-            $bycode[$row->code][] = $row;
+        $desired = $this->build_desired($rows, $report);
+
+        // Discover every group this plugin manages, across all courses, so a group
+        // whose rows have all disappeared (or whose code now maps to a different
+        // course) is still visited and emptied rather than left stale.
+        $managed = [];
+        $select = $DB->sql_like('idnumber', ':pat');
+        foreach ($DB->get_records_select('groups', $select, ['pat' => self::IDNUMBER_PREFIX . '%']) as $group) {
+            $managed[$this->key((int)$group->courseid, (string)$group->idnumber)] = $group;
         }
 
-        foreach ($bycode as $code => $coderows) {
-            $courseid = $this->resolver->resolve_courseid((string)$code);
-            if ($courseid === null) {
-                $this->log(
-                    $report,
-                    "code {$code}: no Moodle course mapped; skipped " . count($coderows) . ' row(s)'
-                );
-                $report['rowsskipped'] += count($coderows);
-                continue;
-            }
-            $this->sync_code((string)$code, $courseid, $coderows, $report);
-            $report['coursesprocessed']++;
+        $courses = [];
+        foreach ($desired as $entry) {
+            $courses[$entry['courseid']] = true;
+        }
+        $report['coursesprocessed'] = count($courses);
+
+        foreach (array_unique(array_merge(array_keys($desired), array_keys($managed))) as $key) {
+            $this->reconcile_key($desired[$key] ?? null, $managed[$key] ?? null, $report);
         }
 
         return $report;
     }
 
     /**
-     * Reconcile every tutorial group for one code within its course.
+     * Build the desired state keyed by (course, idnumber) from the source rows.
      *
-     * @param string $code     The event/product code.
-     * @param int    $courseid The resolved Moodle course id.
-     * @param array  $coderows The membership rows for this code.
-     * @param array  $report   The running report, by reference.
-     * @return void
+     * @param membership_row[] $rows   The source rows.
+     * @param array            $report The running report, by reference.
+     * @return array key => ['courseid','idnumber','name','members'=>[userid=>true]].
      */
-    private function sync_code(string $code, int $courseid, array $coderows, array &$report): void {
-        global $DB, $CFG;
-        require_once($CFG->dirroot . '/group/lib.php');
-
-        $context = \context_course::instance($courseid);
-
-        // Build the desired state for this code: idnumber => display name, and
-        // idnumber => set of Moodle user ids (only accounts that exist and are enrolled).
-        $desirednames   = [];
-        $desiredmembers = [];
-        foreach ($coderows as $row) {
-            $idnumber = $this->group_idnumber($code, $row->groupname);
-            $desirednames[$idnumber] = $row->groupname;
+    private function build_desired(array $rows, array &$report): array {
+        $desired = [];
+        foreach ($rows as $row) {
+            if ($row->code === '' || $row->groupname === '' || $row->imisid === '') {
+                $report['rowsskipped']++;
+                continue;
+            }
+            $courseid = $this->resolver->resolve_courseid($row->code);
+            if ($courseid === null) {
+                $this->log($report, "code {$row->code}: no Moodle course mapped; row skipped");
+                $report['rowsskipped']++;
+                continue;
+            }
+            $idnumber = self::make_idnumber($row->code, $row->groupname);
+            $key = $this->key($courseid, $idnumber);
+            if (!isset($desired[$key])) {
+                $desired[$key] = [
+                    'courseid' => $courseid,
+                    'idnumber' => $idnumber,
+                    'name'     => trim($row->groupname),
+                    'members'  => [],
+                ];
+            }
 
             $user = util::find_user_by_imis_id($row->imisid);
             if ($user === null) {
@@ -182,76 +203,73 @@ class group_sync {
                 $report['rowsskipped']++;
                 continue;
             }
-            if (!is_enrolled($context, $user, '', true)) {
-                $this->log(
-                    $report,
-                    "course {$courseid}: user {$user->id} (iMIS {$row->imisid}) not actively enrolled; skipped"
-                );
+            if (!is_enrolled(context_course::instance($courseid), $user, '', true)) {
+                $this->log($report, "course {$courseid}: user {$user->id} (iMIS {$row->imisid}) not enrolled; skipped");
                 $report['rowsskipped']++;
                 continue;
             }
-            $desiredmembers[$idnumber][$user->id] = true;
+            $desired[$key]['members'][$user->id] = true;
         }
+        return $desired;
+    }
 
-        $groupingid = $this->ensure_grouping($courseid, $report);
-
-        // Existing plugin-owned groups for THIS code only (idnumber prefix imis:{code}:),
-        // so two codes that happen to map to the same course never disturb each other.
-        $prefix = $this->code_prefix($code);
-        $existing = $DB->get_records_select(
-            'groups',
-            'courseid = :courseid AND ' . $DB->sql_like('idnumber', ':prefix'),
-            ['courseid' => $courseid, 'prefix' => $DB->sql_like_escape($prefix) . '%']
-        );
-        $existingbyidnumber = [];
-        foreach ($existing as $group) {
-            $existingbyidnumber[$group->idnumber] = $group;
-        }
-
-        // Process the union of desired and existing idnumbers: a group that has
-        // vanished from the rows (everyone moved or removed) is visited so it can be
-        // emptied, but it is left in place, never deleted.
-        $allidnumbers = array_unique(array_merge(array_keys($desirednames), array_keys($existingbyidnumber)));
-        foreach ($allidnumbers as $idnumber) {
-            $want  = array_keys($desiredmembers[$idnumber] ?? []);
-            $group = $existingbyidnumber[$idnumber] ?? null;
-
-            if ($group === null) {
-                // Nothing to create for an absent group with no desired members.
-                if (empty($want)) {
-                    continue;
-                }
-                $report['groupscreated']++;
-                if ($this->dryrun) {
-                    $this->log(
-                        $report,
-                        "course {$courseid}: would create group '{$desirednames[$idnumber]}' ({$idnumber})"
-                            . ' and add ' . count($want) . ' member(s)'
-                    );
-                    $report['membersadded'] += count($want);
-                    continue;
-                }
-                $group = $this->create_group($courseid, $idnumber, $desirednames[$idnumber], $report);
-                if ($group === null) {
-                    continue;
-                }
-                $this->assign_grouping($groupingid, $group->id);
-                $current = [];
-            } else {
-                if (!$this->dryrun) {
-                    $this->assign_grouping($groupingid, $group->id);
-                }
-                $current = $this->owned_member_ids((int)$group->id);
+    /**
+     * Reconcile one (course, idnumber) key: create/update a desired group, or empty a
+     * managed group that is no longer desired.
+     *
+     * @param array|null     $entry  The desired entry, or null when only managed.
+     * @param \stdClass|null $group  The existing managed group, or null when only desired.
+     * @param array          $report The running report, by reference.
+     * @return void
+     */
+    private function reconcile_key(?array $entry, ?\stdClass $group, array &$report): void {
+        if ($entry === null) {
+            // Managed but no longer desired: empty it, leaving the group in place.
+            $current = $this->owned_member_ids((int)$group->id);
+            if (!empty($current)) {
+                $this->reconcile_members($group, (string)$group->idnumber, [], $current, $report);
             }
-
-            $this->reconcile_members($group, $idnumber, $want, $current, $report);
+            return;
         }
+
+        $courseid = (int)$entry['courseid'];
+        $idnumber = (string)$entry['idnumber'];
+        $want = array_keys($entry['members']);
+
+        if ($group === null) {
+            if (empty($want)) {
+                return;
+            }
+            $report['groupscreated']++;
+            if ($this->dryrun) {
+                $this->log(
+                    $report,
+                    "course {$courseid}: would create group '{$entry['name']}' ({$idnumber}) and add "
+                        . count($want) . ' member(s)'
+                );
+                $report['membersadded'] += count($want);
+                return;
+            }
+            $group = $this->create_group($courseid, $idnumber, $entry['name'], $report);
+            if ($group === null) {
+                return;
+            }
+            $this->assign_grouping($this->grouping_for($courseid, $report), (int)$group->id);
+            $current = [];
+        } else {
+            if (!$this->dryrun) {
+                $this->assign_grouping($this->grouping_for($courseid, $report), (int)$group->id);
+            }
+            $current = $this->owned_member_ids((int)$group->id);
+        }
+
+        $this->reconcile_members($group, $idnumber, $want, $current, $report);
     }
 
     /**
      * Add missing members and remove stale ones for a single group.
      *
-     * @param \stdClass $group    The group record (needs id and name).
+     * @param \stdClass $group    The group record (needs id).
      * @param string    $idnumber The group's idnumber (for logging).
      * @param int[]     $want     Desired member user ids.
      * @param int[]     $current  Current plugin-owned member user ids.
@@ -309,6 +327,20 @@ class group_sync {
             'userid'
         );
         return array_map('intval', array_keys($records));
+    }
+
+    /**
+     * Resolve (and cache) the per-course "Tutorials (iMIS)" grouping id.
+     *
+     * @param int   $courseid The course id.
+     * @param array $report   The running report, by reference.
+     * @return int|null The grouping id, or null when dry-run would have created it.
+     */
+    private function grouping_for(int $courseid, array &$report): ?int {
+        if (!array_key_exists($courseid, $this->groupingids)) {
+            $this->groupingids[$courseid] = $this->ensure_grouping($courseid, $report);
+        }
+        return $this->groupingids[$courseid];
     }
 
     /**
@@ -379,65 +411,64 @@ class group_sync {
      * @return void
      */
     private function assign_grouping(?int $groupingid, int $groupid): void {
-        global $CFG;
+        global $DB, $CFG;
         require_once($CFG->dirroot . '/group/lib.php');
 
         if ($groupingid === null) {
             return;
         }
-        if (!$this->group_in_grouping($groupingid, $groupid)) {
+        if (!$DB->record_exists('groupings_groups', ['groupingid' => $groupingid, 'groupid' => $groupid])) {
             groups_assign_grouping($groupingid, $groupid);
         }
     }
 
     /**
-     * Whether a group is already assigned to a grouping.
+     * The composite reconciliation key for a (course, idnumber) pair.
      *
-     * @param int $groupingid The grouping id.
-     * @param int $groupid    The group id.
-     * @return bool
-     */
-    private function group_in_grouping(int $groupingid, int $groupid): bool {
-        global $DB;
-        return $DB->record_exists('groupings_groups', ['groupingid' => $groupingid, 'groupid' => $groupid]);
-    }
-
-    /**
-     * The idnumber prefix shared by every plugin group for a code, e.g. `imis:ISC_26:`.
-     *
-     * The code is kept verbatim (event keys such as ISC_26 are already safe idnumber
-     * text) so the prefix stays human-readable and matches the documented scheme;
-     * only the group name is slugified.
-     *
-     * @param string $code The event/product code.
+     * @param int    $courseid The course id.
+     * @param string $idnumber The group idnumber.
      * @return string
      */
-    private function code_prefix(string $code): string {
-        return 'imis:' . trim($code) . ':';
+    private function key(int $courseid, string $idnumber): string {
+        return $courseid . "\x1f" . $idnumber;
     }
 
     /**
-     * The full idnumber for a group, e.g. `imis:ISC_26:tutorial-a`.
+     * Build a stable, collision-resistant, length-bounded group idnumber.
      *
-     * The group name is slugified so case and spacing differences ("Tutorial A" vs
-     * "tutorial a") collapse to the same group, matching the builder's case-
-     * insensitive naming.
+     * The name is reduced to a readable slug plus a hash of its canonical form
+     * (lowercased and trimmed), so two spellings that differ only in case or spacing
+     * collapse to one group while genuinely different names (including ones differing
+     * only by punctuation, or non-ASCII names that slug to nothing) stay distinct. A
+     * long code is itself hashed, keeping the whole identifier within Moodle's
+     * 100-character `groups.idnumber` column.
      *
      * @param string $code      The event/product code.
      * @param string $groupname The group name.
-     * @return string
+     * @return string The idnumber (at most 100 characters).
      */
-    private function group_idnumber(string $code, string $groupname): string {
-        return $this->code_prefix($code) . $this->slug($groupname);
+    public static function make_idnumber(string $code, string $groupname): string {
+        $canonical = \core_text::strtolower(trim($groupname));
+        $namehash  = substr(sha1($canonical), 0, 12);
+
+        $code = trim($code);
+        if (\core_text::strlen($code) > 40) {
+            $code = \core_text::substr($code, 0, 20) . '-' . substr(sha1($code), 0, 8);
+        }
+
+        $readable = \core_text::substr(self::slugify($groupname), 0, 24);
+        $suffix = ($readable !== '') ? $readable . '-' . $namehash : $namehash;
+
+        return self::IDNUMBER_PREFIX . $code . ':' . $suffix;
     }
 
     /**
-     * Lowercase, trim and hyphenate a value for use in an idnumber.
+     * Lowercase, trim and hyphenate a value for the readable part of an idnumber.
      *
      * @param string $value The raw value.
      * @return string
      */
-    private function slug(string $value): string {
+    private static function slugify(string $value): string {
         $value = \core_text::strtolower(trim($value));
         $value = preg_replace('/[^a-z0-9]+/', '-', $value);
         return trim((string)$value, '-');

@@ -156,9 +156,11 @@ final class group_sync_test extends \advanced_testcase {
         ];
         $report = $this->engine($rows, ['ISC_26' => $course->id])->run();
 
-        $group = $DB->get_record('groups', ['courseid' => $course->id, 'idnumber' => 'imis:ISC_26:tutorial-a']);
+        $idnumber = group_sync::make_idnumber('ISC_26', 'Tutorial A');
+        $group = $DB->get_record('groups', ['courseid' => $course->id, 'idnumber' => $idnumber]);
         $this->assertNotEmpty($group);
         $this->assertSame('Tutorial A', $group->name);
+        $this->assertStringStartsWith('imis:ISC_26:tutorial-a-', $idnumber);
         $this->assertTrue(groups_is_member($group->id, $a->id));
         $this->assertTrue(groups_is_member($group->id, $b->id));
 
@@ -188,7 +190,8 @@ final class group_sync_test extends \advanced_testcase {
             ['ISC_26' => $course->id]
         )->run();
 
-        $group = $DB->get_record('groups', ['courseid' => $course->id, 'idnumber' => 'imis:ISC_26:tutorial-a']);
+        $idnumber = group_sync::make_idnumber('ISC_26', 'Tutorial A');
+        $group = $DB->get_record('groups', ['courseid' => $course->id, 'idnumber' => $idnumber]);
         $member = $DB->get_record('groups_members', ['groupid' => $group->id, 'userid' => $user->id]);
         $this->assertSame('local_imisbridge', $member->component);
     }
@@ -212,7 +215,7 @@ final class group_sync_test extends \advanced_testcase {
         $group = $this->getDataGenerator()->create_group([
             'courseid' => $course->id,
             'name'     => 'Tutorial A',
-            'idnumber' => 'imis:ISC_26:tutorial-a',
+            'idnumber' => group_sync::make_idnumber('ISC_26', 'Tutorial A'),
         ]);
         groups_add_member($group->id, $keep->id, 'local_imisbridge');
         groups_add_member($group->id, $stale->id, 'local_imisbridge');
@@ -250,7 +253,10 @@ final class group_sync_test extends \advanced_testcase {
         ];
         $report = $this->engine($rows, ['ISC_26' => $course->id])->run();
 
-        $group = $DB->get_record('groups', ['courseid' => $course->id, 'idnumber' => 'imis:ISC_26:tutorial-a']);
+        $group = $DB->get_record('groups', [
+            'courseid' => $course->id,
+            'idnumber' => group_sync::make_idnumber('ISC_26', 'Tutorial A'),
+        ]);
         $this->assertSame(1, $report['membersadded']);
         $this->assertSame(2, $report['rowsskipped']);
         $this->assertTrue(groups_is_member($group->id, $enrolled->id));
@@ -270,7 +276,7 @@ final class group_sync_test extends \advanced_testcase {
         $group = $this->getDataGenerator()->create_group([
             'courseid' => $course->id,
             'name'     => 'Tutorial A',
-            'idnumber' => 'imis:ISC_26:tutorial-a',
+            'idnumber' => group_sync::make_idnumber('ISC_26', 'Tutorial A'),
         ]);
         groups_add_member($group->id, $user->id, 'local_imisbridge');
 
@@ -298,7 +304,7 @@ final class group_sync_test extends \advanced_testcase {
         $group = $this->getDataGenerator()->create_group([
             'courseid' => $course->id,
             'name'     => 'Tutorial A',
-            'idnumber' => 'imis:ISC_26:tutorial-a',
+            'idnumber' => group_sync::make_idnumber('ISC_26', 'Tutorial A'),
         ]);
         foreach ($users as $user) {
             groups_add_member($group->id, $user->id, 'local_imisbridge');
@@ -335,7 +341,7 @@ final class group_sync_test extends \advanced_testcase {
         $groupa = $this->getDataGenerator()->create_group([
             'courseid' => $course->id,
             'name'     => 'Tutorial A',
-            'idnumber' => 'imis:ISC_26:tutorial-a',
+            'idnumber' => group_sync::make_idnumber('ISC_26', 'Tutorial A'),
         ]);
         groups_add_member($groupa->id, $gone->id, 'local_imisbridge');
 
@@ -351,7 +357,10 @@ final class group_sync_test extends \advanced_testcase {
         );
         $this->assertFalse(groups_is_member($groupa->id, $gone->id), 'its members must be removed');
 
-        $groupb = $DB->get_record('groups', ['courseid' => $course->id, 'idnumber' => 'imis:ISC_26:tutorial-b']);
+        $groupb = $DB->get_record('groups', [
+            'courseid' => $course->id,
+            'idnumber' => group_sync::make_idnumber('ISC_26', 'Tutorial B'),
+        ]);
         $this->assertNotEmpty($groupb);
         $this->assertTrue(groups_is_member($groupb->id, $kept->id));
     }
@@ -376,7 +385,10 @@ final class group_sync_test extends \advanced_testcase {
         $this->assertSame(1, $report['groupscreated']);
         $this->assertSame(1, $report['membersadded']);
         $this->assertFalse(
-            $DB->record_exists('groups', ['courseid' => $course->id, 'idnumber' => 'imis:ISC_26:tutorial-a']),
+            $DB->record_exists('groups', [
+                'courseid' => $course->id,
+                'idnumber' => group_sync::make_idnumber('ISC_26', 'Tutorial A'),
+            ]),
             'dry run must not create the group'
         );
     }
@@ -428,5 +440,73 @@ final class group_sync_test extends \advanced_testcase {
         $this->assertSame(0, $report['coursesprocessed']);
         $this->assertSame(1, $report['rowsskipped']);
         $this->assertSame(0, $report['groupscreated']);
+    }
+
+    /**
+     * When every row for one code disappears but another code still has rows, the
+     * disappeared code's managed group is still emptied (not left stale).
+     *
+     * @return void
+     */
+    public function test_vanished_code_is_reconciled_when_another_remains(): void {
+        global $CFG;
+        require_once($CFG->dirroot . '/group/lib.php');
+
+        $course = $this->getDataGenerator()->create_course();
+        $gone   = $this->enrolled_user('20001', $course->id);
+        $other  = $this->enrolled_user('20002', $course->id);
+
+        // Seed a group previously managed for code OLD_1 (whose rows have all gone).
+        $oldgroup = $this->getDataGenerator()->create_group([
+            'courseid' => $course->id,
+            'name'     => 'Old Tutorial',
+            'idnumber' => group_sync::make_idnumber('OLD_1', 'Old Tutorial'),
+        ]);
+        groups_add_member($oldgroup->id, $gone->id, 'local_imisbridge');
+
+        // The current read has only NEW_1 rows; OLD_1 is absent entirely.
+        $this->engine(
+            [new membership_row('20002', 'NEW_1', 'New Tutorial')],
+            ['OLD_1' => $course->id, 'NEW_1' => $course->id]
+        )->run();
+
+        $this->assertFalse(
+            groups_is_member($oldgroup->id, $gone->id),
+            'a code absent from the read must still have its managed group emptied'
+        );
+        $this->assertTrue(is_enrolled(\context_course::instance($course->id), $gone), 'enrolment untouched');
+    }
+
+    /**
+     * Names differing only by punctuation are kept as distinct groups, not merged.
+     *
+     * @return void
+     */
+    public function test_distinct_names_are_not_merged(): void {
+        global $DB;
+
+        $course = $this->getDataGenerator()->create_course();
+        $this->enrolled_user('20001', $course->id);
+        $this->enrolled_user('20002', $course->id);
+
+        $this->engine(
+            [
+                new membership_row('20001', 'ISC_26', 'Tutorial A'),
+                new membership_row('20002', 'ISC_26', 'Tutorial-A'),
+            ],
+            ['ISC_26' => $course->id]
+        )->run();
+
+        $this->assertNotSame(
+            group_sync::make_idnumber('ISC_26', 'Tutorial A'),
+            group_sync::make_idnumber('ISC_26', 'Tutorial-A'),
+            'distinct names must produce distinct idnumbers'
+        );
+        $groups = $DB->get_records_select(
+            'groups',
+            'courseid = ? AND ' . $DB->sql_like('idnumber', '?'),
+            [$course->id, 'imis:ISC\_26:%']
+        );
+        $this->assertCount(2, $groups, 'punctuation-distinct names must be two groups');
     }
 }

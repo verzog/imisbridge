@@ -15,10 +15,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   removed from it. The engine is built to be safe and self-contained:
   - It runs **server-side as cron** using Moodle's internal group API, so it needs
     **no** web-service user and **no** group web-service capabilities.
-  - It only ever touches **its own** groups (idnumber prefix `imis:{code}:{slug}`,
+  - It only ever touches **its own** groups (idnumber `imis:{code}:{slug}-{hash}`,
+    where the hash is derived from the case-insensitive group name so distinct
+    names never collide and the identifier stays within Moodle's 100-char limit,
     inside a per-course "Tutorials (iMIS)" grouping) and **its own** memberships
     (added with component `local_imisbridge`); teacher-made groups and manual
     members are never changed or removed.
+  - Reconciliation is global, keyed by (course, idnumber): every group the plugin
+    has created is discovered site-wide, so a group whose rows all disappear — or
+    whose code is remapped to another course — is still emptied, never left stale.
   - Users are matched by the configured iMIS-id source (username/idnumber/email);
     those with no account or not enrolled are skipped and logged, then picked up on a
     later run once enrolled.

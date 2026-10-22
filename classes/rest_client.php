@@ -242,14 +242,23 @@ class rest_client implements \local_imisbridge\provider\provider_interface {
     /**
      * Perform an authenticated REST request, refreshing the token once on a 401.
      *
-     * @param string      $method One of GET, POST, PUT, DELETE.
-     * @param string      $path   Path beginning with '/', appended to the base URL.
-     * @param array|null  $json   Body to send as JSON, or null for no body.
-     * @param string|null $imisid The affected contact iMIS ID, for the audit log.
+     * @param string      $method      One of GET, POST, PUT, DELETE.
+     * @param string      $path        Path beginning with '/', appended to the base URL.
+     * @param array|null  $json        Body to send as JSON, or null for no body.
+     * @param string|null $imisid      The affected contact iMIS ID, for the audit log.
+     * @param bool        $capturebody Whether to store the response body in the audit log.
+     *                                 False for bulk reads whose body holds many contacts'
+     *                                 data that could not be attributed to a single user.
      * @return object The decoded response: {code:int, body:mixed, raw:string}.
      * @throws \moodle_exception On a non-2xx response or transport failure.
      */
-    public function request(string $method, string $path, ?array $json = null, ?string $imisid = null): object {
+    public function request(
+        string $method,
+        string $path,
+        ?array $json = null,
+        ?string $imisid = null,
+        bool $capturebody = true
+    ): object {
         $result = $this->raw_request($method, $path, $json, $this->get_token());
 
         // A 401 means the token expired or was revoked — refresh once and retry.
@@ -265,7 +274,7 @@ class rest_client implements \local_imisbridge\provider\provider_interface {
             $ok ? logger::STATUS_SUCCESS : logger::STATUS_ERROR,
             $ok ? null : 'HTTP ' . $result->code,
             ($json !== null) ? json_encode($json) : null,
-            $result->raw
+            $capturebody ? $result->raw : null
         );
 
         if (!$ok) {
@@ -383,9 +392,15 @@ class rest_client implements \local_imisbridge\provider\provider_interface {
         $sep = (strpos($path, '?') === false) ? '?' : '&';
         do {
             $pagepath = $path . $sep . 'Limit=' . $limit . '&Offset=' . $offset;
-            $result = $this->request('GET', $pagepath, null, null);
+            // Do not capture the response body in the audit log: a bulk list holds
+            // many contacts' data that cannot be attributed to a single user.
+            $result = $this->request('GET', $pagepath, null, null, false);
             if (!is_object($result->body)) {
-                break;
+                // A 2xx with an unreadable body means we cannot trust this page. Abort
+                // rather than return a partial set: callers treat the result as the
+                // complete, authoritative state, so a short read could drive removals.
+                $detail = 'GET ' . $pagepath . ' returned an unreadable body';
+                throw new \moodle_exception('restrequestfailed', 'local_imisbridge', '', $detail);
             }
             $page = self::items($result->body);
             foreach ($page as $row) {
@@ -406,16 +421,17 @@ class rest_client implements \local_imisbridge\provider\provider_interface {
      * envelope (Items.$values) is the standard GenericEntityData one shared with the
      * entity endpoints, so {@see items()} and {@see property()} read the rows.
      *
-     * @param string $queryname The IQA document path, e.g. '$/_SCCA/Events/MoodleCourseLookup'.
-     * @param array  $prompts   Prompt name => value pairs.
+     * @param string $queryname  The IQA document path, e.g. '$/_SCCA/Events/MoodleCourseLookup'.
+     * @param array  $parameters Prompt values in prompt order; each is sent as a
+     *                           repeated `Parameter` query entry, per the iMIS IQA API.
      * @return array The result row entities (objects), first page only.
      */
-    public function run_iqa(string $queryname, array $prompts = []): array {
+    public function run_iqa(string $queryname, array $parameters = []): array {
         $path = '/api/iqa?QueryName=' . rawurlencode($queryname);
-        foreach ($prompts as $name => $value) {
-            $path .= '&' . rawurlencode((string)$name) . '=' . rawurlencode((string)$value);
+        foreach ($parameters as $value) {
+            $path .= '&Parameter=' . rawurlencode((string)$value);
         }
-        $result = $this->request('GET', $path, null, null);
+        $result = $this->request('GET', $path, null, null, false);
         if (!is_object($result->body)) {
             return [];
         }

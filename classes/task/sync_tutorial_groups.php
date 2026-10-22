@@ -57,7 +57,7 @@ class sync_tutorial_groups extends \core\task\scheduled_task {
      * @return void
      */
     public function execute(): void {
-        if (!\local_imisbridge\util::is_enabled('tutorial_sync_enabled')) {
+        if (!\local_imisbridge\util::is_enabled_optin('tutorial_sync_enabled')) {
             mtrace('iMIS Bridge: Tutorial group sync disabled in plugin settings; skipping.');
             return;
         }
