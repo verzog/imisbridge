@@ -292,6 +292,57 @@ way, each with the symptom that identifies it:
   service account cannot access the target course — it needs **`moodle/course:view`**
   (and `viewhiddencourses` for a hidden course), per §C. This is true even for a
   **visible** course, because the account is not enrolled.
+- **`accessexception: Access control exception` on cancel/unenrol** (e.g.
+  `MoodleClass.unenrolMoodleUser ERROR ... Error:accessexception`, `ResultCode 10`)
+  is a **`webservice_access_exception`** from Moodle's web-service layer, raised
+  **before the function runs** — so it is **not** a course-context capability failure
+  (those report `nopermissions` / "Sorry, but you do not currently have permissions"
+  from *inside* the function). Adding course capabilities (`course:view`,
+  `viewhiddencourses`, `enrol/manual:unenrol`) therefore does **not** fix it, and the
+  course being hidden or visible is irrelevant. Moodle raises this exception for
+  several service-level reasons: the called function is **not in the token's external
+  service**, the service is **disabled**, the token has a **IP restriction** or has
+  **expired**, the token user is **not an authorised user** of a restricted-user
+  service, or the service declares a **required capability** the token user's role
+  lacks. Narrow it down first by checking Moodle's detailed web-service log/error
+  (Site admin → Reports → Logs, or the debug detail in the response). The common
+  case here — and the tell-tale that points straight at a **missing function** — is
+  that enrol (`SendNewOrdersToMoodle`) **succeeds on the same token** while cancel
+  does not: same token, same source, so IP/expiry/disabled-service/restricted-user are
+  already ruled out and only the function list differs. If cancel is your *first or
+  only* inbound test, you cannot assume that yet — confirm an enrol works on the token
+  first, or read the log. Fix (missing-function case): add the function that
+  `FN_ENROL_MANUAL_UNENROL_USERS` maps to (core `enrol_manual_unenrol_users`, or
+  `local_imisbridge_cancel_enrolment`) to the external service the ATS token uses
+  (Site admin → Server → Web services → External services → *service* → Functions),
+  and confirm the token user is an authorised user of it. When mapping to
+  **`local_imisbridge_cancel_enrolment`**: it only exists after
+  the plugin is **deployed and upgraded** (its `db/services.php` then registers it and
+  adds it to the plugin's own `iMIS bridge` service), and the service-account role
+  must hold **`local/imisbridge:cancelenrolment`** (checked inside the function; a
+  missing one surfaces as `nopermissions`, not `accessexception`). The function also
+  calls `validate_context()`, so it still needs `course:view` (+ `viewhiddencourses`
+  for a hidden course) as in §C.
+- **`Could not connect to host` on a sync** (while **Test connection** still passes)
+  is on the **ATS → Moodle** leg, not Moodle → ATS. Test connection only does reads
+  (ATS answers them from its own side); a sync additionally makes **ATS call back into
+  Moodle** via the ATS-side `REST_ENDPOINT`, so a connection error there is that
+  callback failing. **Distinguish transient from configuration by whether it clears
+  on its own:**
+  - **Self-clears on retry** → a **reachability blip**: the Moodle web server/PHP-FPM
+    was momentarily down (e.g. restarting during a **PHP or package update**), or a
+    dynamic-DNS host's public IP / port-forward changed on reboot and then settled.
+  - **Persists across retries** → a **configuration fault on the callback**, *not*
+    transient: a wrong/stale `REST_ENDPOINT`, or DNS, proxy, firewall or WAF on the
+    **ATS/iDMS network path** blocking it. This reproduces indefinitely, so do not
+    just keep retrying — fix the endpoint or the network path.
+
+  Diagnose from the **right side**: reaching Moodle from your workstation only proves
+  Moodle is up, not that ATS can reach it. Test from the **ATS/iDMS host** to the
+  exact `REST_ENDPOINT` the ATS uses (`curl -v <REST_ENDPOINT>` should return HTTP 200
+  with an `<EXCEPTION>invalidtoken</EXCEPTION>` body). A workstation check is a
+  fallback only — and run it **off-box** from Moodle, since on the Moodle server the
+  name may resolve to `::1`/localhost. Then re-run the sync.
 - **REST only, no SOAP.** The service account needs `webservice/rest:use`, not
   `webservice/soap:use` — the bridge calls Moodle over REST; the only SOAP is the
   plugin acting as a SOAP *client* to ATS, which uses no Moodle web service.
