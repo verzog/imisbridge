@@ -267,76 +267,79 @@ if ($action === 'testconnection' && confirm_sesskey()) {
         $error = get_string('syncfailed', 'local_imisbridge', $e->getMessage());
     }
 } else if ($action && confirm_sesskey()) {
-    $confirmed = optional_param('confirm', 0, PARAM_BOOL);
-    $cid       = !empty($contactid) ? $contactid : null;
+    $cid = !empty($contactid) ? $contactid : null;
 
-    if (!$confirmed) {
-        // Confirm before any write: a blank contact ID syncs all users in production.
-        $warning = $cid
-            ? get_string('confirmsync', 'local_imisbridge', s($contactid))
-            : get_string('confirmsyncall', 'local_imisbridge');
-        $continueurl = new moodle_url('/local/imisbridge/admin/sync.php', [
-            'action'    => $action,
-            'contactid' => $contactid,
-            'confirm'   => 1,
-            'sesskey'   => sesskey(),
-        ]);
+    if ($cid === null) {
+        // Require a member ID. A blank manual sync would run an all-user batch, which
+        // is slow enough to hit the web timeout and is never the intent of an on-demand
+        // run; the nightly scheduled tasks are the place for all-user syncs.
+        $error = get_string('contactidrequired', 'local_imisbridge');
+    } else {
+        $confirmed = optional_param('confirm', 0, PARAM_BOOL);
 
-        echo $OUTPUT->header();
-        echo $OUTPUT->confirm(
-            $warning,
-            new single_button($continueurl, get_string('continue'), 'post'),
-            new moodle_url('/local/imisbridge/admin/sync.php')
-        );
-        echo $OUTPUT->footer();
-        exit;
-    }
+        if (!$confirmed) {
+            // Confirm before any write.
+            $continueurl = new moodle_url('/local/imisbridge/admin/sync.php', [
+                'action'    => $action,
+                'contactid' => $contactid,
+                'confirm'   => 1,
+                'sesskey'   => sesskey(),
+            ]);
 
-    // A full all-user sync can be slow; give it room beyond the default web limit.
-    \core_php_time_limit::raise(300);
-
-    try {
-        $provider = \local_imisbridge\provider\manager::org_sync_instance();
-        if ($provider === null) {
-            $error = get_string('providernotsupported', 'local_imisbridge', $providerclass::label());
-        } else {
-            $scope = $cid
-                ? get_string('forcontact', 'local_imisbridge', s($contactid))
-                : get_string('allusers', 'local_imisbridge');
-
-            // Collect each call's raw result so a manual sync of a few records can be
-            // eyeballed on this page without opening the audit log.
-            $results = [];
-            switch ($action) {
-                case 'enrollments':
-                    $results['SendNewOrdersToMoodle'] = $provider->sync_orders($cid);
-                    break;
-
-                case 'cancellations':
-                    $results['SendCancelledOrdersToMoodle'] = $provider->sync_cancelled_orders($cid);
-                    break;
-
-                case 'groups':
-                    $results['UpdateMoodleGroups'] = $provider->update_groups($cid);
-                    break;
-
-                case 'all':
-                    $results['SendNewOrdersToMoodle']       = $provider->sync_orders($cid);
-                    $results['SendCancelledOrdersToMoodle'] = $provider->sync_cancelled_orders($cid);
-                    $results['UpdateMoodleGroups']          = $provider->update_groups($cid);
-                    break;
-            }
-
-            $message = get_string('syncdone', 'local_imisbridge', $scope);
-
-            $out = '';
-            foreach ($results as $op => $res) {
-                $out .= $op . ':' . PHP_EOL . var_export($res, true) . PHP_EOL . PHP_EOL;
-            }
-            $syncoutput = trim($out);
+            echo $OUTPUT->header();
+            echo $OUTPUT->confirm(
+                get_string('confirmsync', 'local_imisbridge', s($contactid)),
+                new single_button($continueurl, get_string('continue'), 'post'),
+                new moodle_url('/local/imisbridge/admin/sync.php')
+            );
+            echo $OUTPUT->footer();
+            exit;
         }
-    } catch (\Exception $e) {
-        $error = get_string('syncfailed', 'local_imisbridge', $e->getMessage());
+
+        // A single-member sync can still take a moment; give it room beyond the default.
+        \core_php_time_limit::raise(300);
+
+        try {
+            $provider = \local_imisbridge\provider\manager::org_sync_instance();
+            if ($provider === null) {
+                $error = get_string('providernotsupported', 'local_imisbridge', $providerclass::label());
+            } else {
+                $scope = get_string('forcontact', 'local_imisbridge', s($contactid));
+
+                // Collect each call's raw result so a manual sync of a few records can be
+                // eyeballed on this page without opening the audit log.
+                $results = [];
+                switch ($action) {
+                    case 'enrollments':
+                        $results['SendNewOrdersToMoodle'] = $provider->sync_orders($cid);
+                        break;
+
+                    case 'cancellations':
+                        $results['SendCancelledOrdersToMoodle'] = $provider->sync_cancelled_orders($cid);
+                        break;
+
+                    case 'groups':
+                        $results['UpdateMoodleGroups'] = $provider->update_groups($cid);
+                        break;
+
+                    case 'all':
+                        $results['SendNewOrdersToMoodle']       = $provider->sync_orders($cid);
+                        $results['SendCancelledOrdersToMoodle'] = $provider->sync_cancelled_orders($cid);
+                        $results['UpdateMoodleGroups']          = $provider->update_groups($cid);
+                        break;
+                }
+
+                $message = get_string('syncdone', 'local_imisbridge', $scope);
+
+                $out = '';
+                foreach ($results as $op => $res) {
+                    $out .= $op . ':' . PHP_EOL . var_export($res, true) . PHP_EOL . PHP_EOL;
+                }
+                $syncoutput = trim($out);
+            }
+        } catch (\Exception $e) {
+            $error = get_string('syncfailed', 'local_imisbridge', $e->getMessage());
+        }
     }
 }
 
