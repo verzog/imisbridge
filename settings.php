@@ -313,6 +313,14 @@ if ($hassiteconfig) {
         PARAM_RAW_TRIMMED
     ));
 
+    $settings->add(new admin_setting_configtext(
+        'local_imisbridge/tutorial_course_code_suffix',
+        get_string('tutorial_course_code_suffix', 'local_imisbridge'),
+        get_string('tutorial_course_code_suffix_desc', 'local_imisbridge'),
+        '/REG',
+        PARAM_RAW_TRIMMED
+    ));
+
     // Audit log controls.
     $settings->add(new admin_setting_heading(
         'local_imisbridge/auditlogheading',

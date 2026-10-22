@@ -27,16 +27,21 @@ namespace local_imisbridge\tutorial;
 use local_imisbridge\rest_client;
 
 /**
- * Direct-REST {@see course_resolver}: reads the moodle_products lookup IQA.
+ * Direct-REST {@see course_resolver}: reads the MOODLE_PRODUCTS lookup IQA.
  *
- * The IQA (default '$/_SCCA/Events/MoodleCourseLookup') takes the event/product
- * code as its one required prompt and returns the `{code}/REG` lookup row, whose
- * Description column holds the numeric Moodle course id (confirmed on sccadev,
- * 22/10/2026: ATS_BRIDGE/REG -> Description 7). The query name and the result
- * column are settings so this can follow the Causeis program rework without code
- * changes. Resolution is deliberately conservative: it returns a course id only
- * when the lookup yields a positive integer AND that course exists, so a surprising
- * response can never steer the sync into the wrong course — it skips instead.
+ * The iMIS MOODLE_PRODUCTS general lookup is keyed by the full product code — e.g.
+ * `ATS_BRIDGE/REG` — with the numeric Moodle course id in its Description column
+ * (confirmed 22/10/2026: ATS_BRIDGE/REG -> 7). The tutorial panel stores only the
+ * bare event code (`ATS_BRIDGE`), so this resolver appends the registration suffix
+ * (`/REG` by default) before the lookup and passes the result as the IQA's required
+ * prompt. The query name and suffix are settings so this can follow the Causeis
+ * program rework without code changes.
+ *
+ * Resolution is deliberately conservative: it accepts a row only when that row's
+ * Code matches the looked-up `{code}/REG` exactly (so a loose IQA filter cannot
+ * return a neighbouring product such as `.../REGNZ` or `ATS_Bridgetest/REG`), and
+ * only when the Description is a positive integer naming a course that exists.
+ * Anything else returns null and the sync skips that code rather than guessing.
  *
  * @package    local_imisbridge
  * @copyright  2024 Vernon Spain
@@ -49,6 +54,9 @@ class rest_course_resolver implements course_resolver {
     /** @var string Default result column holding the Moodle course id. */
     public const DEFAULT_COLUMN = 'Description';
 
+    /** @var string Default product-code suffix appended to the bare event code. */
+    public const DEFAULT_SUFFIX = '/REG';
+
     /** @var rest_client The authenticated iMIS REST client. */
     private rest_client $client;
 
@@ -58,11 +66,14 @@ class rest_course_resolver implements course_resolver {
     /** @var string The result column holding the course id. */
     private string $column;
 
+    /** @var string The suffix appended to the bare code to form the lookup key. */
+    private string $suffix;
+
     /** @var array<string,int|null> Per-run cache so repeated codes hit the IQA once. */
     private array $cache = [];
 
     /**
-     * Build the resolver, reading the IQA query name from settings.
+     * Build the resolver, reading the IQA query name and code suffix from settings.
      *
      * @param rest_client|null $client An iMIS REST client, or null to build one from settings.
      */
@@ -72,6 +83,9 @@ class rest_course_resolver implements course_resolver {
         $query = (string)get_config('local_imisbridge', 'tutorial_course_iqa');
         $this->queryname = $query !== '' ? $query : self::DEFAULT_QUERY;
         $this->column    = self::DEFAULT_COLUMN;
+
+        $suffix = get_config('local_imisbridge', 'tutorial_course_code_suffix');
+        $this->suffix = ($suffix === false) ? self::DEFAULT_SUFFIX : (string)$suffix;
     }
 
     /**
@@ -91,9 +105,18 @@ class rest_course_resolver implements course_resolver {
             return $this->cache[$code];
         }
 
+        // The lookup is keyed by the full product code (e.g. ATS_BRIDGE/REG), while
+        // the panel stores the bare event code, so append the registration suffix.
+        $lookupcode = $code . $this->suffix;
+
         $courseid = null;
-        $rows = $this->client->run_iqa($this->queryname, [$code]);
-        foreach ($rows as $row) {
+        foreach ($this->client->run_iqa($this->queryname, [$lookupcode]) as $row) {
+            // When the row carries a Code, require an exact (case-insensitive) match
+            // so a loose IQA filter cannot return a neighbouring product code.
+            $rowcode = (string)rest_client::property($row, 'Code');
+            if ($rowcode !== '' && strcasecmp($rowcode, $lookupcode) !== 0) {
+                continue;
+            }
             $value = (int)(string)rest_client::property($row, $this->column);
             if ($value > 0 && $DB->record_exists('course', ['id' => $value])) {
                 $courseid = $value;
