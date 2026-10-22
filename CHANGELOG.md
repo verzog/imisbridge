@@ -4,6 +4,18 @@ All notable changes to the iMIS Bridge plugin (`local_imisbridge`) are documente
 in this file. The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.19.2] - 2026-10-22
+
+### Fixed
+- **Tutorial group sync: course lookup now sends the IQA's required `Code` prompt.**
+  The `MoodleCourseLookup` IQA has a **required** `Code` prompt, so the unprompted
+  full-table call the resolver was making returned HTTP 400 ("Missing required
+  parameter: Code") and aborted every run. The resolver now looks a code up one at a
+  time, sending the full product code `{code}/REG` as the IQA parameter
+  (`&Parameter=…`, the form iMIS requires) and reading the `Description` column as the
+  course id — confirmed against live iMIS (`ATS_BRIDGE/REG` → `7`). Results are cached
+  per code for the run.
+
 ## [1.19.1] - 2026-10-22
 
 ### Changed

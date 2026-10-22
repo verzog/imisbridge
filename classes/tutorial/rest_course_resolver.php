@@ -29,19 +29,19 @@ use local_imisbridge\rest_client;
 /**
  * Direct-REST {@see course_resolver}: reads the MOODLE_PRODUCTS lookup IQA.
  *
- * The IQA returns the whole MOODLE_PRODUCTS lookup — Code (the full product code,
- * e.g. `ATS_BRIDGE/REG`), Description (the numeric Moodle course id) and
- * SubstituteValue — with no prompt (confirmed 22/10/2026: ATS_BRIDGE/REG -> 7). So
- * this loads the table once and builds a code => course id map, serving every code
- * in a run from one REST call. The query name and suffix are settings so this can
- * follow the Causeis program rework without code changes.
+ * The IQA has a **required `Code` prompt**, supplied over REST as `&Parameter=<value>`
+ * (confirmed on sccadev 22/10/2026: the prompt matches the full product code, so
+ * `Parameter=ATS_BRIDGE/REG` returns `Description = 7` while the bare code returns no
+ * rows). So this resolves one code at a time — sending the registration product code
+ * `{code}/REG` (the panel stores only the bare event code) — and reads the Description
+ * column from the returned row. Results are cached per code for the run. The query
+ * name and suffix are settings so this can follow the Causeis program rework without
+ * code changes.
  *
- * Resolution is deliberately conservative: a bare event code resolves via its
- * registration product code (`{code}/REG` by the configured suffix), so a neighbour
- * such as `.../REGNZ` or `ATS_Bridgetest/REG` is never matched, and a product is kept
- * only when its Description is a positive integer naming a course that exists. An
- * unmapped code returns null and the sync skips it; a failed lookup read throws and
- * the whole sync aborts, so a transient outage never makes codes look unmapped.
+ * Resolution is deliberately conservative: a product is kept only when its Description
+ * is a positive integer naming a course that exists; an unmapped code returns null and
+ * the sync skips it, while a failed lookup read throws (in run_iqa) and the whole sync
+ * aborts, so a transient outage never makes codes look unmapped.
  *
  * @package    local_imisbridge
  * @copyright  2024 Vernon Spain
@@ -66,11 +66,11 @@ class rest_course_resolver implements course_resolver {
     /** @var string The result column holding the course id. */
     private string $column;
 
-    /** @var string The registration suffix on the product code to match in the lookup. */
+    /** @var string The registration suffix appended to the bare code for the lookup. */
     private string $suffix;
 
-    /** @var array<string,int>|null The product-code (lowercased) => course id map, loaded once. */
-    private ?array $map = null;
+    /** @var array<string,int|null> Per-run cache of bare code => resolved course id (or null). */
+    private array $cache = [];
 
     /**
      * Build the resolver, reading the IQA query name and code suffix from settings.
@@ -89,62 +89,39 @@ class rest_course_resolver implements course_resolver {
     }
 
     /**
-     * Resolve a bare event code to a Moodle course id from the MOODLE_PRODUCTS map.
+     * Resolve a bare event code to a Moodle course id via the lookup IQA.
      *
-     * Looks up the registration product code (`{code}/REG`) first, then falls back to
-     * the bare code, so neighbouring products (`.../REGNZ`, `ATS_Bridgetest/REG`) are
-     * never matched.
+     * Sends the registration product code `{code}{suffix}` (e.g. `ATS_BRIDGE/REG`) as
+     * the IQA's required `Code` prompt and reads the Description from the returned row.
      *
      * @param string $code The event/product code.
      * @return int|null The course id, or null when unmapped.
      */
     public function resolve_courseid(string $code): ?int {
+        global $DB;
+
         $code = trim($code);
         if ($code === '') {
             return null;
         }
-
-        $map = $this->load_map();
-
-        if ($this->suffix !== '') {
-            $key = \core_text::strtolower($code . $this->suffix);
-            if (isset($map[$key])) {
-                return $map[$key];
-            }
-        }
-        return $map[\core_text::strtolower($code)] ?? null;
-    }
-
-    /**
-     * Load the whole MOODLE_PRODUCTS lookup once and build a code => course id map.
-     *
-     * The IQA returns the full table (Code, Description = course id), so one call
-     * serves every code in a run. Only rows whose Description is a positive integer
-     * naming an existing course are kept; a failed/short read throws (in run_iqa),
-     * which aborts the sync rather than leaving codes falsely unmapped.
-     *
-     * @return array<string,int> Lowercased product code => course id.
-     */
-    private function load_map(): array {
-        global $DB;
-
-        if ($this->map !== null) {
-            return $this->map;
+        if (array_key_exists($code, $this->cache)) {
+            return $this->cache[$code];
         }
 
-        $map = [];
-        foreach ($this->client->run_iqa($this->queryname, []) as $row) {
-            $rowcode = trim((string)rest_client::property($row, 'Code'));
-            if ($rowcode === '') {
-                continue;
-            }
+        // The IQA's required Code prompt matches the full product code, so look up
+        // {code}/REG (the panel stores only the bare event code).
+        $lookupcode = $code . $this->suffix;
+
+        $courseid = null;
+        foreach ($this->client->run_iqa($this->queryname, [$lookupcode]) as $row) {
             $value = (int)(string)rest_client::property($row, $this->column);
             if ($value > 0 && $DB->record_exists('course', ['id' => $value])) {
-                $map[\core_text::strtolower($rowcode)] = $value;
+                $courseid = $value;
+                break;
             }
         }
 
-        $this->map = $map;
-        return $map;
+        $this->cache[$code] = $courseid;
+        return $courseid;
     }
 }
