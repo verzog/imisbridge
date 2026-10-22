@@ -62,6 +62,18 @@ $tasks = [
         'disabled'  => 0,
     ],
 
+    // Hourly tutorial-group sync — mirrors the iMIS MoodleTutorialGroup panel.
+    [
+        'classname' => '\local_imisbridge\task\sync_tutorial_groups',
+        'blocking'  => 0,
+        'minute'    => '20',
+        'hour'      => '*',
+        'day'       => '*',
+        'month'     => '*',
+        'dayofweek' => '*',
+        'disabled'  => 0,
+    ],
+
     // Daily audit-log cleanup — prunes rows past the retention period.
     [
         'classname' => '\local_imisbridge\task\cleanup_log_task',

@@ -88,6 +88,36 @@ class util {
     }
 
     /**
+     * Find the Moodle user whose configured iMIS-ID field matches the given id.
+     *
+     * The reverse of {@see get_imis_id()}: group sync receives an iMIS contact id
+     * and must resolve it to a Moodle account. The lookup uses the same source
+     * field as the rest of the plugin ('username', 'idnumber' or 'email'), so a
+     * site that maps iMIS ids onto idnumber (not username) still resolves. An
+     * empty id, no match, or an ambiguous match (more than one active user with
+     * that value) all return null rather than guessing.
+     *
+     * @param string $imisid The iMIS contact id to resolve.
+     * @return \stdClass|null The single matching active user, or null.
+     */
+    public static function find_user_by_imis_id(string $imisid): ?\stdClass {
+        global $DB;
+
+        $imisid = trim($imisid);
+        if ($imisid === '') {
+            return null;
+        }
+
+        $field = self::imis_id_source();
+        $matches = $DB->get_records('user', [$field => $imisid, 'deleted' => 0], '', '*', 0, 2);
+        if (count($matches) !== 1) {
+            return null;
+        }
+
+        return reset($matches);
+    }
+
+    /**
      * Whether the plugin has the minimum configuration to talk to the external system.
      *
      * Delegates to the active provider's static check, so automatic writes skip

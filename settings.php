@@ -276,6 +276,43 @@ if ($hassiteconfig) {
         1
     ));
 
+    // Tutorial group sync — reads the iMIS MoodleTutorialGroup panel over REST.
+    $settings->add(new admin_setting_heading(
+        'local_imisbridge/tutorialgroupsheading',
+        get_string('tutorialgroups', 'local_imisbridge'),
+        get_string('tutorialgroups_desc', 'local_imisbridge')
+    ));
+
+    $settings->add(new admin_setting_configcheckbox(
+        'local_imisbridge/tutorial_sync_enabled',
+        get_string('tutorial_sync_enabled', 'local_imisbridge'),
+        get_string('tutorial_sync_enabled_desc', 'local_imisbridge'),
+        0
+    ));
+
+    $settings->add(new admin_setting_configcheckbox(
+        'local_imisbridge/tutorial_dry_run',
+        get_string('tutorial_dry_run', 'local_imisbridge'),
+        get_string('tutorial_dry_run_desc', 'local_imisbridge'),
+        1
+    ));
+
+    $settings->add(new admin_setting_configtext(
+        'local_imisbridge/tutorial_removal_guard_pct',
+        get_string('tutorial_removal_guard_pct', 'local_imisbridge'),
+        get_string('tutorial_removal_guard_pct_desc', 'local_imisbridge'),
+        '50',
+        PARAM_INT
+    ));
+
+    $settings->add(new admin_setting_configtext(
+        'local_imisbridge/tutorial_course_iqa',
+        get_string('tutorial_course_iqa', 'local_imisbridge'),
+        get_string('tutorial_course_iqa_desc', 'local_imisbridge'),
+        '$/_SCCA/Events/MoodleCourseLookup',
+        PARAM_RAW_TRIMMED
+    ));
+
     // Audit log controls.
     $settings->add(new admin_setting_heading(
         'local_imisbridge/auditlogheading',

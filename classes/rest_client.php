@@ -366,6 +366,63 @@ class rest_client implements \local_imisbridge\provider\provider_interface {
     }
 
     /**
+     * Read every row of a GenericEntity list endpoint, following paging to the end.
+     *
+     * The same envelope as {@see get_activities()} (Items.$values plus
+     * HasNext/NextOffset), but for an arbitrary entity path such as
+     * `/api/MoodleTutorialGroup`. Any existing query string on the path is kept and
+     * the Limit/Offset paging parameters are appended.
+     *
+     * @param string $path  The entity path, optionally with a query string.
+     * @param int    $limit Page size.
+     * @return array The aggregated row entities (objects), in API order.
+     */
+    public function get_all_entities(string $path, int $limit = 100): array {
+        $rows = [];
+        $offset = 0;
+        $sep = (strpos($path, '?') === false) ? '?' : '&';
+        do {
+            $pagepath = $path . $sep . 'Limit=' . $limit . '&Offset=' . $offset;
+            $result = $this->request('GET', $pagepath, null, null);
+            if (!is_object($result->body)) {
+                break;
+            }
+            $page = self::items($result->body);
+            foreach ($page as $row) {
+                $rows[] = $row;
+            }
+            [$hasnext, $offset] = self::next_page($result->body, $offset, count($page));
+        } while ($hasnext);
+
+        return $rows;
+    }
+
+    /**
+     * Run an iMIS IQA (saved query) over REST and return its result rows.
+     *
+     * Prompts are passed as query parameters keyed by their IQA prompt name. The
+     * endpoint and the exact prompt-parameter convention are the parts that must be
+     * confirmed against the live iMIS (see the Part 4 capture in the group spec); the
+     * envelope (Items.$values) is the standard GenericEntityData one shared with the
+     * entity endpoints, so {@see items()} and {@see property()} read the rows.
+     *
+     * @param string $queryname The IQA document path, e.g. '$/_SCCA/Events/MoodleCourseLookup'.
+     * @param array  $prompts   Prompt name => value pairs.
+     * @return array The result row entities (objects), first page only.
+     */
+    public function run_iqa(string $queryname, array $prompts = []): array {
+        $path = '/api/iqa?QueryName=' . rawurlencode($queryname);
+        foreach ($prompts as $name => $value) {
+            $path .= '&' . rawurlencode((string)$name) . '=' . rawurlencode((string)$value);
+        }
+        $result = $this->request('GET', $path, null, null);
+        if (!is_object($result->body)) {
+            return [];
+        }
+        return self::items($result->body);
+    }
+
+    /**
      * Find the contact's canonical MOODLE activity for a course, if one exists.
      *
      * Filters the contact's activities to ACTIVITY_TYPE = MOODLE and UF_1 (course

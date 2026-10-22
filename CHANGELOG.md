@@ -4,6 +4,35 @@ All notable changes to the iMIS Bridge plugin (`local_imisbridge`) are documente
 in this file. The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.19.0] - 2026-10-22
+
+### Added
+- **Tutorial group sync (iMIS MoodleTutorialGroup panel → Moodle course groups).**
+  A new hourly scheduled task (`\local_imisbridge\task\sync_tutorial_groups`) reads
+  the iMIS `MoodleTutorialGroup` panel directly over the iMIS REST API and makes each
+  course's groups match it. iMIS is the source of truth and the sync is one-way:
+  people in the rows are added to the Moodle group, people removed in iMIS are
+  removed from it. The engine is built to be safe and self-contained:
+  - It runs **server-side as cron** using Moodle's internal group API, so it needs
+    **no** web-service user and **no** group web-service capabilities.
+  - It only ever touches **its own** groups (idnumber prefix `imis:{code}:{slug}`,
+    inside a per-course "Tutorials (iMIS)" grouping) and **its own** memberships
+    (added with component `local_imisbridge`); teacher-made groups and manual
+    members are never changed or removed.
+  - Users are matched by the configured iMIS-id source (username/idnumber/email);
+    those with no account or not enrolled are skipped and logged, then picked up on a
+    later run once enrolled.
+  - Safety: an **off-by-default** master switch, a **dry-run** mode (on by default)
+    that logs every change without writing, a **removal guard** that skips a group's
+    removals when they would exceed a configured share of its members, and a rule
+    that an empty read makes no changes at all (never empties every group).
+  - The code→course mapping is one replaceable function (`course_resolver`), reading
+    the `moodle_products` lookup IQA today so it can follow the Causeis program rework
+    without engine changes.
+  - The sync engine is transport-agnostic (depends only on a `reader` and a
+    `course_resolver`), with the direct-REST reader shipped today; it reuses the
+    existing REST client's OAuth, paging and property helpers.
+
 ## [1.18.0] - 2026-10-21
 
 ### Added
