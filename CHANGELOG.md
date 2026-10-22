@@ -4,6 +4,15 @@ All notable changes to the iMIS Bridge plugin (`local_imisbridge`) are documente
 in this file. The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.19.5] - 2026-10-22
+
+### Changed
+- **The tutorial-group sync now defaults to nightly instead of hourly.** The task
+  (`\local_imisbridge\task\sync_tutorial_groups`) now runs once a night (02:45) rather
+  than every hour. Sites that have not customised the task schedule pick up the new
+  default on upgrade; the cadence remains editable per site in
+  *Site admin → Server → Scheduled tasks*.
+
 ## [1.19.4] - 2026-10-22
 
 ### Fixed

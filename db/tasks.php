@@ -62,12 +62,13 @@ $tasks = [
         'disabled'  => 0,
     ],
 
-    // Hourly tutorial-group sync — mirrors the iMIS MoodleTutorialGroup panel.
+    // Nightly tutorial-group sync — mirrors the iMIS MoodleTutorialGroup panel.
+    // Admins can change the schedule in Site admin > Server > Scheduled tasks.
     [
         'classname' => '\local_imisbridge\task\sync_tutorial_groups',
         'blocking'  => 0,
-        'minute'    => '20',
-        'hour'      => '*',
+        'minute'    => '45',
+        'hour'      => '2',
         'day'       => '*',
         'month'     => '*',
         'dayofweek' => '*',
