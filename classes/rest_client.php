@@ -242,14 +242,23 @@ class rest_client implements \local_imisbridge\provider\provider_interface {
     /**
      * Perform an authenticated REST request, refreshing the token once on a 401.
      *
-     * @param string      $method One of GET, POST, PUT, DELETE.
-     * @param string      $path   Path beginning with '/', appended to the base URL.
-     * @param array|null  $json   Body to send as JSON, or null for no body.
-     * @param string|null $imisid The affected contact iMIS ID, for the audit log.
+     * @param string      $method      One of GET, POST, PUT, DELETE.
+     * @param string      $path        Path beginning with '/', appended to the base URL.
+     * @param array|null  $json        Body to send as JSON, or null for no body.
+     * @param string|null $imisid      The affected contact iMIS ID, for the audit log.
+     * @param bool        $capturebody Whether to store the response body in the audit log.
+     *                                 False for bulk reads whose body holds many contacts'
+     *                                 data that could not be attributed to a single user.
      * @return object The decoded response: {code:int, body:mixed, raw:string}.
      * @throws \moodle_exception On a non-2xx response or transport failure.
      */
-    public function request(string $method, string $path, ?array $json = null, ?string $imisid = null): object {
+    public function request(
+        string $method,
+        string $path,
+        ?array $json = null,
+        ?string $imisid = null,
+        bool $capturebody = true
+    ): object {
         $result = $this->raw_request($method, $path, $json, $this->get_token());
 
         // A 401 means the token expired or was revoked — refresh once and retry.
@@ -265,7 +274,7 @@ class rest_client implements \local_imisbridge\provider\provider_interface {
             $ok ? logger::STATUS_SUCCESS : logger::STATUS_ERROR,
             $ok ? null : 'HTTP ' . $result->code,
             ($json !== null) ? json_encode($json) : null,
-            $result->raw
+            $capturebody ? $result->raw : null
         );
 
         if (!$ok) {
@@ -354,6 +363,83 @@ class rest_client implements \local_imisbridge\provider\provider_interface {
             $result = $this->request('GET', $path, null, $partyid);
             if (!is_object($result->body)) {
                 break;
+            }
+            $page = self::items($result->body);
+            foreach ($page as $row) {
+                $rows[] = $row;
+            }
+            [$hasnext, $offset] = self::next_page($result->body, $offset, count($page));
+        } while ($hasnext);
+
+        return $rows;
+    }
+
+    /**
+     * Read every row of a GenericEntity list endpoint, following paging to the end.
+     *
+     * The same envelope as {@see get_activities()} (Items.$values plus
+     * HasNext/NextOffset), but for an arbitrary entity path such as
+     * `/api/MoodleTutorialGroup`. Any existing query string on the path is kept and
+     * the Limit/Offset paging parameters are appended.
+     *
+     * @param string $path  The entity path, optionally with a query string.
+     * @param int    $limit Page size.
+     * @return array The aggregated row entities (objects), in API order.
+     */
+    public function get_all_entities(string $path, int $limit = 100): array {
+        $rows = [];
+        $offset = 0;
+        $sep = (strpos($path, '?') === false) ? '?' : '&';
+        do {
+            $pagepath = $path . $sep . 'Limit=' . $limit . '&Offset=' . $offset;
+            // Do not capture the response body in the audit log: a bulk list holds
+            // many contacts' data that cannot be attributed to a single user.
+            $result = $this->request('GET', $pagepath, null, null, false);
+            if (!is_object($result->body)) {
+                // A 2xx with an unreadable body means we cannot trust this page. Abort
+                // rather than return a partial set: callers treat the result as the
+                // complete, authoritative state, so a short read could drive removals.
+                $detail = 'GET ' . $pagepath . ' returned an unreadable body';
+                throw new \moodle_exception('restrequestfailed', 'local_imisbridge', '', $detail);
+            }
+            $page = self::items($result->body);
+            foreach ($page as $row) {
+                $rows[] = $row;
+            }
+            [$hasnext, $offset] = self::next_page($result->body, $offset, count($page));
+        } while ($hasnext);
+
+        return $rows;
+    }
+
+    /**
+     * Run an iMIS IQA (saved query) over REST and return all its result rows.
+     *
+     * Any prompts are passed as repeated `Parameter` query entries in prompt order,
+     * per the iMIS IQA API. The envelope (Items.$values plus HasNext/NextOffset) is
+     * the standard GenericEntityData one, so this pages to the end and reads the rows
+     * with {@see items()} and {@see property()}. A page with an unreadable body aborts
+     * (throws) rather than returning a partial set: callers rely on completeness, and
+     * a short read of a lookup could otherwise make valid codes look unmapped.
+     *
+     * @param string $queryname  The IQA document path, e.g. '$/_SCCA/Events/MoodleCourseLookup'.
+     * @param array  $parameters Prompt values in prompt order (empty for an unprompted query).
+     * @return array The result row entities (objects).
+     */
+    public function run_iqa(string $queryname, array $parameters = []): array {
+        $base = '/api/iqa?QueryName=' . rawurlencode($queryname);
+        foreach ($parameters as $value) {
+            $base .= '&Parameter=' . rawurlencode((string)$value);
+        }
+
+        $rows = [];
+        $offset = 0;
+        do {
+            $path = $base . '&Limit=500&Offset=' . $offset;
+            $result = $this->request('GET', $path, null, null, false);
+            if (!is_object($result->body)) {
+                $detail = 'GET ' . $path . ' returned an unreadable body';
+                throw new \moodle_exception('restrequestfailed', 'local_imisbridge', '', $detail);
             }
             $page = self::items($result->body);
             foreach ($page as $row) {

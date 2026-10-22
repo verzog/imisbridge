@@ -4,6 +4,40 @@ All notable changes to the iMIS Bridge plugin (`local_imisbridge`) are documente
 in this file. The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.19.0] - 2026-10-22
+
+### Added
+- **Tutorial group sync (iMIS MoodleTutorialGroup panel → Moodle course groups).**
+  A new hourly scheduled task (`\local_imisbridge\task\sync_tutorial_groups`) reads
+  the iMIS `MoodleTutorialGroup` panel directly over the iMIS REST API and makes each
+  course's groups match it. iMIS is the source of truth and the sync is one-way:
+  people in the rows are added to the Moodle group, people removed in iMIS are
+  removed from it. The engine is built to be safe and self-contained:
+  - It runs **server-side as cron** using Moodle's internal group API, so it needs
+    **no** web-service user and **no** group web-service capabilities.
+  - It only ever touches **its own** groups (idnumber `imis:{code}:{slug}-{hash}`,
+    where the hash is derived from the case-insensitive group name so distinct
+    names never collide and the identifier stays within Moodle's 100-char limit,
+    inside a per-course "Tutorials (iMIS)" grouping) and **its own** memberships
+    (added with component `local_imisbridge`); teacher-made groups and manual
+    members are never changed or removed.
+  - Reconciliation is global, keyed by (course, idnumber): every group the plugin
+    has created is discovered site-wide, so a group whose rows all disappear — or
+    whose code is remapped to another course — is still emptied, never left stale.
+  - Users are matched by the configured iMIS-id source (username/idnumber/email);
+    those with no account or not enrolled are skipped and logged, then picked up on a
+    later run once enrolled.
+  - Safety: an **off-by-default** master switch, a **dry-run** mode (on by default)
+    that logs every change without writing, a **removal guard** that skips a group's
+    removals when they would exceed a configured share of its members, and a rule
+    that an empty read makes no changes at all (never empties every group).
+  - The code→course mapping is one replaceable function (`course_resolver`), reading
+    the `moodle_products` lookup IQA today so it can follow the Causeis program rework
+    without engine changes.
+  - The sync engine is transport-agnostic (depends only on a `reader` and a
+    `course_resolver`), with the direct-REST reader shipped today; it reuses the
+    existing REST client's OAuth, paging and property helpers.
+
 ## [1.18.0] - 2026-10-21
 
 ### Added
@@ -21,14 +55,18 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   warnings. Fully reversible by a later re-enrol.
   - New capability `local/imisbridge:cancelenrolment` (course context, no data-loss
     risk flag, granted to no role by default), exposed on the `iMIS bridge` service.
-  - To adopt: grant the capability to the inbound service-account role and point the
-    ATS `FN_ENROL_MANUAL_UNENROL_USERS` mapping at `local_imisbridge_cancel_enrolment`
-    (see `docs/CHANGEOVER-CHECKLIST.md`).
-  - Note: the live `invalidparameter` error on the cancellation call is not yet
-    root-caused (the real ATS→Moodle payload has not been captured), so this is not
-    presented as a guaranteed fix for that error — its purpose is the data-preserving
-    suspend. Capture the actual request and reconcile its schema before relying on
-    the remap to resolve the error.
+  - To adopt: deploy and upgrade the plugin, grant the capability to the inbound
+    service-account role, add `local_imisbridge_cancel_enrolment` to the external
+    service the ATS token uses, and point the ATS `FN_ENROL_MANUAL_UNENROL_USERS`
+    mapping at it (see `docs/CHANGEOVER-CHECKLIST.md`).
+  - **Verified in production (2026-10-22).** The remap resolved the original
+    `invalidparameter` error (core `enrol_manual_unenrol_users` expects a manual-only
+    `ueid`, which the ATS does not send; the new function takes `userid`+`courseid`
+    instead). The follow-on `accessexception` was simply the new function not yet
+    being listed on the token's external service; adding it there fixed the call. A
+    live cancellation then suspended the enrolment and removed the role while the
+    learner's grades and completion survived intact, confirming the data-preserving
+    behaviour end-to-end.
 
 ## [1.17.3] - 2026-10-21
 
