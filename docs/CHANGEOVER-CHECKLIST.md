@@ -456,7 +456,10 @@ log on long REST URLs).
 
 ### T2. Moodle side
 
-- [ ] **Direct iMIS REST** settings filled in — even with `transport = soap`:
+- [ ] **iMIS REST connection** settings filled in — even with `transport = soap`
+  (before 1.19.7 this heading reads *Direct iMIS REST provider*, and before 1.19.6 its
+  help text wrongly says the settings apply only to that provider — they are still
+  required for this feature):
   - **REST base URL** = the iMIS **site root** (e.g. `https://<imis-host>`), with
     **no** `/api` suffix;
   - **REST username / password** = the T1 service account.
@@ -483,11 +486,12 @@ log on long REST URLs).
   - `… not enrolled; skipped` → the member is not enrolled in that course yet (T2);
   - `a group named '…' already exists with a different idnumber` → a hand-made group
     has the same name; rename one of them.
-- [ ] Know what the dry run shows: each group it would **create** (with its member
-  count), every skip and guard trip, and the **totals** it would add/remove. For a
-  group that already exists it does **not** list which members would change — on
-  the first run every group is new, so this is a full preview; later, check
-  individual changes in the course after the live run.
+- [ ] Review the dry-run output: each group it would **create**, then one line per
+  member it would add or remove —
+  `group 'Tutorial A' (imis:…): would add user 123 (iMIS 20001)` — for new and
+  existing groups alike, plus every skip and guard trip and the summary totals.
+  (Per-member lines need 1.19.7; earlier versions show only the totals for groups
+  that already exist.)
 - [ ] When the dry-run output is what you expect, turn **dry run off** and run again.
 - [ ] In each course, *Participants → Groups*: the groups exist under **Tutorials
   (iMIS)** with exactly the members iMIS lists.

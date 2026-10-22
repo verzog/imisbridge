@@ -4,6 +4,26 @@ All notable changes to the iMIS Bridge plugin (`local_imisbridge`) are documente
 in this file. The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.19.7] - 2026-10-22
+
+### Added
+- **Per-member dry-run output for the tutorial group sync.** With *dry run* on, the
+  task log now has one line per member the sync would add or remove, for groups it
+  would create **and** groups that already exist:
+  `group 'Tutorial A' (imis:...): would add user 123 (iMIS 20001)`. Previously an
+  existing group's changes appeared only as totals, so the dry run could not show
+  *who* a later run would move. A member being removed is no longer in the iMIS
+  panel, so their iMIS id is read from their Moodle account. Live runs log as
+  before.
+
+### Changed
+- **The REST settings heading is retitled** from *Direct iMIS REST provider* to
+  *iMIS REST connection (tutorial group sync and Direct iMIS REST provider)*, and
+  its help text now leads with the fact that the tutorial group sync requires these
+  settings whichever connection provider is selected. The old title suggested they
+  belonged to the REST provider only, which led to the base URL being left blank and
+  the tutorial sync silently skipping.
+
 ## [1.19.6] - 2026-10-22
 
 ### Added

@@ -134,7 +134,8 @@ if ($hassiteconfig) {
         PARAM_RAW_TRIMMED
     ));
 
-    // Direct iMIS REST transport settings (used when Transport = Direct iMIS REST).
+    // iMIS REST connection settings: required by the tutorial group sync under either
+    // provider, and used for pushes when Transport = Direct iMIS REST.
     $settings->add(new admin_setting_heading(
         'local_imisbridge/restheading',
         get_string('restheading', 'local_imisbridge'),

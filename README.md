@@ -88,7 +88,7 @@ Local plugins > iMIS Bridge_:
   REST provider only, and only when the matching iMIS column settings are filled
   in. The ATS SOAP `MoodleUpdate` does not carry credit; iMIS derives it from the
   product.
-* **Direct iMIS REST** — base URL (the iMIS site root, no `/api`), service-account
+* **iMIS REST connection** — base URL (the iMIS site root, no `/api`), service-account
   username and password. Needed for the REST provider **and** for the tutorial
   group sync.
 * **Automatic sync controls** and **Scheduled task controls** — one switch per

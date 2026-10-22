@@ -57,7 +57,7 @@ Under _Site administration > Plugins > Local plugins > iMIS Bridge_:
 | Web service timeout | Seconds to wait on iMIS before giving up (default 30). |
 | Default credit type | Direct REST provider only (default `CEU`). The SOAP `MoodleUpdate` sends the fixed `type=Completion` and no credit — iMIS derives the CEU from the product. |
 | Credit value course field | Direct REST provider only: short name of the course custom field holding the credit value. Ignored by SOAP. |
-| Direct iMIS REST (base URL, username, password) | Leave blank for SOAP testing. Only needed for the REST provider or the tutorial group sync — which uses these settings **whatever the provider** (`CHANGEOVER-CHECKLIST.md` §T). |
+| iMIS REST connection (base URL, username, password) | Leave blank for SOAP testing. Only needed for the REST provider or the tutorial group sync — which uses these settings **whatever the provider** (`CHANGEOVER-CHECKLIST.md` §T). |
 
 Keep the WSDL URL and AuthToken from the **same iMIS environment** together —
 never pair a staging token with a production WSDL, or vice versa. Testing against

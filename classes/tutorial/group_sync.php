@@ -171,7 +171,7 @@ class group_sync {
      *
      * @param membership_row[] $rows   The source rows.
      * @param array            $report The running report, by reference.
-     * @return array key => ['courseid','idnumber','name','members'=>[userid=>true]].
+     * @return array key => ['courseid','idnumber','name','members'=>[userid=>imisid]].
      */
     private function build_desired(array $rows, array &$report): array {
         $desired = [];
@@ -208,7 +208,8 @@ class group_sync {
                 $report['rowsskipped']++;
                 continue;
             }
-            $desired[$key]['members'][$user->id] = true;
+            // Keep the iMIS id so a dry run can name each member it would change.
+            $desired[$key]['members'][$user->id] = $row->imisid;
         }
         return $desired;
     }
@@ -247,6 +248,9 @@ class group_sync {
                     "course {$courseid}: would create group '{$entry['name']}' ({$idnumber}) and add "
                         . count($want) . ' member(s)'
                 );
+                foreach ($want as $userid) {
+                    $this->log_dry_member($report, 'add', $entry['name'], $idnumber, $userid, $entry['members']);
+                }
                 $report['membersadded'] += count($want);
                 return;
             }
@@ -263,7 +267,7 @@ class group_sync {
             $current = $this->owned_member_ids((int)$group->id);
         }
 
-        $this->reconcile_members($group, $idnumber, $want, $current, $report);
+        $this->reconcile_members($group, $idnumber, $want, $current, $report, $entry['members']);
     }
 
     /**
@@ -274,9 +278,18 @@ class group_sync {
      * @param int[]     $want     Desired member user ids.
      * @param int[]     $current  Current plugin-owned member user ids.
      * @param array     $report   The running report, by reference.
+     * @param array     $imisids  Desired members' iMIS ids (userid => imisid), used to
+     *                            name members in dry-run output.
      * @return void
      */
-    private function reconcile_members(\stdClass $group, string $idnumber, array $want, array $current, array &$report): void {
+    private function reconcile_members(
+        \stdClass $group,
+        string $idnumber,
+        array $want,
+        array $current,
+        array &$report,
+        array $imisids = []
+    ): void {
         $toadd    = array_diff($want, $current);
         $toremove = array_diff($current, $want);
 
@@ -298,18 +311,60 @@ class group_sync {
             }
         }
 
+        $groupname = (string)($group->name ?? $idnumber);
         foreach ($toadd as $userid) {
-            if (!$this->dryrun) {
+            if ($this->dryrun) {
+                $this->log_dry_member($report, 'add', $groupname, $idnumber, $userid, $imisids);
+            } else {
                 groups_add_member($group->id, $userid, self::COMPONENT);
             }
             $report['membersadded']++;
         }
         foreach ($toremove as $userid) {
-            if (!$this->dryrun) {
+            if ($this->dryrun) {
+                $this->log_dry_member($report, 'remove', $groupname, $idnumber, $userid, $imisids);
+            } else {
                 groups_remove_member($group->id, $userid);
             }
             $report['membersremoved']++;
         }
+    }
+
+    /**
+     * Log one membership change a dry run would make, naming the member.
+     *
+     * A member being added comes from the source rows, so its iMIS id is in $imisids;
+     * one being removed is no longer in the source, so its iMIS id is read from the
+     * user's configured iMIS-ID field instead.
+     *
+     * @param array  $report    The running report, by reference.
+     * @param string $action    'add' or 'remove'.
+     * @param string $groupname The group's name.
+     * @param string $idnumber  The group's idnumber.
+     * @param int    $userid    The Moodle user id.
+     * @param array  $imisids   Known iMIS ids (userid => imisid).
+     * @return void
+     */
+    private function log_dry_member(
+        array &$report,
+        string $action,
+        string $groupname,
+        string $idnumber,
+        int $userid,
+        array $imisids
+    ): void {
+        global $DB;
+
+        $imisid = (string)($imisids[$userid] ?? '');
+        if ($imisid === '') {
+            $user = $DB->get_record('user', ['id' => $userid], 'id, ' . util::imis_id_source());
+            $imisid = $user ? util::get_imis_id($user) : '';
+        }
+        $this->log(
+            $report,
+            "group '{$groupname}' ({$idnumber}): would {$action} user {$userid}"
+                . ($imisid !== '' ? " (iMIS {$imisid})" : '')
+        );
     }
 
     /**
