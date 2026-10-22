@@ -343,6 +343,33 @@ way, each with the symptom that identifies it:
   with an `<EXCEPTION>invalidtoken</EXCEPTION>` body). A workstation check is a
   fallback only — and run it **off-box** from Moodle, since on the Moodle server the
   name may resolve to `::1`/localhost. Then re-run the sync.
+- **Recurring overnight `Error Fetching http headers` / `Could not connect to host`
+  on `SendCancelledOrdersToMoodle` *specifically*, with no contact id (`-`), while
+  every *per-contact* call succeeds** = the **all-user batch** timing out, not a
+  general outage. `sync_cancelled_orders(null)` asks ATS to process **every**
+  cancellation in one synchronous call; that, plus its per-user Moodle callbacks, can
+  exceed the SOAP read timeout (`ws_timeout`, default **30s**), after which the adhoc
+  task retries with backoff — the 2:36 / 2:53 / 3:27 / 4:32 cluster is one failing run
+  retrying, not five separate faults. Per-contact calls finish well under the timeout,
+  so they pass. Fixes in order: **(1)** on an install where the plugin's pull sync is
+  **not** the enrolment mechanism (see *Division of labour* — iDMS push is), the
+  nightly enrolment/cancellation tasks should be **off**; a running-but-failing batch
+  is just noise to silence. **(2)** If the pull sync *is* used, raise **`ws_timeout`**
+  (Connection timeout) to ~120–300s so the batch completes. **(3)** The overnight
+  timing also implicates **Moodle availability** in that window (backups, cron, a
+  web/PHP restart) slowing the **ATS → Moodle** callback — confirm Moodle answers the
+  `REST_ENDPOINT` reliably at 2–6am, not only by day.
+- **Group operations — who needs which permission.** The **1.19.0 tutorial group
+  sync** is a Moodle **scheduled task** (cron) that uses the internal group API, so it
+  needs **no** web-service user and **no** `moodle/course:managegroups`; it only needs
+  the **iMIS REST account** to *read* the `MoodleTutorialGroup` panel and the
+  `MoodleCourseLookup` IQA (iMIS-side security, not Moodle). The separate **ATS
+  `UpdateMoodleGroups`** path *does* touch Moodle groups via `core_group_*`, so the
+  token's role needs **`moodle/course:managegroups`** (+ `moodle/course:view` and
+  `viewhiddencourses`) and those functions in the token's external service. A green
+  `UpdateMoodleGroups` (ResultCode 0, no `accessexception`/`nopermissions`) confirms
+  both are already in place — but ResultCode 0 only means the ATS op *ran*; verify a
+  real iMIS group change actually lands in the Moodle course.
 - **REST only, no SOAP.** The service account needs `webservice/rest:use`, not
   `webservice/soap:use` — the bridge calls Moodle over REST; the only SOAP is the
   plugin acting as a SOAP *client* to ATS, which uses no Moodle web service.
