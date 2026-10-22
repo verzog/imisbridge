@@ -4,6 +4,27 @@ All notable changes to the iMIS Bridge plugin (`local_imisbridge`) are documente
 in this file. The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.20.0] - 2026-10-22
+
+### Added
+- **Activity score push (opt-in per activity type).** A new *Push activity scores*
+  checklist lists every gradable activity type installed on the site — built from
+  each activity's own `FEATURE_GRADE_HAS_GRADE` declaration, so third-party
+  activities such as `mod_casestudy` appear with no special-casing. When an activity
+  of a ticked type is **graded** (Moodle's `user_graded` event), the learner's score
+  is sent to iMIS as an append-only `MOODLENOTE` ("Score: <activity>",
+  `Note2 = score`) carrying the raw grade, the activity's id, and PASS/FAIL against
+  its pass mark (COMPLETE when it has none). This covers tutor-marked work such as a
+  case study, whose mark usually arrives *after* the learner completes it — too late
+  for the module-completion note. None are ticked by default; quiz is not listed,
+  as quiz scores keep their own push on submission. Only the activity's own grade
+  is sent (not course or category totals, not manual gradebook items).
+- **Unchanged regrades are not re-sent.** A new `local_imisbridge_scorepush` table
+  records the last grade queued per learner and grade item; a grading event whose
+  grade matches it sends nothing, and when a burst of regrades queues several
+  pushes, only the latest value is sent. The table is covered by the privacy
+  provider (export and deletion).
+
 ## [1.19.7] - 2026-10-22
 
 ### Added

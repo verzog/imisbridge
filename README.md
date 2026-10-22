@@ -13,6 +13,10 @@ Key behaviours:
 
 * Course completion and (graded, non-preview) quiz submissions queue an adhoc
   task that records the result in iMIS, with retry on failure.
+* **Activity scores** (opt-in per activity type): when an activity of a type ticked
+  in *Push activity scores* is graded — for example a tutor marking an assignment
+  or case study — its score is sent to iMIS as a note. The list covers every
+  gradable activity installed; an unchanged regrade is not sent again.
 * **Tutorial group sync** (opt-in): a nightly scheduled task reads the iMIS
   `MoodleTutorialGroup` panel over REST and makes each course's groups match it.
   It uses the REST settings whichever provider is selected.

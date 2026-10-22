@@ -249,6 +249,14 @@ if ($hassiteconfig) {
         0
     ));
 
+    // Which gradable activity types also send their score when graded. The list is
+    // built from what each installed activity declares, so none is special-cased.
+    $settings->add(new \local_imisbridge\admin\score_modules_setting(
+        'local_imisbridge/push_score_modules',
+        get_string('push_score_modules', 'local_imisbridge'),
+        get_string('push_score_modules_desc', 'local_imisbridge')
+    ));
+
     // Scheduled task controls — toggle each nightly all-user task.
     $settings->add(new admin_setting_heading(
         'local_imisbridge/scheduledtaskcontrols',

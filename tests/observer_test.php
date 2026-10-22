@@ -27,6 +27,7 @@ namespace local_imisbridge;
 use local_imisbridge\task\sync_user_task;
 use local_imisbridge\task\push_activity_task;
 use local_imisbridge\task\push_module_note_task;
+use local_imisbridge\task\push_score_note_task;
 
 /**
  * Unit tests for {@see observer}.
@@ -571,4 +572,215 @@ final class observer_test extends \advanced_testcase {
         $this->assertEqualsWithDelta(80.0, (float)$graded->finalgrade, 0.001);
         $this->assertEqualsWithDelta(80.0, (float)$graded->score, 0.001);
     }
+
+    /**
+     * Store a learner's final grade for an activity directly (no gradebook events),
+     * run the user_graded observer on it, and return the queued score-note tasks.
+     *
+     * The grade is written straight to grade_grades so that grade_update() cannot
+     * dispatch the observer itself and claim the grade first; only the explicit
+     * observer call below counts, which keeps the dedupe tests deterministic.
+     *
+     * @param string    $modname    The activity's module name.
+     * @param \stdClass $instance   The activity instance (needs id).
+     * @param \stdClass $user       The learner.
+     * @param float     $finalgrade The grade to store.
+     * @return push_score_note_task[]
+     */
+    private function observe_grade(string $modname, \stdClass $instance, \stdClass $user, float $finalgrade): array {
+        global $CFG, $DB;
+        require_once($CFG->libdir . '/gradelib.php');
+
+        $item = \grade_item::fetch([
+            'itemtype'     => 'mod',
+            'itemmodule'   => $modname,
+            'iteminstance' => $instance->id,
+            'itemnumber'   => 0,
+        ]);
+        $existing = $DB->get_record('grade_grades', ['itemid' => $item->id, 'userid' => $user->id]);
+        if ($existing) {
+            $existing->finalgrade   = $finalgrade;
+            $existing->timemodified = time();
+            $DB->update_record('grade_grades', $existing);
+        } else {
+            $DB->insert_record('grade_grades', (object)[
+                'itemid'       => $item->id,
+                'userid'       => $user->id,
+                'finalgrade'   => $finalgrade,
+                'rawgrademax'  => $item->grademax,
+                'rawgrademin'  => $item->grademin,
+                'timecreated'  => time(),
+                'timemodified' => time(),
+            ]);
+        }
+
+        $grade = \grade_grade::fetch(['itemid' => $item->id, 'userid' => $user->id]);
+        // The event factory reads the grade's item, so load it first.
+        $grade->load_grade_item();
+        observer::user_graded(\core\event\user_graded::create_from_grade($grade));
+
+        return \core\task\manager::get_adhoc_tasks(push_score_note_task::class);
+    }
+
+    /**
+     * Set up a configured site, a learner and a graded assignment, ticking the given
+     * activity types for score push.
+     *
+     * @param string $ticked The push_score_modules value (comma-separated module names).
+     * @return array [user, assignment instance]
+     */
+    private function score_push_fixture(string $ticked): array {
+        set_config('wsdl_url', 'https://example.invalid/wsmoodle.asmx?WSDL', 'local_imisbridge');
+        set_config('push_score_modules', $ticked, 'local_imisbridge');
+
+        $user   = $this->getDataGenerator()->create_user(['username' => 'member123']);
+        $course = $this->getDataGenerator()->create_course();
+        $this->getDataGenerator()->enrol_user($user->id, $course->id);
+        $assign = $this->getDataGenerator()->create_module('assign', ['course' => $course->id, 'grade' => 100]);
+
+        return [$user, $assign];
+    }
+
+    /**
+     * The queued score-note task carrying the given score.
+     *
+     * @param push_score_note_task[] $tasks The queued tasks.
+     * @param float                  $score The score to find.
+     * @return push_score_note_task
+     */
+    private function task_with_score(array $tasks, float $score): push_score_note_task {
+        foreach ($tasks as $task) {
+            if (abs((float)$task->get_custom_data()->score - $score) < 0.001) {
+                return $task;
+            }
+        }
+        $this->fail("no queued score note with score {$score}");
+    }
+
+    /**
+     * Grading an activity of a ticked type queues one score note naming the
+     * activity, with the raw grade.
+     *
+     * @covers \local_imisbridge\observer::user_graded
+     * @return void
+     */
+    public function test_user_graded_ticked_type_queues_score_note(): void {
+        $this->resetAfterTest();
+        [$user, $assign] = $this->score_push_fixture('assign');
+
+        $tasks = $this->observe_grade('assign', $assign, $user, 80.0);
+
+        $this->assertCount(1, $tasks);
+        $data = reset($tasks)->get_custom_data();
+        $this->assertSame('score', $data->notekind);
+        $this->assertSame('member123', $data->imisid);
+        $this->assertSame('assign', $data->modname);
+        $this->assertEquals($assign->cmid, $data->cmid);
+        $this->assertEqualsWithDelta(80.0, (float)$data->score, 0.001);
+        $this->assertSame('COMPLETE', $data->status, 'no pass mark set, so COMPLETE');
+    }
+
+    /**
+     * Grading an activity whose type is not ticked queues nothing; neither does
+     * an empty checklist (the default).
+     *
+     * @covers \local_imisbridge\observer::user_graded
+     * @return void
+     */
+    public function test_user_graded_unticked_type_ignored(): void {
+        $this->resetAfterTest();
+        [$user, $assign] = $this->score_push_fixture('workshop');
+
+        $this->assertCount(0, $this->observe_grade('assign', $assign, $user, 80.0));
+
+        set_config('push_score_modules', '', 'local_imisbridge');
+        $this->assertCount(0, $this->observe_grade('assign', $assign, $user, 85.0));
+    }
+
+    /**
+     * A regrade to the same value is not sent again; a changed grade is.
+     *
+     * @covers \local_imisbridge\observer::user_graded
+     * @covers \local_imisbridge\observer::claim_score_push
+     * @return void
+     */
+    public function test_user_graded_sends_only_changed_grades(): void {
+        $this->resetAfterTest();
+        [$user, $assign] = $this->score_push_fixture('assign');
+
+        $this->assertCount(1, $this->observe_grade('assign', $assign, $user, 80.0));
+        $this->assertCount(1, $this->observe_grade('assign', $assign, $user, 80.0), 'unchanged grade not re-sent');
+        $this->assertCount(2, $this->observe_grade('assign', $assign, $user, 90.0), 'changed grade sent');
+    }
+
+    /**
+     * The score note's status is PASS or FAIL against the activity's pass mark.
+     *
+     * @covers \local_imisbridge\observer::score_note_data
+     * @return void
+     */
+    public function test_score_note_data_uses_pass_mark(): void {
+        global $CFG;
+        require_once($CFG->libdir . '/gradelib.php');
+        $this->resetAfterTest();
+        [$user, $assign] = $this->score_push_fixture('assign');
+
+        $item = \grade_item::fetch([
+            'itemtype'     => 'mod',
+            'itemmodule'   => 'assign',
+            'iteminstance' => $assign->id,
+            'itemnumber'   => 0,
+        ]);
+        $item->gradepass = 50;
+        $item->update();
+
+        $tasks = $this->observe_grade('assign', $assign, $user, 40.0);
+        $this->assertSame('FAIL', $this->task_with_score($tasks, 40.0)->get_custom_data()->status);
+
+        $tasks = $this->observe_grade('assign', $assign, $user, 70.0);
+        $this->assertSame('PASS', $this->task_with_score($tasks, 70.0)->get_custom_data()->status);
+    }
+
+    /**
+     * Quiz is never pushed by the checklist (it has its own push on submission),
+     * and the checklist offers gradable activities only.
+     *
+     * @covers \local_imisbridge\util::score_push_modules
+     * @covers \local_imisbridge\util::gradable_activity_choices
+     * @return void
+     */
+    public function test_score_push_modules_excludes_quiz(): void {
+        $this->resetAfterTest();
+
+        set_config('push_score_modules', 'quiz,assign', 'local_imisbridge');
+        $this->assertSame(['assign'], util::score_push_modules());
+
+        $choices = util::gradable_activity_choices();
+        $this->assertArrayHasKey('assign', $choices);
+        $this->assertArrayNotHasKey('quiz', $choices);
+        $this->assertArrayNotHasKey('label', $choices, 'ungraded activities are not offered');
+    }
+
+    /**
+     * A queued score superseded by a later grade is skipped, not sent.
+     *
+     * @covers \local_imisbridge\task\push_score_note_task
+     * @return void
+     */
+    public function test_score_note_task_skips_superseded_grade(): void {
+        $this->resetAfterTest();
+        [$user, $assign] = $this->score_push_fixture('assign');
+
+        // Two grades queue two tasks; the table now holds the later one (90).
+        $this->observe_grade('assign', $assign, $user, 80.0);
+        $tasks = $this->observe_grade('assign', $assign, $user, 90.0);
+        $this->assertCount(2, $tasks);
+        $first = $this->task_with_score($tasks, 80.0);
+
+        // The 80 task finds 90 recorded and returns before any call to iMIS (a call
+        // would fail here, as the WSDL is not reachable).
+        $this->expectOutputRegex('/superseded by a later grade/');
+        $first->execute();
+    }
 }
+

@@ -57,4 +57,10 @@ $observers = [
         'priority'  => 200,
         'internal'  => false,
     ],
+    [
+        'eventname' => '\core\event\user_graded',
+        'callback'  => '\local_imisbridge\observer::user_graded',
+        'priority'  => 200,
+        'internal'  => false,
+    ],
 ];

@@ -18,9 +18,11 @@
  * Privacy Subsystem implementation for local_imisbridge.
  *
  * The plugin keeps an audit log of the calls it makes to iMIS (the
- * local_imisbridge_log table) and transmits personal data to the external iMIS
- * association management system. Both are declared here, and the stored log is
- * exportable and erasable, in line with the Australian Privacy Principles.
+ * local_imisbridge_log table), the last activity grade it queued per learner and
+ * grade item (local_imisbridge_scorepush), and transmits personal data to the
+ * external iMIS association management system. All are declared here, and the
+ * stored data is exportable and erasable, in line with the Australian Privacy
+ * Principles.
  *
  * @package    local_imisbridge
  * @copyright  2024 Vernon Spain
@@ -72,6 +74,17 @@ class provider implements
             'privacy:metadata:local_imisbridge_log'
         );
 
+        $collection->add_database_table(
+            'local_imisbridge_scorepush',
+            [
+                'userid'     => 'privacy:metadata:local_imisbridge_scorepush:userid',
+                'itemid'     => 'privacy:metadata:local_imisbridge_scorepush:itemid',
+                'finalgrade' => 'privacy:metadata:local_imisbridge_scorepush:finalgrade',
+                'timequeued' => 'privacy:metadata:local_imisbridge_scorepush:timequeued',
+            ],
+            'privacy:metadata:local_imisbridge_scorepush'
+        );
+
         $collection->add_external_location_link(
             'imis',
             [
@@ -88,7 +101,7 @@ class provider implements
     }
 
     /**
-     * Return the system context when the user has audit-log rows.
+     * Return the system context when the user has audit-log or score-push rows.
      *
      * @param int $userid The user to search for.
      * @return contextlist The list of contexts containing the user's data.
@@ -97,7 +110,10 @@ class provider implements
         global $DB;
 
         $contextlist = new contextlist();
-        if ($DB->record_exists('local_imisbridge_log', ['userid' => $userid])) {
+        if (
+            $DB->record_exists('local_imisbridge_log', ['userid' => $userid])
+                || $DB->record_exists('local_imisbridge_scorepush', ['userid' => $userid])
+        ) {
             $contextlist->add_from_sql(
                 'SELECT id FROM {context} WHERE contextlevel = :level',
                 ['level' => CONTEXT_SYSTEM]
@@ -108,7 +124,7 @@ class provider implements
     }
 
     /**
-     * Add the users who have audit-log rows in the given (system) context.
+     * Add the users who have audit-log or score-push rows in the given (system) context.
      *
      * @param userlist $userlist The userlist to add users to.
      * @return void
@@ -120,10 +136,11 @@ class provider implements
         }
 
         $userlist->add_from_sql('userid', 'SELECT userid FROM {local_imisbridge_log} WHERE userid <> 0', []);
+        $userlist->add_from_sql('userid', 'SELECT userid FROM {local_imisbridge_scorepush}', []);
     }
 
     /**
-     * Export the user's audit-log rows.
+     * Export the user's audit-log and score-push rows.
      *
      * @param approved_contextlist $contextlist The approved contexts to export for.
      * @return void
@@ -137,6 +154,8 @@ class provider implements
             if ($context->contextlevel != CONTEXT_SYSTEM) {
                 continue;
             }
+
+            self::export_score_pushes($context, (int)$user->id);
 
             $records = $DB->get_records('local_imisbridge_log', ['userid' => $user->id], 'timecreated ASC');
             if (!$records) {
@@ -165,7 +184,38 @@ class provider implements
     }
 
     /**
-     * Delete all audit-log rows in a system context.
+     * Export the user's score-push rows: the last activity grade queued to iMIS per
+     * grade item.
+     *
+     * @param context $context The (system) context to export in.
+     * @param int     $userid  The user to export for.
+     * @return void
+     */
+    protected static function export_score_pushes(context $context, int $userid): void {
+        global $DB;
+
+        $records = $DB->get_records('local_imisbridge_scorepush', ['userid' => $userid], 'timequeued ASC');
+        if (!$records) {
+            return;
+        }
+
+        $pushes = [];
+        foreach ($records as $record) {
+            $pushes[] = [
+                'itemid'     => $record->itemid,
+                'finalgrade' => $record->finalgrade,
+                'timequeued' => transform::datetime($record->timequeued),
+            ];
+        }
+
+        writer::with_context($context)->export_data(
+            [get_string('scorepushes', 'local_imisbridge')],
+            (object)['scorepushes' => $pushes]
+        );
+    }
+
+    /**
+     * Delete all audit-log and score-push rows in a system context.
      *
      * @param context $context The context to delete in.
      * @return void
@@ -175,11 +225,12 @@ class provider implements
 
         if ($context->contextlevel == CONTEXT_SYSTEM) {
             $DB->delete_records('local_imisbridge_log');
+            $DB->delete_records('local_imisbridge_scorepush');
         }
     }
 
     /**
-     * Delete one user's audit-log rows.
+     * Delete one user's audit-log and score-push rows.
      *
      * @param approved_contextlist $contextlist The approved contexts to delete in.
      * @return void
@@ -192,12 +243,13 @@ class provider implements
         foreach ($contextlist->get_contexts() as $context) {
             if ($context->contextlevel == CONTEXT_SYSTEM) {
                 $DB->delete_records('local_imisbridge_log', ['userid' => $userid]);
+                $DB->delete_records('local_imisbridge_scorepush', ['userid' => $userid]);
             }
         }
     }
 
     /**
-     * Delete audit-log rows for the listed users in a system context.
+     * Delete audit-log and score-push rows for the listed users in a system context.
      *
      * @param approved_userlist $userlist The approved users to delete for.
      * @return void
@@ -217,5 +269,6 @@ class provider implements
 
         [$insql, $inparams] = $DB->get_in_or_equal($userids, SQL_PARAMS_NAMED);
         $DB->delete_records_select('local_imisbridge_log', "userid {$insql}", $inparams);
+        $DB->delete_records_select('local_imisbridge_scorepush', "userid {$insql}", $inparams);
     }
 }

@@ -62,6 +62,47 @@ class util {
     }
 
     /**
+     * The activity types (module names) whose grades are pushed to iMIS as score
+     * notes, from the `push_score_modules` checklist. Empty (the default) means none.
+     *
+     * Quiz is never included: quiz scores have their own push on submission
+     * (`push_quiz_scores`), so listing it here would send each quiz score twice.
+     *
+     * @return string[] Module names, e.g. ['assign', 'casestudy'].
+     */
+    public static function score_push_modules(): array {
+        $value = (string)get_config('local_imisbridge', 'push_score_modules');
+        $modules = array_filter(array_map('trim', explode(',', $value)), static fn($m) => $m !== '');
+        return array_values(array_diff($modules, ['quiz']));
+    }
+
+    /**
+     * The gradable activity types installed on this site, for the score-push
+     * checklist: module name => localised name.
+     *
+     * Built from each module's own declaration (`<modname>_supports()` returning true
+     * for FEATURE_GRADE_HAS_GRADE), the same way Moodle builds its lists of gradable
+     * activities — so any gradable activity, core or third-party, appears with no
+     * special-casing here. Quiz is left out (see {@see score_push_modules()}).
+     *
+     * @return array<string,string>
+     */
+    public static function gradable_activity_choices(): array {
+        $choices = [];
+        foreach (array_keys(\core_component::get_plugin_list('mod')) as $modname) {
+            if ($modname === 'quiz') {
+                continue;
+            }
+            if (!plugin_supports('mod', $modname, FEATURE_GRADE_HAS_GRADE, false)) {
+                continue;
+            }
+            $choices[$modname] = get_string('pluginname', 'mod_' . $modname);
+        }
+        \core_collator::asort($choices);
+        return $choices;
+    }
+
+    /**
      * The Moodle user field configured as the source of the iMIS contact ID.
      *
      * Defaults to 'username' so existing installations keep their behaviour.

@@ -101,5 +101,28 @@ function xmldb_local_imisbridge_upgrade($oldversion) {
         upgrade_plugin_savepoint(true, 2026102204, 'local', 'imisbridge');
     }
 
+    if ($oldversion < 2026102208) {
+        // Track the last activity grade queued per learner and grade item, so the
+        // activity score push sends a new note only when a grade actually changes.
+        $table = new xmldb_table('local_imisbridge_scorepush');
+        $table->add_field('id', XMLDB_TYPE_INTEGER, '10', null, XMLDB_NOTNULL, XMLDB_SEQUENCE, null);
+        $table->add_field('userid', XMLDB_TYPE_INTEGER, '10', null, XMLDB_NOTNULL, null, null);
+        $table->add_field('itemid', XMLDB_TYPE_INTEGER, '10', null, XMLDB_NOTNULL, null, null);
+        $table->add_field('finalgrade', XMLDB_TYPE_NUMBER, '10, 5', null, XMLDB_NOTNULL, null, null);
+        $table->add_field('timequeued', XMLDB_TYPE_INTEGER, '10', null, XMLDB_NOTNULL, null, '0');
+
+        $table->add_key('primary', XMLDB_KEY_PRIMARY, ['id']);
+        $table->add_key('userid', XMLDB_KEY_FOREIGN, ['userid'], 'user', ['id']);
+        $table->add_key('itemid', XMLDB_KEY_FOREIGN, ['itemid'], 'grade_items', ['id']);
+
+        $table->add_index('useritem', XMLDB_INDEX_UNIQUE, ['userid', 'itemid']);
+
+        if (!$dbman->table_exists($table)) {
+            $dbman->create_table($table);
+        }
+
+        upgrade_plugin_savepoint(true, 2026102208, 'local', 'imisbridge');
+    }
+
     return true;
 }

@@ -225,6 +225,9 @@ installed; on an earlier build these describe code that isn't present yet.
 | D2 | Course completion (toggle on) + cron | `MoodleUpdate` fires with course product + AuthToken; audit row | ☐ | |
 | D3 | Quiz submit (graded, non-preview) + cron | `CreateActivity` writes a `MOODLENOTE` ("Moodle course N score") with score/status; audit row; the course's `MOODLE` completion record is **not** changed | ☐ | Preview/ungraded skipped. Never `MoodleUpdate` (1.16.0) |
 | D6 | Module completion with `push_module_completions` on (default off) + cron | `CreateActivity` writes a `MOODLENOTE` (`Note2 = modulecompletion`) for a graded module; ungraded modules skipped | ☐ | Also testable with the *Push activity note (test)* control, which likewise needs the toggle on |
+| D7 | Tick *Assignment* (and/or *Case study*) in **Push activity scores**; mark one + cron | `CreateActivity` writes a `MOODLENOTE` "Score: <activity>" (`Note2 = score`) with the raw grade and PASS/FAIL against the pass mark (COMPLETE with none) | ☐ | 1.20.0. Sent when **marked**, even after the learner completed it |
+| D8 | Save the same mark again; then change it | No new note for the unchanged mark; one new note for the changed mark | ☐ | Last queued grade per learner + activity is tracked; a burst of regrades sends only the latest |
+| D9 | An unticked activity type, a quiz, or a manual gradebook item is graded | No score note from this path | ☐ | Quiz uses its own push (D3); totals and manual items are never sent |
 | D4 | User with no iMIS ID | No task queued; no bogus call | ☐ | |
 | D5 | Transient SOAP failure on a push | Adhoc task retries (no data loss) | ☐ | Our advantage vs vendor fire-and-forget |
 
@@ -361,3 +364,4 @@ Called by the ATS bridge in place of `enrol_manual_unenrol_users`
 | 2026-10-19 | Codex #24: harden the §P topology for safety — keep C6 read-only on production (no throwaway writes); add three write gates (verify the effective SOAP address, use a sandbox-scoped AuthToken + fixtures, and confirm the bridge's Moodle callback targets staging before C3–C5); add a raw-SOAP (Bruno) read-only pre-flight; and genericise the real hostnames to role placeholders (real values live in the internal runbook; this repo is public). |
 | 2026-10-22 | Documentation consistency review (1.19.6): D3 corrected to `CreateActivity`/MOODLENOTE (the quiz-score path since 1.16.0); added D6 (module notes); E4 now expects a blank Member ID to be refused (1.19.1); F1 lists all five tasks; new §L (tutorial group sync) and §M (`local_imisbridge_cancel_enrolment`); §P inbound framing updated to the core-functions service; "Not yet built" marks in-plugin provisioning as superseded. |
 | 2026-10-22 | 1.19.7: L3 now expects per-member `would add` / `would remove` dry-run lines for new and existing groups. |
+| 2026-10-22 | 1.20.0: add D7–D9 for the activity score push (`Push activity scores` checklist, sent on grading, unchanged regrades not re-sent). |
