@@ -4,6 +4,16 @@ All notable changes to the iMIS Bridge plugin (`local_imisbridge`) are documente
 in this file. The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.19.4] - 2026-10-22
+
+### Fixed
+- **The 1.19.3 audit-log column upgrade now succeeds.** Widening the `operation`
+  column failed at upgrade time with a `ddl_dependency_exception` because the column
+  carries a non-unique index (`…_ope_ix`), and the database will not alter an indexed
+  column. The upgrade step now drops that index, widens the column to `char(255)`,
+  then re-adds the index. Each step is guarded so it re-runs cleanly on sites where
+  the 1.19.3 attempt aborted part-way.
+
 ## [1.19.3] - 2026-10-22
 
 ### Fixed
