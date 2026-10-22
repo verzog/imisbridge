@@ -145,6 +145,22 @@ final class rest_course_resolver_test extends \advanced_testcase {
     }
 
     /**
+     * A row whose Code is a neighbouring product (not the looked-up {code}/REG) is
+     * rejected, guarding against a loosely-filtered IQA.
+     *
+     * @return void
+     */
+    public function test_rejects_mismatched_product_code(): void {
+        $course = $this->getDataGenerator()->create_course();
+        $client = $this->stub_client([
+            $this->entity(['Code' => 'ATS_BRIDGE/REGNZ', 'Description' => $course->id]),
+        ]);
+
+        $resolver = new rest_course_resolver($client);
+        $this->assertNull($resolver->resolve_courseid('ATS_BRIDGE'));
+    }
+
+    /**
      * Each code hits the IQA once; a repeat resolve is served from the cache.
      *
      * @return void

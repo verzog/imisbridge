@@ -114,6 +114,13 @@ class rest_course_resolver implements course_resolver {
 
         $courseid = null;
         foreach ($this->client->run_iqa($this->queryname, [$lookupcode]) as $row) {
+            // Guard against a loosely-filtered or misconfigured IQA returning a
+            // neighbouring product (e.g. .../REGNZ): when the row carries a Code,
+            // require it to match the looked-up product code exactly.
+            $rowcode = (string)rest_client::property($row, 'Code');
+            if ($rowcode !== '' && strcasecmp($rowcode, $lookupcode) !== 0) {
+                continue;
+            }
             $value = (int)(string)rest_client::property($row, $this->column);
             if ($value > 0 && $DB->record_exists('course', ['id' => $value])) {
                 $courseid = $value;
