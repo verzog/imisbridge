@@ -100,12 +100,12 @@ final class rest_course_resolver_test extends \advanced_testcase {
     }
 
     /**
-     * The IQA is prompted with the bare code, and a row whose Code is the {code}/REG
-     * product returns its Description as the course id.
+     * The IQA's required Code prompt is sent the {code}/REG product code, and the
+     * returned row's Description becomes the course id.
      *
      * @return void
      */
-    public function test_resolves_bare_code_via_product_row(): void {
+    public function test_resolves_via_required_code_prompt(): void {
         $course = $this->getDataGenerator()->create_course();
         $client = $this->stub_client([
             $this->entity(['Code' => 'ATS_BRIDGE/REG', 'Description' => $course->id]),
@@ -113,27 +113,25 @@ final class rest_course_resolver_test extends \advanced_testcase {
 
         $resolver = new rest_course_resolver($client);
         $this->assertSame((int)$course->id, $resolver->resolve_courseid('ATS_BRIDGE'));
-        $this->assertSame([[]], $client->calls, 'the unprompted IQA is called with no parameters');
+        $this->assertSame([['ATS_BRIDGE/REG']], $client->calls, 'the Code prompt gets {code}/REG');
     }
 
     /**
-     * Only a neighbouring product (e.g. /REGNZ) in the table does not resolve the
-     * bare code.
+     * A code the IQA returns no row for resolves to null (and is still looked up with
+     * the suffixed product code).
      *
      * @return void
      */
-    public function test_rejects_neighbouring_product(): void {
-        $course = $this->getDataGenerator()->create_course();
-        $client = $this->stub_client([
-            $this->entity(['Code' => 'ATS_BRIDGE/REGNZ', 'Description' => $course->id]),
-        ]);
+    public function test_unmapped_code_returns_null(): void {
+        $client = $this->stub_client([]);
 
         $resolver = new rest_course_resolver($client);
-        $this->assertNull($resolver->resolve_courseid('ATS_BRIDGE'));
+        $this->assertNull($resolver->resolve_courseid('NOPE'));
+        $this->assertSame([['NOPE/REG']], $client->calls);
     }
 
     /**
-     * A product whose Description names a non-existent course is not mapped.
+     * A product whose Description names a non-existent course resolves to null.
      *
      * @return void
      */
@@ -147,25 +145,35 @@ final class rest_course_resolver_test extends \advanced_testcase {
     }
 
     /**
-     * The whole table is fetched once; resolving several codes makes no extra calls,
-     * and the correct product row is picked out of a full table.
+     * A row whose Code is a neighbouring product (not the looked-up {code}/REG) is
+     * rejected, guarding against a loosely-filtered IQA.
      *
      * @return void
      */
-    public function test_fetches_table_once_and_picks_correct_row(): void {
-        $atsbridge = $this->getDataGenerator()->create_course();
-        $accd = $this->getDataGenerator()->create_course();
+    public function test_rejects_mismatched_product_code(): void {
+        $course = $this->getDataGenerator()->create_course();
         $client = $this->stub_client([
-            $this->entity(['Code' => 'ATS_BRIDGE/REG', 'Description' => $atsbridge->id]),
-            $this->entity(['Code' => 'ATS_Bridgetest/REG', 'Description' => '424242']),
-            $this->entity(['Code' => 'ACCD_26/REG', 'Description' => $accd->id]),
-            $this->entity(['Code' => 'ACCD_26/REGNZ', 'Description' => $accd->id]),
+            $this->entity(['Code' => 'ATS_BRIDGE/REGNZ', 'Description' => $course->id]),
         ]);
 
         $resolver = new rest_course_resolver($client);
-        $this->assertSame((int)$atsbridge->id, $resolver->resolve_courseid('ATS_BRIDGE'));
-        $this->assertSame((int)$accd->id, $resolver->resolve_courseid('ACCD_26'));
-        $this->assertNull($resolver->resolve_courseid('MISSING'));
-        $this->assertCount(1, $client->calls, 'the lookup table is fetched only once');
+        $this->assertNull($resolver->resolve_courseid('ATS_BRIDGE'));
+    }
+
+    /**
+     * Each code hits the IQA once; a repeat resolve is served from the cache.
+     *
+     * @return void
+     */
+    public function test_caches_result_per_code(): void {
+        $course = $this->getDataGenerator()->create_course();
+        $client = $this->stub_client([
+            $this->entity(['Code' => 'ATS_BRIDGE/REG', 'Description' => $course->id]),
+        ]);
+
+        $resolver = new rest_course_resolver($client);
+        $this->assertSame((int)$course->id, $resolver->resolve_courseid('ATS_BRIDGE'));
+        $this->assertSame((int)$course->id, $resolver->resolve_courseid('ATS_BRIDGE'));
+        $this->assertCount(1, $client->calls, 'the IQA is called once per code, then cached');
     }
 }
