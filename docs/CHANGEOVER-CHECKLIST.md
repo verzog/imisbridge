@@ -343,6 +343,43 @@ way, each with the symptom that identifies it:
   with an `<EXCEPTION>invalidtoken</EXCEPTION>` body). A workstation check is a
   fallback only — and run it **off-box** from Moodle, since on the Moodle server the
   name may resolve to `::1`/localhost. Then re-run the sync.
+- **Recurring overnight `Error Fetching http headers` / `Could not connect to host`
+  on `SendCancelledOrdersToMoodle` *specifically*, with no contact id (`-`), while
+  every *per-contact* call succeeds.** The SOAP wrapper only records and rethrows the
+  transport error, so the symptom alone does **not** name the cause — weigh three, and
+  tell them apart by **how long the failing call ran** and by **testing the ATS→Moodle
+  path during the failure window**, not by assuming batch size:
+  - **The all-user batch is too slow for the timeout** — likely when the failing calls
+    run close to `ws_timeout` (default **30s**). `sync_cancelled_orders(null)` asks ATS
+    to process **every** cancellation in one synchronous call; that, plus its per-user
+    Moodle callbacks, can exceed the read timeout. The nightly `sync_cancellations_task`
+    is a **scheduled** task, so Moodle's **`fail_delay`** backs it off and retries — the
+    2:36 / 2:53 / 3:27 / 4:32 cluster is one failing run retrying, not five faults. Per-
+    contact calls finish well under the timeout, so they pass.
+  - **Moodle is unreachable only in the overnight window** (backups, cron, a web/PHP
+    restart): the ATS→Moodle callback can't connect even though per-contact calls pass
+    when *tested by day*. Here the calls fail **fast**, not at ~30s. Confirm Moodle
+    answers the `REST_ENDPOINT` reliably at 2–6am **from the ATS host**.
+  - **One callback inside the batch hangs**, stalling the whole synchronous call.
+  Fixes: **(1)** where the plugin's pull sync is **not** the enrolment mechanism (see
+  *Division of labour* — iDMS push is), the nightly enrolment/cancellation tasks should
+  be **off**; a running-but-failing batch is just noise to silence. **(2)** Only if the
+  pull sync *is* used **and** the calls are hitting the timeout (slow, ~30s), raise
+  **`ws_timeout`** (Connection timeout) to ~120–300s. **(3)** If they fail **fast**, it
+  is reachability, not duration — fix the callback path, do not raise the timeout.
+- **Group operations — who needs which permission.** The **1.19.0 tutorial group
+  sync** is a Moodle **scheduled task** (cron) that uses the internal group API, so it
+  needs **no** web-service user and **no** `moodle/course:managegroups`; it only needs
+  the **iMIS REST account** to *read* the `MoodleTutorialGroup` panel and the
+  `MoodleCourseLookup` IQA (iMIS-side security, not Moodle). The separate **ATS
+  `UpdateMoodleGroups`** path *does* touch Moodle groups via `core_group_*`, so the
+  token's role needs **`moodle/course:managegroups`** (+ `moodle/course:view` and
+  `viewhiddencourses`) and those functions in the token's external service. A green
+  `UpdateMoodleGroups` (ResultCode 0) does **not** by itself confirm either is in
+  place: it is a successful **no-op** when `GROUP_IQA_NAME` is unset or the IQA returns
+  no group changes, so it never calls `core_group_*`. Only a run that **applies a real
+  Moodle group change** confirms the functions are in the service *and* the role holds
+  `managegroups` — so verify a known iMIS group change actually lands in the course.
 - **REST only, no SOAP.** The service account needs `webservice/rest:use`, not
   `webservice/soap:use` — the bridge calls Moodle over REST; the only SOAP is the
   plugin acting as a SOAP *client* to ATS, which uses no Moodle web service.

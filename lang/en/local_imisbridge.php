@@ -21,7 +21,6 @@
  * @copyright  2024 Vernon Spain
  * @license    http://www.gnu.org/copyleft/gpl.html GNU GPL v3 or later
  */
-$string['allusers'] = 'all users';
 $string['auditlog'] = 'Integration audit log';
 $string['auditlog_desc'] = 'Records each call made to the membership system so you can see what was sent and whether it was accepted.';
 $string['autosynccontrols'] = 'Automatic sync controls';
@@ -29,10 +28,10 @@ $string['autosynccontrols_desc'] = 'Enable or disable each automatic write to th
 $string['capture_payloads'] = 'Capture full request/response';
 $string['capture_payloads_desc'] = 'When enabled, each log entry also stores the full request and response payload (with credentials redacted). This keeps personal data at rest, so enable it only while debugging and turn it off afterwards.';
 $string['confirmsync'] = 'This will run the sync against the membership system for member {$a}. Continue?';
-$string['confirmsyncall'] = 'This will run the sync against the membership system for ALL users. It can create, cancel or modify records in the production system. Continue?';
 $string['contactid'] = 'Member ID';
-$string['contactidhelp'] = 'Leave this blank to synchronise all users.';
+$string['contactidhelp'] = 'Enter the member ID to synchronise. A manual sync runs for one member only; all-user syncs are handled by the nightly scheduled tasks.';
 $string['contactidplaceholder'] = 'e.g. 12345';
+$string['contactidrequired'] = 'Member ID required: enter a member ID to run a manual sync. All-user syncs are handled by the nightly scheduled tasks.';
 $string['credit_field'] = 'Credit value course field';
 $string['credit_field_desc'] = 'The short name of the course custom field that holds the credit value awarded on completion. Leave blank to send a credit value of 0.';
 $string['credit_type'] = 'Default credit type';

@@ -4,6 +4,17 @@ All notable changes to the iMIS Bridge plugin (`local_imisbridge`) are documente
 in this file. The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.19.1] - 2026-10-22
+
+### Changed
+- **The manual sync on the admin page now requires a Member ID.** Running an
+  enrolment/cancellation/group/all sync with the Member ID field blank previously
+  issued an *all-user* batch (`sync_*(null)`), which is slow enough to hit the web
+  request timeout and is never the intent of an on-demand run. It now returns
+  "Member ID required" and does nothing instead. All-user syncs remain the job of the
+  nightly scheduled tasks. The connection test is unaffected (it still runs without a
+  Member ID).
+
 ## [1.19.0] - 2026-10-22
 
 ### Added
