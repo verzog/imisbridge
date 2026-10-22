@@ -374,7 +374,7 @@ final class group_sync_test extends \advanced_testcase {
         global $DB;
 
         $course = $this->getDataGenerator()->create_course();
-        $this->enrolled_user('20001', $course->id);
+        $user = $this->enrolled_user('20001', $course->id);
 
         $report = $this->engine(
             [new membership_row('20001', 'ISC_26', 'Tutorial A')],
@@ -384,13 +384,58 @@ final class group_sync_test extends \advanced_testcase {
 
         $this->assertSame(1, $report['groupscreated']);
         $this->assertSame(1, $report['membersadded']);
+        $idnumber = group_sync::make_idnumber('ISC_26', 'Tutorial A');
+        $this->assertContains(
+            "group 'Tutorial A' ({$idnumber}): would add user {$user->id} (iMIS 20001)",
+            $report['messages'],
+            'dry run names each member it would add to a new group'
+        );
         $this->assertFalse(
             $DB->record_exists('groups', [
                 'courseid' => $course->id,
-                'idnumber' => group_sync::make_idnumber('ISC_26', 'Tutorial A'),
+                'idnumber' => $idnumber,
             ]),
             'dry run must not create the group'
         );
+    }
+
+    /**
+     * For a group that already exists, a dry run names each member it would add and
+     * remove, and changes neither membership.
+     *
+     * @return void
+     */
+    public function test_dry_run_names_member_changes_in_existing_group(): void {
+        $course = $this->getDataGenerator()->create_course();
+        $leaving = $this->enrolled_user('20001', $course->id);
+        $joining = $this->enrolled_user('20002', $course->id);
+        $map = ['ISC_26' => $course->id];
+
+        // A live run creates the group with the member who will later leave.
+        $this->engine([new membership_row('20001', 'ISC_26', 'Tutorial A')], $map)->run();
+        $idnumber = group_sync::make_idnumber('ISC_26', 'Tutorial A');
+        $groupid = groups_get_group_by_idnumber($course->id, $idnumber)->id;
+
+        // The panel now lists only the joining member; preview that change.
+        $report = $this->engine(
+            [new membership_row('20002', 'ISC_26', 'Tutorial A')],
+            $map,
+            ['dryrun' => true]
+        )->run();
+
+        $this->assertContains(
+            "group 'Tutorial A' ({$idnumber}): would add user {$joining->id} (iMIS 20002)",
+            $report['messages']
+        );
+        $this->assertContains(
+            "group 'Tutorial A' ({$idnumber}): would remove user {$leaving->id} (iMIS 20001)",
+            $report['messages'],
+            'a removed member is named from their Moodle account, since iMIS no longer lists them'
+        );
+        $this->assertSame(1, $report['membersadded']);
+        $this->assertSame(1, $report['membersremoved']);
+        $this->assertTrue(groups_is_member($groupid, $leaving->id), 'dry run must not remove');
+        $this->assertFalse(groups_is_member($groupid, $joining->id), 'dry run must not add');
     }
 
     /**
