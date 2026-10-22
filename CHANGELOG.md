@@ -21,14 +21,18 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   warnings. Fully reversible by a later re-enrol.
   - New capability `local/imisbridge:cancelenrolment` (course context, no data-loss
     risk flag, granted to no role by default), exposed on the `iMIS bridge` service.
-  - To adopt: grant the capability to the inbound service-account role and point the
-    ATS `FN_ENROL_MANUAL_UNENROL_USERS` mapping at `local_imisbridge_cancel_enrolment`
-    (see `docs/CHANGEOVER-CHECKLIST.md`).
-  - Note: the live `invalidparameter` error on the cancellation call is not yet
-    root-caused (the real ATS→Moodle payload has not been captured), so this is not
-    presented as a guaranteed fix for that error — its purpose is the data-preserving
-    suspend. Capture the actual request and reconcile its schema before relying on
-    the remap to resolve the error.
+  - To adopt: deploy and upgrade the plugin, grant the capability to the inbound
+    service-account role, add `local_imisbridge_cancel_enrolment` to the external
+    service the ATS token uses, and point the ATS `FN_ENROL_MANUAL_UNENROL_USERS`
+    mapping at it (see `docs/CHANGEOVER-CHECKLIST.md`).
+  - **Verified in production (2026-10-22).** The remap resolved the original
+    `invalidparameter` error (core `enrol_manual_unenrol_users` expects a manual-only
+    `ueid`, which the ATS does not send; the new function takes `userid`+`courseid`
+    instead). The follow-on `accessexception` was simply the new function not yet
+    being listed on the token's external service; adding it there fixed the call. A
+    live cancellation then suspended the enrolment and removed the role while the
+    learner's grades and completion survived intact, confirming the data-preserving
+    behaviour end-to-end.
 
 ## [1.17.3] - 2026-10-21
 
