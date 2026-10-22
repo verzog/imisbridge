@@ -47,6 +47,8 @@ class rest_reader implements reader {
     private rest_client $client;
 
     /**
+     * Build the reader, using the given client or one constructed from settings.
+     *
      * @param rest_client|null $client An iMIS REST client, or null to build one from settings.
      */
     public function __construct(?rest_client $client = null) {

@@ -47,6 +47,8 @@ class membership_row {
     public string $groupname;
 
     /**
+     * Build a membership row, trimming each field.
+     *
      * @param string $imisid    The iMIS contact id.
      * @param string $code      The event/product code.
      * @param string $groupname The group name.

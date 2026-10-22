@@ -69,21 +69,28 @@ class group_sync {
     /** @var int Skip a group's removals when they would exceed this share (percent) of its members. */
     private int $removalguardpct;
 
+    /** @var int Never guard removals below this absolute count, so small legitimate moves are not blocked. */
+    private int $removalguardfloor;
+
     /** @var callable Sink for human-readable progress lines (defaults to mtrace). */
     private $trace;
 
     /**
+     * Build the engine with its source, course mapping and run options.
+     *
      * @param reader          $reader   The membership-row source.
      * @param course_resolver $resolver The code→course mapping.
-     * @param array           $options  dryrun (bool), removalguardpct (int 0-100), trace (callable).
+     * @param array           $options  dryrun (bool), removalguardpct (int 0-100),
+     *                                  removalguardfloor (int), trace (callable).
      */
     public function __construct(reader $reader, course_resolver $resolver, array $options = []) {
-        $this->reader          = $reader;
-        $this->resolver        = $resolver;
-        $this->dryrun          = !empty($options['dryrun']);
-        $guard                 = (int)($options['removalguardpct'] ?? 50);
-        $this->removalguardpct = max(0, min(100, $guard));
-        $this->trace           = $options['trace'] ?? function (string $line): void {
+        $this->reader            = $reader;
+        $this->resolver          = $resolver;
+        $this->dryrun            = !empty($options['dryrun']);
+        $guard                   = (int)($options['removalguardpct'] ?? 50);
+        $this->removalguardpct   = max(0, min(100, $guard));
+        $this->removalguardfloor = max(1, (int)($options['removalguardfloor'] ?? 10));
+        $this->trace             = $options['trace'] ?? function (string $line): void {
             mtrace('iMIS Bridge: ' . $line);
         };
     }
@@ -258,7 +265,9 @@ class group_sync {
         // Per-group removal guard: if a single run would remove more than the
         // configured share of a group's current members, do the adds but skip the
         // removals and log it, so a bad or partial source read cannot gut a group.
-        if (!empty($toremove) && count($current) > 0) {
+        // The floor exempts small removals (a routine move or an emptied small group),
+        // which are always a high percentage but never a mass wipe.
+        if (count($toremove) >= $this->removalguardfloor && count($current) > 0) {
             $share = (count($toremove) / count($current)) * 100;
             if ($share > $this->removalguardpct) {
                 $this->log(

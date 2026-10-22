@@ -53,11 +53,13 @@ final class group_sync_test extends \advanced_testcase {
      * @return reader
      */
     private function reader(array $rows): reader {
-        return new class($rows) implements reader {
+        return new class ($rows) implements reader {
             /** @var array The fixed rows. */
             private array $rows;
 
             /**
+             * Store the fixed rows.
+             *
              * @param array $rows The fixed rows.
              */
             public function __construct(array $rows) {
@@ -65,6 +67,8 @@ final class group_sync_test extends \advanced_testcase {
             }
 
             /**
+             * Return the fixed rows.
+             *
              * @return array The fixed rows.
              */
             public function fetch_rows(): array {
@@ -80,11 +84,13 @@ final class group_sync_test extends \advanced_testcase {
      * @return course_resolver
      */
     private function resolver(array $map): course_resolver {
-        return new class($map) implements course_resolver {
+        return new class ($map) implements course_resolver {
             /** @var array The code => courseid map. */
             private array $map;
 
             /**
+             * Store the code => courseid map.
+             *
              * @param array $map The code => courseid map.
              */
             public function __construct(array $map) {
@@ -92,6 +98,8 @@ final class group_sync_test extends \advanced_testcase {
             }
 
             /**
+             * Resolve a code from the map.
+             *
              * @param string $code The code to resolve.
              * @return int|null The mapped course id, or null.
              */
@@ -110,7 +118,7 @@ final class group_sync_test extends \advanced_testcase {
      * @return group_sync
      */
     private function engine(array $rows, array $map, array $options = []): group_sync {
-        $options['trace'] = function (string $line): void {
+        $options['trace'] = function (): void {
             // Swallow progress output in tests.
             return;
         };
@@ -191,7 +199,7 @@ final class group_sync_test extends \advanced_testcase {
      * @return void
      */
     public function test_removes_stale_but_keeps_manual_member(): void {
-        global $DB, $CFG;
+        global $CFG;
         require_once($CFG->dirroot . '/group/lib.php');
 
         $course = $this->getDataGenerator()->create_course();
@@ -300,7 +308,7 @@ final class group_sync_test extends \advanced_testcase {
         $report = $this->engine(
             [new membership_row('20001', 'ISC_26', 'Tutorial A')],
             ['ISC_26' => $course->id],
-            ['removalguardpct' => 50]
+            ['removalguardpct' => 50, 'removalguardfloor' => 1]
         )->run();
 
         $this->assertSame(1, $report['guardskipped']);
@@ -382,8 +390,8 @@ final class group_sync_test extends \advanced_testcase {
         global $DB;
 
         $course = $this->getDataGenerator()->create_course();
-        $a = $this->enrolled_user('20001', $course->id);
-        $b = $this->enrolled_user('20002', $course->id);
+        $this->enrolled_user('20001', $course->id);
+        $this->enrolled_user('20002', $course->id);
 
         $report = $this->engine(
             [

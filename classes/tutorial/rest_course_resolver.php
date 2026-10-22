@@ -68,6 +68,8 @@ class rest_course_resolver implements course_resolver {
     private array $cache = [];
 
     /**
+     * Build the resolver, reading the IQA query name from settings.
+     *
      * @param rest_client|null $client An iMIS REST client, or null to build one from settings.
      */
     public function __construct(?rest_client $client = null) {
