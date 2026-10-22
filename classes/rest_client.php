@@ -413,29 +413,42 @@ class rest_client implements \local_imisbridge\provider\provider_interface {
     }
 
     /**
-     * Run an iMIS IQA (saved query) over REST and return its result rows.
+     * Run an iMIS IQA (saved query) over REST and return all its result rows.
      *
-     * Prompts are passed as query parameters keyed by their IQA prompt name. The
-     * endpoint and the exact prompt-parameter convention are the parts that must be
-     * confirmed against the live iMIS (see the Part 4 capture in the group spec); the
-     * envelope (Items.$values) is the standard GenericEntityData one shared with the
-     * entity endpoints, so {@see items()} and {@see property()} read the rows.
+     * Any prompts are passed as repeated `Parameter` query entries in prompt order,
+     * per the iMIS IQA API. The envelope (Items.$values plus HasNext/NextOffset) is
+     * the standard GenericEntityData one, so this pages to the end and reads the rows
+     * with {@see items()} and {@see property()}. A page with an unreadable body aborts
+     * (throws) rather than returning a partial set: callers rely on completeness, and
+     * a short read of a lookup could otherwise make valid codes look unmapped.
      *
      * @param string $queryname  The IQA document path, e.g. '$/_SCCA/Events/MoodleCourseLookup'.
-     * @param array  $parameters Prompt values in prompt order; each is sent as a
-     *                           repeated `Parameter` query entry, per the iMIS IQA API.
-     * @return array The result row entities (objects), first page only.
+     * @param array  $parameters Prompt values in prompt order (empty for an unprompted query).
+     * @return array The result row entities (objects).
      */
     public function run_iqa(string $queryname, array $parameters = []): array {
-        $path = '/api/iqa?QueryName=' . rawurlencode($queryname);
+        $base = '/api/iqa?QueryName=' . rawurlencode($queryname);
         foreach ($parameters as $value) {
-            $path .= '&Parameter=' . rawurlencode((string)$value);
+            $base .= '&Parameter=' . rawurlencode((string)$value);
         }
-        $result = $this->request('GET', $path, null, null, false);
-        if (!is_object($result->body)) {
-            return [];
-        }
-        return self::items($result->body);
+
+        $rows = [];
+        $offset = 0;
+        do {
+            $path = $base . '&Limit=500&Offset=' . $offset;
+            $result = $this->request('GET', $path, null, null, false);
+            if (!is_object($result->body)) {
+                $detail = 'GET ' . $path . ' returned an unreadable body';
+                throw new \moodle_exception('restrequestfailed', 'local_imisbridge', '', $detail);
+            }
+            $page = self::items($result->body);
+            foreach ($page as $row) {
+                $rows[] = $row;
+            }
+            [$hasnext, $offset] = self::next_page($result->body, $offset, count($page));
+        } while ($hasnext);
+
+        return $rows;
     }
 
     /**

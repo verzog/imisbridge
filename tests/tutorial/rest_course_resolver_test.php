@@ -105,7 +105,7 @@ final class rest_course_resolver_test extends \advanced_testcase {
      *
      * @return void
      */
-    public function test_resolves_product_row_from_bare_prompt(): void {
+    public function test_resolves_bare_code_via_product_row(): void {
         $course = $this->getDataGenerator()->create_course();
         $client = $this->stub_client([
             $this->entity(['Code' => 'ATS_BRIDGE/REG', 'Description' => $course->id]),
@@ -113,15 +113,16 @@ final class rest_course_resolver_test extends \advanced_testcase {
 
         $resolver = new rest_course_resolver($client);
         $this->assertSame((int)$course->id, $resolver->resolve_courseid('ATS_BRIDGE'));
-        $this->assertSame([['ATS_BRIDGE']], $client->calls, 'the IQA is prompted with the bare code');
+        $this->assertSame([[]], $client->calls, 'the unprompted IQA is called with no parameters');
     }
 
     /**
-     * A row whose Code is a neighbouring product (e.g. /REGNZ) is not accepted.
+     * Only a neighbouring product (e.g. /REGNZ) in the table does not resolve the
+     * bare code.
      *
      * @return void
      */
-    public function test_rejects_non_exact_code_match(): void {
+    public function test_rejects_neighbouring_product(): void {
         $course = $this->getDataGenerator()->create_course();
         $client = $this->stub_client([
             $this->entity(['Code' => 'ATS_BRIDGE/REGNZ', 'Description' => $course->id]),
@@ -132,7 +133,7 @@ final class rest_course_resolver_test extends \advanced_testcase {
     }
 
     /**
-     * A Description that names a non-existent course resolves to null.
+     * A product whose Description names a non-existent course is not mapped.
      *
      * @return void
      */
@@ -146,18 +147,25 @@ final class rest_course_resolver_test extends \advanced_testcase {
     }
 
     /**
-     * When a row carries no Code column, its Description is accepted (nothing to
-     * disambiguate), as long as the course exists.
+     * The whole table is fetched once; resolving several codes makes no extra calls,
+     * and the correct product row is picked out of a full table.
      *
      * @return void
      */
-    public function test_accepts_row_without_code_column(): void {
-        $course = $this->getDataGenerator()->create_course();
+    public function test_fetches_table_once_and_picks_correct_row(): void {
+        $atsbridge = $this->getDataGenerator()->create_course();
+        $accd = $this->getDataGenerator()->create_course();
         $client = $this->stub_client([
-            $this->entity(['Description' => $course->id]),
+            $this->entity(['Code' => 'ATS_BRIDGE/REG', 'Description' => $atsbridge->id]),
+            $this->entity(['Code' => 'ATS_Bridgetest/REG', 'Description' => '424242']),
+            $this->entity(['Code' => 'ACCD_26/REG', 'Description' => $accd->id]),
+            $this->entity(['Code' => 'ACCD_26/REGNZ', 'Description' => $accd->id]),
         ]);
 
         $resolver = new rest_course_resolver($client);
-        $this->assertSame((int)$course->id, $resolver->resolve_courseid('ATS_BRIDGE'));
+        $this->assertSame((int)$atsbridge->id, $resolver->resolve_courseid('ATS_BRIDGE'));
+        $this->assertSame((int)$accd->id, $resolver->resolve_courseid('ACCD_26'));
+        $this->assertNull($resolver->resolve_courseid('MISSING'));
+        $this->assertCount(1, $client->calls, 'the lookup table is fetched only once');
     }
 }

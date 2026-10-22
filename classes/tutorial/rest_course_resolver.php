@@ -29,19 +29,19 @@ use local_imisbridge\rest_client;
 /**
  * Direct-REST {@see course_resolver}: reads the MOODLE_PRODUCTS lookup IQA.
  *
- * The iMIS MOODLE_PRODUCTS general lookup is keyed by the full product code — e.g.
- * `ATS_BRIDGE/REG` — with the numeric Moodle course id in its Description column
- * (confirmed 22/10/2026: ATS_BRIDGE/REG -> 7). The IQA takes the **bare** event
- * code (`ATS_BRIDGE`) as its required prompt and returns that product row; the query
- * name is a setting so this can follow the Causeis program rework without code
- * changes.
+ * The IQA returns the whole MOODLE_PRODUCTS lookup — Code (the full product code,
+ * e.g. `ATS_BRIDGE/REG`), Description (the numeric Moodle course id) and
+ * SubstituteValue — with no prompt (confirmed 22/10/2026: ATS_BRIDGE/REG -> 7). So
+ * this loads the table once and builds a code => course id map, serving every code
+ * in a run from one REST call. The query name and suffix are settings so this can
+ * follow the Causeis program rework without code changes.
  *
- * Resolution is deliberately conservative: among the returned rows it accepts only
- * one whose Code is the bare code or the registration product code (`{code}/REG` by
- * the configured suffix), so a loose IQA filter cannot steer it onto a neighbouring
- * product such as `.../REGNZ` or `ATS_Bridgetest/REG`, and only when the Description
- * is a positive integer naming a course that exists. Anything else returns null and
- * the sync skips that code rather than guessing.
+ * Resolution is deliberately conservative: a bare event code resolves via its
+ * registration product code (`{code}/REG` by the configured suffix), so a neighbour
+ * such as `.../REGNZ` or `ATS_Bridgetest/REG` is never matched, and a product is kept
+ * only when its Description is a positive integer naming a course that exists. An
+ * unmapped code returns null and the sync skips it; a failed lookup read throws and
+ * the whole sync aborts, so a transient outage never makes codes look unmapped.
  *
  * @package    local_imisbridge
  * @copyright  2024 Vernon Spain
@@ -66,11 +66,11 @@ class rest_course_resolver implements course_resolver {
     /** @var string The result column holding the course id. */
     private string $column;
 
-    /** @var string The registration suffix on the product code to recognise in the result. */
+    /** @var string The registration suffix on the product code to match in the lookup. */
     private string $suffix;
 
-    /** @var array<string,int|null> Per-run cache so repeated codes hit the IQA once. */
-    private array $cache = [];
+    /** @var array<string,int>|null The product-code (lowercased) => course id map, loaded once. */
+    private ?array $map = null;
 
     /**
      * Build the resolver, reading the IQA query name and code suffix from settings.
@@ -89,45 +89,62 @@ class rest_course_resolver implements course_resolver {
     }
 
     /**
-     * Resolve one code to a Moodle course id via the lookup IQA.
+     * Resolve a bare event code to a Moodle course id from the MOODLE_PRODUCTS map.
+     *
+     * Looks up the registration product code (`{code}/REG`) first, then falls back to
+     * the bare code, so neighbouring products (`.../REGNZ`, `ATS_Bridgetest/REG`) are
+     * never matched.
      *
      * @param string $code The event/product code.
-     * @return int|null The course id, or null when unmapped or the course is missing.
+     * @return int|null The course id, or null when unmapped.
      */
     public function resolve_courseid(string $code): ?int {
-        global $DB;
-
         $code = trim($code);
         if ($code === '') {
             return null;
         }
-        if (array_key_exists($code, $this->cache)) {
-            return $this->cache[$code];
-        }
 
-        // The IQA takes the bare event code as its prompt; the matching row's Code is
-        // the full product code (e.g. ATS_BRIDGE/REG). Accept a row only when its Code
-        // is the bare code or the suffixed product code, so a loose filter cannot
-        // return a neighbour such as .../REGNZ or ATS_Bridgetest/REG.
-        $accept = [\core_text::strtolower($code)];
+        $map = $this->load_map();
+
         if ($this->suffix !== '') {
-            $accept[] = \core_text::strtolower($code . $this->suffix);
+            $key = \core_text::strtolower($code . $this->suffix);
+            if (isset($map[$key])) {
+                return $map[$key];
+            }
+        }
+        return $map[\core_text::strtolower($code)] ?? null;
+    }
+
+    /**
+     * Load the whole MOODLE_PRODUCTS lookup once and build a code => course id map.
+     *
+     * The IQA returns the full table (Code, Description = course id), so one call
+     * serves every code in a run. Only rows whose Description is a positive integer
+     * naming an existing course are kept; a failed/short read throws (in run_iqa),
+     * which aborts the sync rather than leaving codes falsely unmapped.
+     *
+     * @return array<string,int> Lowercased product code => course id.
+     */
+    private function load_map(): array {
+        global $DB;
+
+        if ($this->map !== null) {
+            return $this->map;
         }
 
-        $courseid = null;
-        foreach ($this->client->run_iqa($this->queryname, [$code]) as $row) {
-            $rowcode = (string)rest_client::property($row, 'Code');
-            if ($rowcode !== '' && !in_array(\core_text::strtolower($rowcode), $accept, true)) {
+        $map = [];
+        foreach ($this->client->run_iqa($this->queryname, []) as $row) {
+            $rowcode = trim((string)rest_client::property($row, 'Code'));
+            if ($rowcode === '') {
                 continue;
             }
             $value = (int)(string)rest_client::property($row, $this->column);
             if ($value > 0 && $DB->record_exists('course', ['id' => $value])) {
-                $courseid = $value;
-                break;
+                $map[\core_text::strtolower($rowcode)] = $value;
             }
         }
 
-        $this->cache[$code] = $courseid;
-        return $courseid;
+        $this->map = $map;
+        return $map;
     }
 }
