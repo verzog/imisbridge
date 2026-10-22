@@ -416,7 +416,7 @@ final class group_sync_test extends \advanced_testcase {
         $idnumber = group_sync::make_idnumber('ISC_26', 'Tutorial A');
         $groupid = groups_get_group_by_idnumber($course->id, $idnumber)->id;
 
-        // iMIS now lists only the joining member; preview that change.
+        // The panel now lists only the joining member; preview that change.
         $report = $this->engine(
             [new membership_row('20002', 'ISC_26', 'Tutorial A')],
             $map,
