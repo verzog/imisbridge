@@ -104,7 +104,9 @@ a precondition of it.
 
 ## 4. Authentication
 
-- **Base URL:** the iMIS instance, e.g. `https://<dev-imis>` / `https://<prod-imis>`.
+- **Base URL:** the iMIS site **root**, e.g. `https://<dev-imis>` /
+  `https://<prod-imis>` — no `/api` suffix; the client appends `/token` and
+  `/api/...` itself. **[verified]**
 - **Token:** `POST /token`, `application/x-www-form-urlencoded`, body
   `grant_type=password&username=<svc>&password=<secret>`. Returns `access_token`
   and `expires_in` (seconds). **[verified]**
@@ -176,6 +178,12 @@ bridge must do that lookup itself:
   it.
 - De-duplicate on course id: `.../REG` and `.../REGNZ` can point at the same
   course.
+- **Reading it by IQA — proven by the tutorial group sync (1.19.2).** The
+  `MoodleCourseLookup` IQA has a **required `Code` prompt** matching the **full**
+  code: `Parameter=ATS_BRIDGE/REG` returns `Description = 7`, the bare
+  `ATS_BRIDGE` returns nothing. So look codes up one at a time as `{code}/REG`, and
+  require the returned `Code` to match exactly (guarding against a loosely filtered
+  IQA returning a neighbouring `.../REGNZ` row). **[verified]**
 
 On the activity record, `UF_1` still carries the raw numeric course id (matching
 `observer::course_number()`, which returns `$course->id`); `PRODUCT_CODE` carries
@@ -202,12 +210,13 @@ then change only what is needed. **[verified]**
   }
   ```
 
-- In `Properties.$values` set every field the SOAP `MoodleUpdate` sends today
-  (§5.4), not a subset — a first-time `POST` that omits the grade or credit value
-  would silently drop data the SOAP path records. At minimum: `PartyId`,
+- In `Properties.$values` set every data-bearing field the SOAP `MoodleUpdate`
+  sends today (§5.4), not a subset — a first-time `POST` that omits the grade or a
+  date would silently drop data the SOAP path records. At minimum: `PartyId`,
   `ACTIVITY_TYPE` = `MOODLE`, `PRODUCT_CODE`, `UF_1` (course id), `UF_3` (status),
-  `UF_4` (grade), the credit type/value and start/completion/grant dates (§5.4),
-  `TRANSACTION_DATE`, `DESCRIPTION`.
+  `UF_4` (grade), the start/completion/grant dates (§5.4), `TRANSACTION_DATE`,
+  `DESCRIPTION` — plus the credit type/value where their columns are mapped (§5.4;
+  SOAP leaves credit to ATS, so REST may need to supply it).
 - **Remove `SEQN`** so iMIS assigns a new id (otherwise it clashes with the
   template row).
 - **Remove `CREATED_ON` / `UPDATED_ON`** — read-only audit fields; sending values
@@ -220,11 +229,13 @@ On success iMIS returns the created entity with the new id in both
 
 ### 5.4 Field mapping — map **every** `MoodleUpdate` input, on create and update
 The SOAP `MoodleUpdate` sends a fixed set of fields (vendor `moodleupdate_data`:
-`userId`, `productId`, `status`, `score`, credit `type`, credit `value`,
-`startDate`, `completionDate`, `grantDate`). The REST `MOODLE` record must carry
-the equivalent of **all** of them, and must include the same set on both the `POST`
-and the `PUT` — otherwise a transport switch would quietly stop recording grades or
-credit hours.
+`userId`, `productId`, `type`, `value`, `status`, `score`, `startDate`,
+`completionDate`, `grantDate`). `type` is the literal record discriminator
+`Completion` and `value` is empty — they carry **no** credit; ATS/iMIS derives the
+CEU from the product (`VENDOR-ARCHITECTURE.md`). The REST `MOODLE` record must
+carry the equivalent of the data-bearing fields, and must include the same set on
+both the `POST` and the `PUT` — otherwise a transport switch would quietly stop
+recording grades or dates.
 
 | `MoodleUpdate` input | Activity property | Notes |
 |---|---|---|
@@ -232,8 +243,8 @@ credit hours.
 | `productId` | `UF_1` (course id) + `PRODUCT_CODE` | client-side `MOODLE_PRODUCTS` lookup (§5.2) |
 | `status` | `UF_3` | `COMPLETE` / `INPROGRESS` for the course record (`completion_completion::is_complete()`) |
 | `score` | `UF_4` | course final grade as a percentage (decimal) |
-| credit `type` | raw column **to confirm** | the plugin's "default credit type" (e.g. `CEU`) |
-| credit `value` | raw column **to confirm** | the plugin's credit-value course field |
+| `type` / `value` | — | fixed `Completion` / empty on SOAP; no REST equivalent needed (`ACTIVITY_TYPE = MOODLE` plays that role) |
+| *(REST only)* credit type / value | raw columns **to confirm** | not sent over SOAP. With no ATS to derive credit, REST *may* need to write it: the plugin's "default credit type" and credit-value course field, sent only when the `rest_col_credit*` settings name the columns |
 | `startDate` / `completionDate` / `grantDate` | `TRANSACTION_DATE` + raw column(s) **to confirm** | `grantDate` was **required** by the vendor payload; local-time, no TZ (§5.5) |
 
 The raw Activity columns backing credit type/value and the start/completion/grant
@@ -309,6 +320,11 @@ scheduled task pulls** registrations from iMIS and provisions locally.
 - Paging: `PagedResult` gives `TotalCount` / `HasNext` / `NextOffset`; when
   `HasNext`, repeat with `Offset={NextOffset}`. An IQA `SELECT TOP n` caps the
   designer preview only, not the API.
+- **Prompts are positional `Parameter` values.** Supply each prompt as
+  `&Parameter=<value>`, one per prompt in the query's prompt order. A named form
+  such as `&Code=<value>` is rejected ("parameters must be Parameter Equal
+  [Code]"), and omitting a **required** prompt returns HTTP `400` "Missing required
+  parameter: Code". **[verified on `<dev-imis>`, 22 Oct 2026]**
 
 The registration IQA should join registrations to `MOODLE_PRODUCTS` so each row
 carries the contact's iMIS ID (= Moodle `idnumber`) and the resolved Moodle course
@@ -415,7 +431,12 @@ trigger writeback, the audit log, the kill-switches, and SSO (handled by
      against the target iMIS; the read-only `cli/test_rest.php` is the safe first
      check.
 4. **Inbound pull task (§6)** — the strategic win; retire ATS once proven. — not
-   started.
+   started. The **tutorial group sync (1.19.0–1.19.5)** is the first REST pull in
+   production and proves the pattern this task will reuse: token auth, `PagedResult`
+   paging, prompted IQA lookups (§6.1), matching members via `imis_id_source`,
+   writing through Moodle's internal API from a scheduled task, and aborting
+   without changes on an empty or failed read. It runs whatever the `transport`
+   setting is.
 
 Phases 1–3 ship behind the switch with zero risk to the live SOAP path (default
 `transport = soap`). Phase 4 is what lets the ATS subscription be cancelled.

@@ -34,6 +34,18 @@ the active provider and returns `null` from `org_sync_instance()` when the activ
 provider cannot sync, so the scheduled tasks and the manual sync page skip or hide
 those controls automatically.
 
+## Features outside the provider
+
+Two features do not go through the active provider, so they behave the same
+whichever is selected:
+
+- **Tutorial group sync** (`\local_imisbridge\task\sync_tutorial_groups`) reads the
+  iMIS `MoodleTutorialGroup` panel with `rest_client` directly. It needs the REST
+  connection settings even when the provider is `soap`, and filling those in with
+  `soap` selected enables only this feature — pushes still go over SOAP.
+- **`local_imisbridge_cancel_enrolment`** is an inbound web-service function that
+  the ATS bridge calls into Moodle; it makes no outbound call at all.
+
 ## Adding a provider
 
 1. Write a class in `classes/` (or a subnamespace) implementing

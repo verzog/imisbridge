@@ -107,7 +107,9 @@ access. This is why:
 
 (For our own plugin: don't call `require_login()` in the enrol function — check
 `enrol/manual:enrol` in the course context directly, so a least-privilege role
-works. See `DESIGN-NOTES.md` §2.)
+works. See `DESIGN-NOTES.md` §2. At cutover the bridge is repointed to core
+`enrol_manual_enrol_users` instead, which works for a least-privilege account given
+`moodle/course:view` + `viewhiddencourses` — `CHANGEOVER-CHECKLIST.md` §C.)
 
 ## Config reference (iMIS `MOODLE_SETTINGS` lookup table)
 

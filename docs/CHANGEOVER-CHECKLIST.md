@@ -2,11 +2,17 @@
 
 Confirming a successful switch from the vendor `local_imis` plugin to
 `local_imisbridge` on the live Moodle. Use alongside `TEST-CHECKLIST.md`
-(setup/connectivity) and `VENDOR-ARCHITECTURE.md` (what the vendor did).
+(setup/connectivity), `TEST-PLAN.md` (the per-feature test matrix) and
+`VENDOR-ARCHITECTURE.md` (what the vendor did).
 
 The crux of "successful" is: (B) the new plugin writes the **same** iMIS records
 the vendor did, (C) inbound create/enrol still works, and (E) **only one** plugin
 writes at a time. Everything else supports those.
+
+**Tutorial group sync (§T) is a separate go-live.** It is new functionality the
+vendor never had (iMIS tutorial groups → Moodle course groups, over direct REST),
+so it has no parity to prove and does not depend on the vendor swap. It can go
+live before, with, or after the changeover; §T has its own checks.
 
 ---
 
@@ -15,17 +21,19 @@ writes at a time. Everything else supports those.
 | Concern | Vendor `local_imis` | New `local_imisbridge` |
 |---|---|---|
 | Completion → iMIS | `course_completed` → `MoodleUpdate` (canonical MOODLE record) | `course_completed` → `MoodleUpdate` — **same** |
-| Score → iMIS | `user_graded` → `createActivity` (MOODLENOTE) | `quiz_attempt_submitted` → `MoodleUpdate` |
+| Score → iMIS | `user_graded` → `createActivity` (MOODLENOTE) | `quiz_attempt_submitted` → `CreateActivity` (MOODLENOTE, `Note2 = score`) — same record type, **quiz only** |
 | Module completions | `course_module_completion_updated` → MOODLENOTE | **opt-in** via `push_module_completions` (default off, **graded modules only**) |
-| Inbound provisioning | `local_imis_*` web-service functions (in-plugin) | **none in-plugin** → Moodle **core** functions on a hand-built service |
+| Inbound provisioning | `local_imis_*` web-service functions (in-plugin) | **create/enrol: none in-plugin** → Moodle **core** functions on a hand-built service; **cancel:** `local_imisbridge_cancel_enrolment` (suspend, keeps data) |
+| Tutorial groups | none | **new:** nightly REST pull of the `MoodleTutorialGroup` panel (§T) |
 | Identity field | `$user->idnumber` | `imis_id_source` setting (set to **ID number**) |
 | productID | numeric Moodle course id | numeric Moodle course id — **same** |
 
 Verified from the code: the new plugin's observers are `user_loggedin`,
 `course_completed`, `mod_quiz\event\attempt_submitted`, and (opt-in)
-`course_module_completion_updated`; its only web-service function is
-`local_imisbridge_get_completions_since` (a read-only completions pull on a
-restricted service) — it exposes **no** create/get/update/enrol/unenrol functions.
+`course_module_completion_updated`. Its web-service functions are
+`local_imisbridge_get_completions_since` (a read-only completions pull) and
+`local_imisbridge_cancel_enrolment` (suspend-not-unenrol cancellation, §C), both on
+a restricted service — it exposes **no** create/get/update/enrol functions.
 
 ---
 
@@ -33,18 +41,19 @@ restricted service) — it exposes **no** create/get/update/enrol/unenrol functi
 
 Resolve these before cutover — they are behaviour changes, not bugs:
 
-1. **Score coverage narrows.** The vendor pushed on **any** `user_graded`
-   (every gradebook activity); the new plugin pushes on **quiz submission only**.
-   If any course awards credit via a non-quiz graded activity (assignment, SCORM,
-   lesson, …), that score will **not** flow to iMIS. Decide whether quiz-only is
-   acceptable, or add a `user_graded` observer / make the trigger configurable.
-2. **The MOODLENOTE audit trail is opt-in and partial.** The vendor wrote
-   supplementary `MOODLENOTE` records for module completions **and** per-grade
-   notes. The new plugin can write the **module-completion** notes — enable
-   `push_module_completions` (default off, graded modules only) — but does **not**
-   reproduce the per-`user_graded` notes. Decide whether the module-completion
-   trail is needed (if so, turn the toggle on and mind the volume), and whether the
-   missing per-grade notes matter to any iMIS report.
+1. **Score coverage narrows.** The vendor wrote a score note on **any**
+   `user_graded` (every gradebook activity); the new plugin writes one on **quiz
+   submission only**. Both write the same kind of record — an append-only
+   `MOODLENOTE`, never the canonical `MOODLE` completion record. If any course awards
+   credit via a non-quiz graded activity (assignment, SCORM, lesson, …), that score
+   will **not** flow to iMIS. Decide whether quiz-only is acceptable, or add a
+   `user_graded` observer / make the trigger configurable.
+2. **The module-completion MOODLENOTE trail is opt-in.** The vendor also wrote
+   `MOODLENOTE` records for module completions. The new plugin can too — enable
+   `push_module_completions` (default off, graded modules only). Decide whether
+   that trail is needed by any iMIS report (if so, turn the toggle on and mind the
+   volume). Together with decision 1, the only notes the vendor wrote that the new
+   plugin cannot are score notes for non-quiz graded activities.
 3. **Inbound behaviour changes.** Moodle's core `core_user_create_users`
    **throws when the user already exists** (the vendor returned "already exists =
    success"), and the core functions have no idempotency or create/enrol
@@ -59,16 +68,20 @@ Order matters here — disable writes **before** entering any endpoint.
 
 - [ ] `local_imisbridge` installed on the live Moodle; **pause Moodle cron** for the
   configuration window.
-- [ ] **Disable every write toggle FIRST, before saving any endpoint.** The eight
-  automatic writes default to enabled (and an *unset* value is treated as enabled),
-  so saving a WSDL first would make the new plugin live while the vendor is still
-  active. Turn off: completion push, quiz push, module-completion push, the three
-  login syncs, and the three nightly tasks.
+- [ ] **Disable every write toggle FIRST, before saving any endpoint.** Eight
+  automatic writes default to **enabled** (and an *unset* value is treated as
+  enabled), so saving a WSDL first would make the new plugin live while the vendor
+  is still active. Turn off: completion push, quiz push, the three login syncs, and
+  the three nightly-task toggles. (Module-completion push defaults **off** and the
+  tutorial group sync is **opt-in**, off by default — confirm both are still off.)
 - [ ] **Transport = ATS SOAP bridge** (the default) for this changeover — the ATS
   test/prod bridge is SOAP. If `transport = rest`, the WSDL / `service_endpoint`
   settings below are **ignored** and writes go to `rest_base_url` instead (a
   different environment) — not what you want here. The direct iMIS REST transport is
-  a separate path (`DIRECT-REST-ARCHITECTURE.md`).
+  a separate path (`DIRECT-REST-ARCHITECTURE.md`). **Exception:** the tutorial group
+  sync (§T) always uses the REST settings, **whatever the transport** — so filling
+  in the REST settings with `transport = soap` enables only that feature, not REST
+  pushes.
 - [ ] **iMIS ID source = ID number** (SAML matches `UNIQUEID` → `idnumber`, the
   authoritative field; see `DIRECT-REST-ARCHITECTURE.md` §3).
 - [ ] Only now set the **WSDL URL + ATS AuthToken** for the intended iMIS/bridge
@@ -80,9 +93,15 @@ Order matters here — disable writes **before** entering any endpoint.
 
 - [ ] On a test course, complete it and confirm the iMIS activity created matches
   what the vendor produced: **same productID (numeric course id), status, score,
-  start/completion/grant dates, credit**, under the right contact (`idnumber`).
-  Compare against an existing vendor-written record for continuity with the
-  history already in iMIS.
+  start/completion/grant dates**, under the right contact (`idnumber`). (Credit is
+  not sent over SOAP — `MoodleUpdate` carries the fixed `type=Completion` and an
+  empty `value`, and iMIS derives the CEU from the product, exactly as with the
+  vendor; so the credit on the record should match too.) Compare against an existing
+  vendor-written record for continuity with the history already in iMIS.
+- [ ] That first successful completion also closes the open gate in
+  `IMPROVEMENT-PLAN.md` §1.2 — it proves the live WSDL's update operation is
+  `MoodleUpdate`. If the call instead fails as an unknown operation, stop: the live
+  operation name differs and the client must be aligned before cutover.
 
 > **Never change `mdl_course.id` to line up with iMIS.** The course id is a primary
 > key referenced across ~30 tables (enrolments, context, modules, grades,
@@ -93,7 +112,9 @@ Order matters here — disable writes **before** entering any endpoint.
 > or, if you need the plugin to send something other than the raw id, add a
 > product-identifier-source setting rather than touching the id.
 
-- [ ] Submit a graded quiz and confirm the score lands correctly.
+- [ ] Submit a graded quiz and confirm the score lands as a **`MOODLENOTE`** record
+  ("Moodle course N score") — and that the course's `MOODLE` completion record is
+  **unchanged** by it (a re-attempt after completion must never overwrite it).
 - [ ] Confirm each call in the **audit log** (operation, status, any fault). As of
   1.11.0 a populated `Exception` in the SOAP `ResultsBase` is surfaced as an error
   (logged and retried), and setting **SOAP success ResultCodes** makes an
@@ -389,8 +410,106 @@ way, each with the symptom that identifies it:
 Inbound (user create + enrol/unenrol) is driven by **iDMS push → `wsmoodle` →
 Moodle core web-service functions** — *not* by the plugin's `SendNewOrdersToMoodle`
 SOAP pull. So on this install the plugin's **order/cancellation/group sync is not
-the enrolment mechanism** and its login/nightly sync toggles stay **off**;
-`local_imisbridge` owns only the **outbound** completion/score push.
+the enrolment mechanism** and its login/nightly sync toggles stay **off**.
+
+`local_imisbridge` owns:
+
+- the **outbound** push — completions via `MoodleUpdate`, quiz scores (and opt-in
+  module notes) via `CreateActivity`;
+- the inbound **cancellation** function `local_imisbridge_cancel_enrolment` (called
+  by ATS, suspend-not-unenrol — §C);
+- **tutorial group membership** — the §T scheduled task, which makes Moodle course
+  groups match the iMIS `MoodleTutorialGroup` panel over direct REST.
+
+ATS's own `UpdateMoodleGroups` remains a no-op while `GROUP_IQA_NAME` is empty —
+keep it that way, so tutorial groups have **one** writer (§T).
+
+## T. Tutorial group sync go-live (direct REST — independent of the vendor swap)
+
+A nightly scheduled task (`\local_imisbridge\task\sync_tutorial_groups`, 02:45 by
+default) reads the iMIS `MoodleTutorialGroup` panel and makes each course's groups
+match it: it creates the groups (under the grouping **Tutorials (iMIS)**), adds the
+people iMIS lists, and removes the people iMIS no longer lists. It runs as cron
+using Moodle's internal group API, so it needs **no** Moodle web-service user or
+group capabilities — only an **iMIS** account that can read the panel and the
+course-lookup IQA. It only ever touches groups whose idnumber starts `imis:` and
+memberships it created itself (component `local_imisbridge`), so groups and members
+that teachers add by hand are left alone.
+
+Requires **1.19.4 or later** (1.19.2 fixed the course lookup; 1.19.4 fixed the audit
+log on long REST URLs).
+
+### T1. iMIS side
+
+- [ ] A **dedicated iMIS REST service account** (not a person's login, not
+  SysAdmin) with read access to the `MoodleTutorialGroup` panel and the course-lookup
+  IQA. Confirm the licence position (`DIRECT-REST-ARCHITECTURE.md` §4). **Rotate any
+  credential used during setup or testing** before go-live.
+- [ ] The course-lookup IQA (default `$/_SCCA/Events/MoodleCourseLookup`) has
+  **"Available via REST API"** ticked and its **required `Code` prompt** in place.
+  The plugin sends the prompt positionally as `&Parameter={code}/REG`.
+- [ ] Every event that has tutorial groups has a `MOODLE_PRODUCTS` row whose
+  `Code` is the full product code (`{event code}/REG`) and whose `Description` is
+  the **numeric Moodle course id**. (A *copied* event usually gets a new code — add
+  its row.)
+- [ ] The panel rows carry the member's iMIS ID, the event code and the group name.
+
+### T2. Moodle side
+
+- [ ] **Direct iMIS REST** settings filled in — even with `transport = soap`:
+  - **REST base URL** = the iMIS **site root** (e.g. `https://<imis-host>`), with
+    **no** `/api` suffix;
+  - **REST username / password** = the T1 service account.
+- [ ] Outbound HTTPS from the Moodle server to the iMIS host is open.
+- [ ] **iMIS contact ID source = ID number** (the sync matches panel members to
+  Moodle users through this setting; §A).
+- [ ] Members are **enrolled** in the course before their group row is processed —
+  the sync skips anyone not enrolled (it never enrols). Enrolment comes from the
+  iDMS push (§C), so a brand-new registrant can take one nightly cycle to appear in
+  their group.
+
+### T3. First run — dry run, then live
+
+- [ ] Tick **Enable tutorial group sync**; leave **Tutorial group sync: dry run**
+  **on** (the default).
+- [ ] Run the task now: *Site admin → Server → Scheduled tasks →* "Membership
+  Bridge: sync tutorial groups" *→ Run now* (or from the CLI:
+  `php admin/cli/scheduled_task.php --execute='\local_imisbridge\task\sync_tutorial_groups'`).
+- [ ] Read the task log. The summary line reports courses, groups created, members
+  added/removed, rows skipped and removal guards; each skipped row says why:
+  - `no Moodle course mapped` → missing/wrong `MOODLE_PRODUCTS` row (T1);
+  - `no unique Moodle account for iMIS id …` → no Moodle user (or more than one)
+    with that iMIS ID in the configured source field;
+  - `… not enrolled; skipped` → the member is not enrolled in that course yet (T2).
+- [ ] When the dry-run output is what you expect, turn **dry run off** and run again.
+- [ ] In each course, *Participants → Groups*: the groups exist under **Tutorials
+  (iMIS)** with exactly the members iMIS lists.
+- [ ] Remove one person from a tutorial group in iMIS, run again → they leave the
+  Moodle group (and stay enrolled in the course).
+
+### T4. Safety behaviour (confirm, don't just trust)
+
+- [ ] **Empty read = no changes.** If the panel read returns no rows at all, the run
+  aborts without touching anything (`ABORTED (no changes)`), so an outage or a
+  permissions slip can never empty every group.
+- [ ] **Removal guard.** When a run would remove **10 or more** members from one
+  group *and* that is more than the guard percentage (default **50%**) of the group,
+  those removals are skipped and logged (additions still happen). Small moves are
+  never blocked.
+- [ ] A failed REST read throws, so the task is marked failed and Moodle retries it
+  with backoff; no partial changes are made from a partial read.
+
+### T5. Schedule, logging, rollback
+
+- [ ] Schedule is **nightly at 02:45** by default (1.19.5). Staff can change it in
+  *Site admin → Server → Scheduled tasks*; check it there after the upgrade — a task
+  Moodle has flagged as customised keeps its old (hourly) timing until reset.
+- [ ] The audit log records the REST calls (`POST /token`, `GET
+  /api/MoodleTutorialGroup`, `GET /api/iqa?…`) with status **success** and no
+  "value too long" warnings in the task log.
+- [ ] **Rollback:** untick *Enable tutorial group sync*. That stops all further
+  changes; existing groups and memberships stay as they are. (Clearing the WSDL does
+  **not** stop this feature — it uses the REST settings.)
 
 ## E. Cutover — avoid double-writes (critical)
 
@@ -416,6 +535,10 @@ the enrolment mechanism** and its login/nightly sync toggles stay **off**;
   monitor) and/or ATS-side records, not the plugin log.
 - [ ] Spot-check one real registration (create + enrol) and one real completion
   (writeback) end to end in iMIS.
+- [ ] Spot-check one real **cancellation**: the learner's enrolment is
+  **suspended** (grades and completion kept), not deleted (§C).
+- [ ] If the tutorial group sync is live (§T): the first nightly run's task log is
+  clean and a known tutorial group matches iMIS.
 - [ ] SAML login still works (`auth_saml2`, unchanged by the plugin swap).
 - [ ] **Only after the rollback window has closed and the changeover is confirmed:**
   revoke the **old** `local_imis` token, disable its service, and uninstall the
@@ -438,6 +561,10 @@ invariant):
 > reconfigured** first. This is exactly why §E keeps it installed-but-disabled until
 > sign-off.
 
+Rolling back the vendor swap does **not** require turning off the tutorial group
+sync (§T) — the vendor never managed those groups. Roll that back separately, by
+unticking *Enable tutorial group sync* (§T5).
+
 ---
 
 ## Sign-off
@@ -447,3 +574,7 @@ records and the existing history), **C** passes (inbound create/enrol works,
 including hidden courses and existing users), **E** holds (no double-writes), the
 two coverage gaps (score trigger, MOODLENOTE trail) are a conscious accepted
 decision, and **F** shows a clean audit log in both directions with no duplicates.
+
+The tutorial group sync is signed off separately when **T3** (a live run matches
+iMIS, including a removal) and **T4** (empty-read abort and removal guard
+understood) pass and **T5** shows a clean nightly run.

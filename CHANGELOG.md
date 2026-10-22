@@ -4,6 +4,43 @@ All notable changes to the iMIS Bridge plugin (`local_imisbridge`) are documente
 in this file. The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.19.6] - 2026-10-22
+
+### Added
+- **Tutorial group sync go-live section** (`docs/CHANGEOVER-CHECKLIST.md` §T):
+  iMIS-side prerequisites, Moodle settings, a dry-run-first procedure, the skip
+  reasons to look for in the task log, the empty-read abort and removal guard, the
+  schedule, and rollback. The tutorial sync is signed off separately from the vendor
+  swap.
+- Test-plan sections for the tutorial group sync (§L) and the
+  `local_imisbridge_cancel_enrolment` function (§M), plus a module-note row (D6).
+
+### Changed
+- **Documentation consistency review.** Every doc checked against the code; fixes:
+  - Quiz scores are documented as what they are since 1.16.0 — an append-only
+    `MOODLENOTE` via `CreateActivity`, never `MoodleUpdate` (several docs and test
+    rows still said `MoodleUpdate`).
+  - Credit is documented as **not sent over SOAP** (`MoodleUpdate` carries the fixed
+    `type=Completion` and an empty `value`; iMIS derives the CEU from the product).
+    The credit settings apply to the direct REST provider only.
+  - A blank Member ID on the manual sync page is documented as refused (1.19.1), not
+    as an all-users sync.
+  - The REST settings are documented as also driving the tutorial group sync,
+    whichever connection provider is selected; clearing the WSDL does not stop it.
+  - `TESTING.md` no longer claims the WSDL defaults to production (it is blank);
+    toggle lists and defaults now match the settings (module-completion push and
+    tutorial sync default off).
+  - README brought up to date (both providers, tutorial sync, cancellation function,
+    task schedule, docs index) and the long-removed *Admin iMIS ID* setting dropped.
+  - In-plugin create/enrol functions marked superseded by the core-functions cutover
+    (`IMPROVEMENT-PLAN.md`, `DESIGN-NOTES.md`, `VENDOR-ARCHITECTURE.md`, `TEST-PLAN.md`).
+  - `DIRECT-REST-ARCHITECTURE.md` records the verified IQA prompt convention
+    (`&Parameter=`), the base-URL form and the `MOODLE_PRODUCTS` lookup.
+- **Settings help text corrected:** the tutorial sync switch no longer says
+  "hourly"; the REST heading no longer says it applies only to the REST provider;
+  the removal-guard text states the 10-member floor; the credit settings say they
+  are REST-only.
+
 ## [1.19.5] - 2026-10-22
 
 ### Changed

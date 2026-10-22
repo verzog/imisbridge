@@ -15,7 +15,7 @@
 // along with Moodle.  If not, see <http://www.gnu.org/licenses/>.
 
 /**
- * Scheduled task: sync iMIS tutorial groups into Moodle course groups (hourly).
+ * Scheduled task: sync iMIS tutorial groups into Moodle course groups (nightly by default).
  *
  * @package    local_imisbridge
  * @copyright  2024 Vernon Spain
