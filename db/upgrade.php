@@ -75,17 +75,30 @@ function xmldb_local_imisbridge_upgrade($oldversion) {
         upgrade_plugin_savepoint(true, 2026101901, 'local', 'imisbridge');
     }
 
-    if ($oldversion < 2026102203) {
+    if ($oldversion < 2026102204) {
         // Widen the audit log operation column from char(100) to char(255): a REST
         // operation name can be a full IQA GET URL (with encoded prompt values) that
         // overflows 100 characters, which made the audit-log insert fail.
+        //
+        // The operation column carries a non-unique index, and the database won't
+        // alter an indexed column (ddl_dependency_exception), so drop the index,
+        // widen the column, then re-add the index. Each step is guarded so the step
+        // is safe to re-run after the 1.19.3 attempt failed at change_field_precision.
         $table = new xmldb_table('local_imisbridge_log');
         $field = new xmldb_field('operation', XMLDB_TYPE_CHAR, '255', null, XMLDB_NOTNULL, null, null, 'userid');
+        $index = new xmldb_index('operation', XMLDB_INDEX_NOTUNIQUE, ['operation']);
+
+        if ($dbman->index_exists($table, $index)) {
+            $dbman->drop_index($table, $index);
+        }
         if ($dbman->field_exists($table, $field)) {
             $dbman->change_field_precision($table, $field);
         }
+        if (!$dbman->index_exists($table, $index)) {
+            $dbman->add_index($table, $index);
+        }
 
-        upgrade_plugin_savepoint(true, 2026102203, 'local', 'imisbridge');
+        upgrade_plugin_savepoint(true, 2026102204, 'local', 'imisbridge');
     }
 
     return true;
