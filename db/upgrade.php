@@ -75,5 +75,18 @@ function xmldb_local_imisbridge_upgrade($oldversion) {
         upgrade_plugin_savepoint(true, 2026101901, 'local', 'imisbridge');
     }
 
+    if ($oldversion < 2026102203) {
+        // Widen the audit log operation column from char(100) to char(255): a REST
+        // operation name can be a full IQA GET URL (with encoded prompt values) that
+        // overflows 100 characters, which made the audit-log insert fail.
+        $table = new xmldb_table('local_imisbridge_log');
+        $field = new xmldb_field('operation', XMLDB_TYPE_CHAR, '255', null, XMLDB_NOTNULL, null, null, 'userid');
+        if ($dbman->field_exists($table, $field)) {
+            $dbman->change_field_precision($table, $field);
+        }
+
+        upgrade_plugin_savepoint(true, 2026102203, 'local', 'imisbridge');
+    }
+
     return true;
 }

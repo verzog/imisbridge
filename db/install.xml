@@ -8,7 +8,7 @@
       <FIELDS>
         <FIELD NAME="id" TYPE="int" LENGTH="10" NOTNULL="true" SEQUENCE="true"/>
         <FIELD NAME="userid" TYPE="int" LENGTH="10" NOTNULL="true" DEFAULT="0" SEQUENCE="false" COMMENT="Moodle user id the call relates to, or 0 when unknown or all-user."/>
-        <FIELD NAME="operation" TYPE="char" LENGTH="100" NOTNULL="true" SEQUENCE="false" COMMENT="The SOAP operation name."/>
+        <FIELD NAME="operation" TYPE="char" LENGTH="255" NOTNULL="true" SEQUENCE="false" COMMENT="The operation name (SOAP op or REST METHOD /path)."/>
         <FIELD NAME="imisid" TYPE="char" LENGTH="255" NOTNULL="false" SEQUENCE="false" COMMENT="The iMIS contact ID sent, when applicable."/>
         <FIELD NAME="productcode" TYPE="char" LENGTH="255" NOTNULL="false" SEQUENCE="false" COMMENT="The iMIS product code sent, when applicable."/>
         <FIELD NAME="status" TYPE="char" LENGTH="20" NOTNULL="true" SEQUENCE="false" COMMENT="success or error."/>

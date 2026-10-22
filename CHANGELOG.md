@@ -4,6 +4,18 @@ All notable changes to the iMIS Bridge plugin (`local_imisbridge`) are documente
 in this file. The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.19.3] - 2026-10-22
+
+### Fixed
+- **Audit log no longer fails to write on long REST operation names.** A REST
+  operation is logged with its `METHOD /path` — for an IQA read, the full
+  `GET /api/iqa?QueryName=…&Parameter=…&Limit=…&Offset=…` URL — which overflowed the
+  `operation` column's `char(100)`, so the insert threw
+  (`value too long for type character varying(100)`). The write is best-effort and
+  was caught, so syncs still completed, but no row was recorded. The column is now
+  `char(255)` (with an upgrade step) and the logger truncates the operation
+  defensively, so a long operation name can never break logging.
+
 ## [1.19.2] - 2026-10-22
 
 ### Fixed
