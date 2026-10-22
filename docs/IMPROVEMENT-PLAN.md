@@ -13,12 +13,22 @@ in the plugin; the rest are proposed, in priority order.
 ## What we already do right (baseline)
 
 - ✅ **Restricted service.** The "iMIS bridge" external service is
-  `restrictedusers => 1`, not on the mobile service, and the one function on it
-  enforces `validate_parameters → validate_context → require_capability` with the
-  capability checked in the function body (DESIGN-NOTES §1, §6).
+  `restrictedusers => 1`, not on the mobile service, and both functions on it
+  (`get_completions_since`, `cancel_enrolment`) enforce `validate_parameters →
+  validate_context → require_capability` with the capability checked in the
+  function body (DESIGN-NOTES §1, §6).
 - ✅ **Reliable outbound push.** Completion/quiz results queue an adhoc task and
-  retry with backoff — no fire-and-forget data loss like the vendor.
-- ✅ **Outbound audit log.** Every SOAP call is logged with credential redaction,
+  retry with backoff — no fire-and-forget data loss like the vendor. Only course
+  completion writes the canonical `MOODLE` record (`MoodleUpdate`); quiz scores and
+  module notes are append-only `MOODLENOTE`s (`CreateActivity`), so a re-attempt can
+  never overwrite a completion (1.16.0).
+- ✅ **Cancellation keeps data.** `local_imisbridge_cancel_enrolment` suspends
+  instead of unenrolling, keeping grades and completion (CHANGEOVER-CHECKLIST §C).
+- ✅ **Tutorial group sync (1.19.x).** A plugin-controlled scheduled task pulls the
+  iMIS `MoodleTutorialGroup` panel over direct REST — the first REST *pull* in the
+  plugin, built per DESIGN-NOTES §5 (run history, fail delay and task log for free;
+  empty-read abort and removal guard so a bad read cannot wipe groups).
+- ✅ **Outbound audit log.** Every outbound call (SOAP and REST) is logged with credential redaction,
   UTC Unix timestamps shown via `userdate()`, bounded retention (DESIGN-NOTES §4).
 - ✅ **Capability carries `RISK_PERSONAL`.**
 
@@ -51,11 +61,23 @@ records the vendor already wrote to iMIS.
   be confirmed against the **live WSDL** for this installation. Removing the
   unrelated dead wrappers in 1.8.0 does **not** close this gate.
 - **Do:** verify `__getFunctions()` on the live endpoint (tests C1/C2); align if
-  it differs. (Investigation; code change only if they differ.)
+  it differs. (Investigation; code change only if they differ.) The first live
+  completion in the changeover's outbound parity test (`CHANGEOVER-CHECKLIST.md` §B)
+  closes this gate.
 
 ---
 
 ## Phase 2 — Inbound provisioning (the functional gap that broke for the vendor)
+
+> **Status: superseded for cutover.** The changeover instead repoints the ATS
+> bridge at Moodle's **core** functions (`core_user_*`, `enrol_manual_enrol_users`)
+> on a hand-built restricted service, plus the plugin's own
+> `local_imisbridge_cancel_enrolment` for cancellations — see
+> `CHANGEOVER-CHECKLIST.md` §C. The core enrol function *does* run `require_login()`,
+> so the service account needs `moodle/course:view` + `viewhiddencourses` rather than
+> `manager`. The in-plugin functions below remain the fallback **only if** the
+> existing-user test (CHANGEOVER parity decision 3) shows ATS strands an enrol when
+> `core_user_create_users` throws on an already-existing user.
 
 A REST web service, **iMIS → Moodle push**, replacing the vendor's
 `create/update/enrol/unenrol` functions — built to avoid every §2/§3 trap.
@@ -138,8 +160,8 @@ Likely two PRs: (2a) users, (2b) enrolment.
 | 1 | ProductID = numeric course id — **DONE (1.8.0)** | S | **Yes** |
 | 1 | Removed non-bridge wrappers (getToken/checkAuthorization/asiEncrypt/asiDecrypt) — **DONE (1.8.0)** | S | No |
 | 1 | Confirm live update op name is `MoodleUpdate` (§1.2) — **OPEN** (spec says MoodleUpdate; verify on the live WSDL via C1/C2) | S (investigation) | **Yes** |
-| 2a | create/update/get users (REST) | M | Yes (for provisioning) |
-| 2b | enrol/unenrol users (REST) | M | Yes (for provisioning) |
+| 2a | create/update/get users (REST) — **superseded** by core functions (CHANGEOVER §C); fallback only | M | No, unless parity decision 3 fails |
+| 2b | enrol/unenrol users (REST) — **superseded** by core enrol + `cancel_enrolment` (built) | M | No, unless parity decision 3 fails |
 | 3.1 | Both-direction logging | S–M | No, but do before 2 ships to prod |
 | 3.2 | Admin status page | M | No |
 | 4 | Docs & operability | S | No |

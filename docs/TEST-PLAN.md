@@ -137,7 +137,8 @@ bridge are configured on their side. On a freshly provisioned or packaged Moodle
 > running.
 >
 > **What the baseline actually needs:** the Phase-1 baseline is **outbound
-> completions (`MoodleUpdate`, D2/D3) + SSO only**. It uses *no* Moodle
+> pushes (completions via `MoodleUpdate`, D2; quiz scores via `CreateActivity`, D3)
+> + SSO only**. It uses *no* Moodle
 > web-service protocol, so REST being on (for the vendor) neither helps nor harms
 > it — the baseline needs only the PHP soap extension (P1), cron (P2) and
 > outbound HTTPS (P4). On a clean Moodle with no vendor plugin you *could* leave
@@ -149,11 +150,14 @@ bridge are configured on their side. On a freshly provisioned or packaged Moodle
 > from us, but their documented effect is to make the **ATS bridge call *back*
 > into Moodle** (create/enrol/group changes) over the REST callback. REST being
 > enabled is **necessary but not sufficient**: that callback targets *inbound
-> provisioning functions*, and our plugin does not ship them yet — today the
-> bridge's callback lands on the **vendor's** `local_imis_*` functions. So every
-> order/enrolment/cancellation/group **sync** row below (C3–C5, D1, E3/E4, F2) is
-> an **updated-version-phase** test that needs **our own inbound functions** —
-> **not** part of the Phase-1 baseline.
+> provisioning functions*. Until cutover the bridge's callback lands on the
+> **vendor's** `local_imis_*` functions; after cutover it lands on the **core
+> functions service** built in `CHANGEOVER-CHECKLIST.md` §C (core create/enrol +
+> our `local_imisbridge_cancel_enrolment`). So every order/enrolment/cancellation/
+> group **sync** row below (C3–C5, D1, E3, F2) is an **updated-version-phase**
+> test that needs that inbound service in place — **not** part of the Phase-1
+> baseline. (On this install inbound is driven by the iDMS push, so these pull
+> syncs stay off anyway — `CHANGEOVER-CHECKLIST.md`, *Division of labour*.)
 
 | ID | Check | Expected | Status | Notes |
 |----|-------|----------|--------|-------|
@@ -219,7 +223,8 @@ installed; on an earlier build these describe code that isn't present yet.
 |----|------|----------|--------|-------|
 | D1 | Login, then run cron | Per-user sync tasks run (`SendNewOrders`/`SendCancelled`/`UpdateGroups` per enabled toggles) | ☐ | Observers queue adhoc tasks. **Updated-version phase — these syncs drive the bridge's REST callback into Moodle; needs REST + inbound functions, not baseline.** The baseline login path is SSO only |
 | D2 | Course completion (toggle on) + cron | `MoodleUpdate` fires with course product + AuthToken; audit row | ☐ | |
-| D3 | Quiz submit (graded, non-preview) + cron | `MoodleUpdate` fires with score/status; audit row | ☐ | Preview/ungraded skipped |
+| D3 | Quiz submit (graded, non-preview) + cron | `CreateActivity` writes a `MOODLENOTE` ("Moodle course N score") with score/status; audit row; the course's `MOODLE` completion record is **not** changed | ☐ | Preview/ungraded skipped. Never `MoodleUpdate` (1.16.0) |
+| D6 | Module completion with `push_module_completions` on (default off) + cron | `CreateActivity` writes a `MOODLENOTE` (`Note2 = modulecompletion`) for a graded module; ungraded modules skipped | ☐ | Also testable with the *Push activity note (test)* control, which likewise needs the toggle on |
 | D4 | User with no iMIS ID | No task queued; no bogus call | ☐ | |
 | D5 | Transient SOAP failure on a push | Adhoc task retries (no data loss) | ☐ | Our advantage vs vendor fire-and-forget |
 
@@ -230,7 +235,7 @@ installed; on an earlier build these describe code that isn't present yet.
 | E1 | Access requires `moodle/site:config` | Denied without it | ☐ | |
 | E2 | Submit shows confirmation before any write | Confirm step appears | ☐ | |
 | E3 | Per-user sync | Runs; audit rows | ☐ | **Updated-version phase — the order/enrolment/group sync drives the bridge's REST callback; needs REST + inbound functions, not baseline** |
-| E4 | All-users (blank contact ID) | All-users warning on confirm | ☐ | **Updated-version phase — same REST callback dependency as E3** |
+| E4 | Blank Member ID | Refused with "Member ID required"; **no** call made | ☐ | 1.19.1: a manual sync never runs for all users. *Test connection* still works without a Member ID |
 | E5 | Sesskey enforced | Stale/absent sesskey rejected | ☐ | |
 | E6 | Single heading (no duplicate title) | One heading renders | ☐ | Fixed in #12 |
 
@@ -238,7 +243,7 @@ installed; on an earlier build these describe code that isn't present yet.
 
 | ID | Test | Expected | Status | Notes |
 |----|------|----------|--------|-------|
-| F1 | Tasks listed under Server → Scheduled tasks | enrolment/cancellation/group + cleanup present | ☐ | |
+| F1 | Tasks listed under Server → Scheduled tasks | enrolment (02:00) / cancellation (02:15) / group (02:30) / tutorial group (02:45) / cleanup (03:45) present | ☐ | Tutorial group sync is tested in §L |
 | F2 | Nightly enrolment/cancellation/group sync run | Complete cleanly (all-user writes!) | ☐ | Keep disabled on prod-backed bridge. **Updated-version phase — these syncs drive the bridge's REST callback into Moodle; needs REST + inbound functions, not baseline** |
 
 ## G. Audit log & privacy
@@ -286,25 +291,61 @@ installed; on an earlier build these describe code that isn't present yet.
 
 | ID | Test | Expected | Status | Notes |
 |----|------|----------|--------|-------|
-| K1 | Clear WSDL stops all SOAP | No calls made | ☐ | |
+| K1 | Clear WSDL stops all SOAP | No SOAP calls made | ☐ | Does **not** stop the tutorial group sync (REST) — see L9 |
 | K2 | Uninstall drops the log table | Clean | ☐ | |
+
+## L. Tutorial group sync (REST read of iMIS → Moodle groups)
+
+Reads iMIS only, so it is safe against a production iMIS **for iMIS**; it does
+change groups on the Moodle it runs on. Go-live steps and prerequisites are in
+`CHANGEOVER-CHECKLIST.md` §T.
+
+| ID | Test | Expected | Status | Notes |
+|----|------|----------|--------|-------|
+| L1 | Sync disabled (default) | Task logs "disabled … skipping"; no REST call | ☐ | |
+| L2 | Enabled, REST base URL blank | Task logs "REST connection not configured; skipping" | ☐ | Needed even with `transport = soap` |
+| L3 | Enabled, dry run on (default) | Log names each group it would **create** (with its member count), plus skips and guard trips; the summary line totals the members it would add/remove; **nothing** changes in Moodle | ☐ | For groups that already exist, only the totals are reported — not which members would change |
+| L4 | Dry run off | Groups created under grouping *Tutorials (iMIS)*; members match the panel | ☐ | |
+| L5 | Remove a member in iMIS, re-run | Removed from the Moodle group; still enrolled in the course | ☐ | |
+| L6 | Panel row for an unmapped code / unknown iMIS ID / unenrolled user | Row skipped with the matching reason in the log; others proceed | ☐ | Course lookup sends `&Parameter={code}/REG` (1.19.2) |
+| L7 | Panel read returns no rows | Run aborts, **no** changes | ☐ | Protects against an outage emptying every group |
+| L8 | A run would remove ≥10 members and more than the guard % (default 50) of one group | That group's removals skipped and logged; additions still made | ☐ | Small removals are never blocked |
+| L9 | Untick *Enable tutorial group sync* | Next run changes nothing; existing groups stay | ☐ | The rollback for this feature |
+| L10 | Hand-made group / hand-added member in a course | Left untouched by the sync | ☐ | It owns only `imis:`-idnumber groups and its own memberships |
+| L11 | Audit log after a run | `GET /api/MoodleTutorialGroup` and `GET /api/iqa?…` rows, success; no "value too long" | ☐ | Needs ≥1.19.4. A successful token request is **not** logged; a `token` row appears only when authentication fails |
+
+## M. Cancellation function (`local_imisbridge_cancel_enrolment`)
+
+Called by the ATS bridge in place of `enrol_manual_unenrol_users`
+(`CHANGEOVER-CHECKLIST.md` §C/§D). Staging Moodle only.
+
+| ID | Test | Expected | Status | Notes |
+|----|------|----------|--------|-------|
+| M1 | Call for an enrolled user + course | Every enrolment the user has in the course is **suspended**; grades and completion kept; the enrolment's default role unassigned | ☐ | |
+| M2 | Call with an explicit `roleid` | Only that role is unassigned; other roles (e.g. a manual teacher role) stay | ☐ | |
+| M3 | Token user lacks `local/imisbridge:cancelenrolment` | Rejected (`nopermissions`) | ☐ | |
+| M4 | Function not in the token's service | `accessexception` before the function runs | ☐ | See the §C troubleshooting entry |
+| M5 | Hidden course | Works when the service account has `moodle/course:view` + `viewhiddencourses` | ☐ | `validate_context()` still runs `require_login()` |
 
 ---
 
 ## Pending decisions (resolve before the relevant tests)
 
 - **ProductID source (C6):** the required default is the **numeric Moodle course
-  id** — the vendor sent it and iMIS's existing history is keyed on it, so the
-  current idnumber-based value would land records under a different product
-  (`IMPROVEMENT-PLAN.md` §1.1). C6 **confirms** this against an existing
-  vendor-created record; it is not a numeric-vs-idnumber decision to re-open.
-- **`MoodleUpdate` success `ResultCode` (C2):** get the success value from ATS so
-  we can wire `ResultCode`/`Exception`-based failure detection and logging.
+  id** — the vendor sent it and iMIS's existing history is keyed on it
+  (`IMPROVEMENT-PLAN.md` §1.1, done in 1.8.0). C6 **confirms** this against an
+  existing vendor-created record; it is not a decision to re-open.
+- **`MoodleUpdate` success `ResultCode` (C2):** get the success value from ATS and
+  enter it in *SOAP success ResultCodes*, so an unexpected `ResultCode` is logged as
+  a failure (a populated `Exception` already is, since 1.11.0).
 
 ## Not yet built (tests to be added when these land — see IMPROVEMENT-PLAN.md)
 
-- Inbound create/update/enrol/unenrol web service (Phase 2).
+- In-plugin create/update/enrol functions (Phase 2) — **superseded** by the core
+  functions service (`CHANGEOVER-CHECKLIST.md` §C); build only if parity decision 3
+  shows ATS strands existing users.
 - Both-direction logging + admin status page + "last heard from" (Phase 3).
+- Direct-REST registration pull (`DIRECT-REST-ARCHITECTURE.md` §6).
 
 ## Plan revision log
 
@@ -318,3 +359,4 @@ installed; on an earlier build these describe code that isn't present yet.
 | 2026-10-19 | Codex #21: correct the SOAP framing — Moodle external functions aren't transport-specific, so describe the Moodle SOAP protocol as an unused/unsupported transport, not a nonexistent surface. If it's enabled for another integration, `get_completions_since` (a bulk personal-data export) is reachable over SOAP too; added security caveat in §P and test J4. |
 | 2026-10-19 | Add the three-layer topology note to §P (Moodle / ATS middleware / iMIS as distinct sites): the ATS test middleware sandbox is ATS's own, not our dev iMIS, so contract tests run against the sandbox but data-matching (C6) can only be validated against our own iMIS. Added prerequisite P0 and annotated C6. |
 | 2026-10-19 | Codex #24: harden the §P topology for safety — keep C6 read-only on production (no throwaway writes); add three write gates (verify the effective SOAP address, use a sandbox-scoped AuthToken + fixtures, and confirm the bridge's Moodle callback targets staging before C3–C5); add a raw-SOAP (Bruno) read-only pre-flight; and genericise the real hostnames to role placeholders (real values live in the internal runbook; this repo is public). |
+| 2026-10-22 | Documentation consistency review (1.19.6): D3 corrected to `CreateActivity`/MOODLENOTE (the quiz-score path since 1.16.0); added D6 (module notes); E4 now expects a blank Member ID to be refused (1.19.1); F1 lists all five tasks; new §L (tutorial group sync) and §M (`local_imisbridge_cancel_enrolment`); §P inbound framing updated to the core-functions service; "Not yet built" marks in-plugin provisioning as superseded. |

@@ -5,7 +5,8 @@ before connectivity is green, or connectivity before the plugin installs.
 
 This plugin **writes to a live iMIS instance** over SOAP. The write operations
 (`SendNewOrdersToMoodle`, `SendCancelledOrdersToMoodle`, `UpdateMoodleGroups`,
-`MoodleUpdate`) **create and modify records in the iMIS behind the WSDL**, and
+`MoodleUpdate`, `CreateActivity`) **create and modify records in the iMIS behind
+the WSDL**, and
 the ATS bridge also pushes enrolments/groups **into whatever Moodle it is
 configured to call back** — which may be your *production* Moodle. A disposable
 iMIS contact does **not** isolate either side, and repointing only the bridge's
@@ -36,18 +37,19 @@ Take a **DB + `moodledata` backup** before you begin.
 ## 1. Install / upgrade
 
 - [ ] Fresh install: place the plugin in `local/imisbridge`, run the upgrade — **no errors**; it appears under *Site admin → Plugins → Local plugins*.
-- [ ] Upgrade path: install an older version first, then upgrade — confirm `db/upgrade.php` creates **`local_imisbridge_log`** and the savepoint lands (version → `2026101400` / release `1.5.0`).
+- [ ] Upgrade path: install an older version first, then upgrade — no errors, and the plugin version afterwards matches `version.php`. The upgrade steps: `2026101400` creates **`local_imisbridge_log`**; `2026101901` drops stale queued push tasks; `2026102204` widens the log's `operation` column to 255 characters (dropping and re-adding its index — the 1.19.3 attempt without that failed with `ddldependencyerror`).
 - [ ] Verify the `local_imisbridge_log` table exists in the database.
 
 ## 2. Configuration
 
 - [ ] Settings page loads.
+- [ ] **Connection provider = ATS SOAP bridge** (the default) for this checklist.
 - [ ] On a **fresh install**, the **WSDL default is blank** (no hard-coded URL). *(On an upgrade this does not apply — see the upgrade check below.)*
 - [ ] On an **upgrade** from an install that had a WSDL set, the settings page **retains the existing WSDL endpoint** (configuration is preserved, not reset to blank).
 - [ ] Set the **WSDL URL** (a staging iMIS/bridge endpoint for the write tests — see the safety note above).
-- [ ] Set the **ATS API AuthToken** (`MO-…`). This is **required** for the completion/quiz pushes and for the contact-lookup part of the connection test — they call `MoodleUpdate` / `MoodleGetUserProfile`, which fail with `noauthtoken` if it is blank. *(Login enrolment/cancellation/group sync does not use the AuthToken.)*
+- [ ] Set the **ATS API AuthToken** (`MO-…`). This is **required** for the completion/quiz pushes and for the contact-lookup part of the connection test — they call `MoodleUpdate` / `CreateActivity` / `MoodleGetUserProfile`, which fail with `noauthtoken` if it is blank. *(Login enrolment/cancellation/group sync does not use the AuthToken.)*
 - [ ] Set **iMIS ID source** to match your SAML2 reality (**ID number** for this deployment: SAML `mdlattr = ID number` matches `UNIQUEID` against Moodle `idnumber`, so that is the authoritative field).
-- [ ] (If testing completion/quiz) set the **course credit field** and **credit type** as needed.
+- [ ] *(Credit settings: not needed for SOAP — `MoodleUpdate` sends no credit; iMIS derives it from the product. They apply to the direct REST provider only.)*
 - [ ] Audit-log settings visible: `log_enabled`, `log_retention_days` (default 90), `capture_payloads` (default **off**), and the **Open log** button.
 
 ## 3. Connectivity (read-only — safe against production)
@@ -60,7 +62,7 @@ Take a **DB + `moodledata` backup** before you begin.
   2. With a **reachable** WSDL, set the AuthToken to a present-but-**invalid** value.
   3. Run Test connection with a contact ID → `MoodleGetUserProfile` faults server-side **inside** the logged call → an **error** row appears. With capture on, the stored request (which carried the invalid `MO-…` token) is **redacted** (`MO-[redacted]`).
   4. *(Note: an unreachable/bad WSDL instead throws in the client constructor **before** any call is logged, so it produces no audit row — the request just fails.)*
-- [ ] **Restore the valid AuthToken** (and turn `capture_payloads` back off if you want the §6 default-off check clean) **before moving on** — otherwise the invalid token left here makes §4's completion/quiz pushes (`MoodleUpdate`) fail and a healthy observer will look broken. Re-run one read-only Test connection with a contact ID to confirm it succeeds again.
+- [ ] **Restore the valid AuthToken** (and turn `capture_payloads` back off if you want the §6 default-off check clean) **before moving on** — otherwise the invalid token left here makes §4's completion/quiz pushes (`MoodleUpdate` / `CreateActivity`) fail and a healthy observer will look broken. Re-run one read-only Test connection with a contact ID to confirm it succeeds again.
 
 ## 4. Observer-driven sync (core — staging iMIS/bridge only)
 
@@ -78,7 +80,7 @@ Verify both the iMIS-side effect and an audit-log row for each:
 
 - [ ] **Login** (`user_loggedin`) → queues the per-user sync; after cron, the **enabled** login operations run: `SendNewOrdersToMoodle`, `SendCancelledOrdersToMoodle`, `UpdateMoodleGroups` (whichever login toggles are on). *(Not `MoodleUpdate`.)*
 - [ ] **Course completion** (`course_completed`, with `push_completions` on) → after cron, `MoodleUpdate` fires with the course's **numeric id** as `productID` and the AuthToken.
-- [ ] **Quiz submit** (`quiz_attempt_submitted`, with `push_quiz_scores` on) → after cron, `MoodleUpdate` fires with the score/status. *(Preview attempts and ungraded quizzes are skipped by design.)*
+- [ ] **Quiz submit** (`quiz_attempt_submitted`, with `push_quiz_scores` on) → after cron, `CreateActivity` fires, writing a `MOODLENOTE` ("Moodle course N score") with the score/status — **not** `MoodleUpdate`, so the course's completion record is untouched. *(Preview attempts and ungraded quizzes are skipped by design.)*
 - [ ] The iMIS ID used matches the configured **source** (not blindly `$user->username` if you changed it).
 - [ ] A user **with no iMIS ID** (blank username/idnumber/email) is handled gracefully — no task queued, no bogus call.
 
@@ -87,7 +89,7 @@ Verify both the iMIS-side effect and an audit-log row for each:
 - [ ] Page requires `moodle/site:config` (an account lacking it → **denied**).
 - [ ] Submitting shows the **confirmation step** (`$OUTPUT->confirm()`) *before* any write.
 - [ ] Per-user sync: enter the test member → confirm → the sync operations run → audit rows recorded.
-- [ ] All-users sync with a **blank contactid** → the **all-users warning** appears on the confirm screen.
+- [ ] Sync with a **blank Member ID** → refused with "Member ID required"; **no** call is made (1.19.1 — all-user syncs are only the nightly tasks). *Test connection* still runs without a Member ID.
 - [ ] Sesskey check holds (stale/absent sesskey → rejected).
 
 ## 6. Audit log (new in 1.5.0 — test hard)
@@ -113,6 +115,7 @@ production-backed bridge, keep these tasks disabled and skip that check.
 - [ ] Run it manually with retention = 90 → old rows pruned, recent kept (`mtrace` reports the count).
 - [ ] Set `log_retention_days` = **0** → task reports "retention disabled; keeping all rows," nothing deleted.
 - [ ] **(Staging iMIS/bridge only)** The nightly sync scheduled tasks run clean. On a production-backed bridge, leave them disabled and skip this.
+- [ ] The **tutorial group sync** task is listed (nightly, 02:45) and, while *Enable tutorial group sync* is off (the default), a run just logs "disabled … skipping". It only **reads** iMIS (over REST) and changes groups on this Moodle; test it with `CHANGEOVER-CHECKLIST.md` §T.
 
 ## 8. Privacy
 
@@ -128,7 +131,7 @@ production-backed bridge, keep these tasks disabled and skip that check.
 
 ## 10. Rollback plan (have it ready; don't test on production)
 
-- [ ] Know how to disable fast: clear the WSDL (stops all SOAP), or uninstall.
+- [ ] Know how to disable fast: clear the WSDL (stops all SOAP), or uninstall. Clearing the WSDL does **not** stop the tutorial group sync — untick *Enable tutorial group sync* for that.
 - [ ] Confirm uninstall drops the log table cleanly.
 
 ---

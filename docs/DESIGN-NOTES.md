@@ -61,6 +61,13 @@ bridge: give the service account `manager`.
 
 For our plugin (do it differently):
 
+> **Status (Oct 2026):** cutover uses Moodle's **core** `enrol_manual_enrol_users`
+> rather than an in-plugin enrol function (`CHANGEOVER-CHECKLIST.md` §C). Core
+> *does* run `require_login()` via `validate_context()`, but unlike the vendor's
+> function it passes for a least-privilege account holding `moodle/course:view` +
+> `moodle/course:viewhiddencourses` — no `manager` role needed. The requirements
+> below still govern any in-plugin enrol function, should one be built.
+
 - The enrol function must NOT call `require_login($course)` on the target
   course. A service enrolling a user does not need to be able to "enter" the
   course the way a student does.
@@ -89,6 +96,12 @@ runs. During the multi-day outage, members kept self-creating via SAML2 SSO logi
 existing user, it could only error.
 
 For our plugin:
+
+> **Status (Oct 2026):** core `core_user_create_users` **throws** on an existing
+> user, so with the core-functions cutover this requirement is not met by default.
+> It is tracked as parity decision 3 in `CHANGEOVER-CHECKLIST.md`: test a re-send
+> for an existing member, and build an in-plugin wrapper only if ATS strands the
+> enrol.
 
 - Treat "user already exists" as success-and-continue, not a fatal error. On
   recovery after any outage, "already exists" is the normal case (SSO
