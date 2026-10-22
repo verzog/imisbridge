@@ -188,4 +188,3 @@ final class provider_test extends \advanced_testcase {
         $this->assertEquals(0, $DB->count_records('local_imisbridge_scorepush'));
     }
 }
-

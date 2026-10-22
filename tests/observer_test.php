@@ -783,4 +783,3 @@ final class observer_test extends \advanced_testcase {
         $first->execute();
     }
 }
-
