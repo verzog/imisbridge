@@ -100,12 +100,12 @@ final class rest_course_resolver_test extends \advanced_testcase {
     }
 
     /**
-     * An exact {code}/REG match returns its Description as the course id, and the
-     * lookup is performed with the suffix appended.
+     * The IQA is prompted with the bare code, and a row whose Code is the {code}/REG
+     * product returns its Description as the course id.
      *
      * @return void
      */
-    public function test_resolves_exact_match_with_suffix(): void {
+    public function test_resolves_product_row_from_bare_prompt(): void {
         $course = $this->getDataGenerator()->create_course();
         $client = $this->stub_client([
             $this->entity(['Code' => 'ATS_BRIDGE/REG', 'Description' => $course->id]),
@@ -113,7 +113,7 @@ final class rest_course_resolver_test extends \advanced_testcase {
 
         $resolver = new rest_course_resolver($client);
         $this->assertSame((int)$course->id, $resolver->resolve_courseid('ATS_BRIDGE'));
-        $this->assertSame([['ATS_BRIDGE/REG']], $client->calls);
+        $this->assertSame([['ATS_BRIDGE']], $client->calls, 'the IQA is prompted with the bare code');
     }
 
     /**

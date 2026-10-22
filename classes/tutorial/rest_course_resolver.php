@@ -31,17 +31,17 @@ use local_imisbridge\rest_client;
  *
  * The iMIS MOODLE_PRODUCTS general lookup is keyed by the full product code — e.g.
  * `ATS_BRIDGE/REG` — with the numeric Moodle course id in its Description column
- * (confirmed 22/10/2026: ATS_BRIDGE/REG -> 7). The tutorial panel stores only the
- * bare event code (`ATS_BRIDGE`), so this resolver appends the registration suffix
- * (`/REG` by default) before the lookup and passes the result as the IQA's required
- * prompt. The query name and suffix are settings so this can follow the Causeis
- * program rework without code changes.
+ * (confirmed 22/10/2026: ATS_BRIDGE/REG -> 7). The IQA takes the **bare** event
+ * code (`ATS_BRIDGE`) as its required prompt and returns that product row; the query
+ * name is a setting so this can follow the Causeis program rework without code
+ * changes.
  *
- * Resolution is deliberately conservative: it accepts a row only when that row's
- * Code matches the looked-up `{code}/REG` exactly (so a loose IQA filter cannot
- * return a neighbouring product such as `.../REGNZ` or `ATS_Bridgetest/REG`), and
- * only when the Description is a positive integer naming a course that exists.
- * Anything else returns null and the sync skips that code rather than guessing.
+ * Resolution is deliberately conservative: among the returned rows it accepts only
+ * one whose Code is the bare code or the registration product code (`{code}/REG` by
+ * the configured suffix), so a loose IQA filter cannot steer it onto a neighbouring
+ * product such as `.../REGNZ` or `ATS_Bridgetest/REG`, and only when the Description
+ * is a positive integer naming a course that exists. Anything else returns null and
+ * the sync skips that code rather than guessing.
  *
  * @package    local_imisbridge
  * @copyright  2024 Vernon Spain
@@ -54,7 +54,7 @@ class rest_course_resolver implements course_resolver {
     /** @var string Default result column holding the Moodle course id. */
     public const DEFAULT_COLUMN = 'Description';
 
-    /** @var string Default product-code suffix appended to the bare event code. */
+    /** @var string Default registration suffix on the product code in the result. */
     public const DEFAULT_SUFFIX = '/REG';
 
     /** @var rest_client The authenticated iMIS REST client. */
@@ -66,7 +66,7 @@ class rest_course_resolver implements course_resolver {
     /** @var string The result column holding the course id. */
     private string $column;
 
-    /** @var string The suffix appended to the bare code to form the lookup key. */
+    /** @var string The registration suffix on the product code to recognise in the result. */
     private string $suffix;
 
     /** @var array<string,int|null> Per-run cache so repeated codes hit the IQA once. */
@@ -105,16 +105,19 @@ class rest_course_resolver implements course_resolver {
             return $this->cache[$code];
         }
 
-        // The lookup is keyed by the full product code (e.g. ATS_BRIDGE/REG), while
-        // the panel stores the bare event code, so append the registration suffix.
-        $lookupcode = $code . $this->suffix;
+        // The IQA takes the bare event code as its prompt; the matching row's Code is
+        // the full product code (e.g. ATS_BRIDGE/REG). Accept a row only when its Code
+        // is the bare code or the suffixed product code, so a loose filter cannot
+        // return a neighbour such as .../REGNZ or ATS_Bridgetest/REG.
+        $accept = [\core_text::strtolower($code)];
+        if ($this->suffix !== '') {
+            $accept[] = \core_text::strtolower($code . $this->suffix);
+        }
 
         $courseid = null;
-        foreach ($this->client->run_iqa($this->queryname, [$lookupcode]) as $row) {
-            // When the row carries a Code, require an exact (case-insensitive) match
-            // so a loose IQA filter cannot return a neighbouring product code.
+        foreach ($this->client->run_iqa($this->queryname, [$code]) as $row) {
             $rowcode = (string)rest_client::property($row, 'Code');
-            if ($rowcode !== '' && strcasecmp($rowcode, $lookupcode) !== 0) {
+            if ($rowcode !== '' && !in_array(\core_text::strtolower($rowcode), $accept, true)) {
                 continue;
             }
             $value = (int)(string)rest_client::property($row, $this->column);
