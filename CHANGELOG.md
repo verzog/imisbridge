@@ -4,6 +4,16 @@ All notable changes to the iMIS Bridge plugin (`local_imisbridge`) are documente
 in this file. The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.21.1] - 2026-10-23
+
+### Changed
+- A failed iMIS REST call now records why: the reason iMIS gives in its error
+  response (for example a missing IQA prompt or an unknown query) is added to the
+  audit-log error and to the message on the sync page, as `HTTP 400: <reason>`.
+  The full error body is kept when payload capture is on, including for bulk reads
+  such as IQAs, whose successful bodies are still never stored. Token failures
+  record the reason too.
+
 ## [1.21.0] - 2026-10-23
 
 ### Added

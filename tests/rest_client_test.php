@@ -241,4 +241,23 @@ final class rest_client_test extends \advanced_testcase {
         $this->assertFalse($this->body_has($body, 'CREATED_ON'));
         $this->assertFalse($this->body_has($body, 'UPDATED_ON'));
     }
+
+    /**
+     * error_reason pulls a short, markup-free reason from the shapes iMIS returns.
+     *
+     * @return void
+     */
+    public function test_error_reason(): void {
+        $this->assertSame('Query not found', rest_client::error_reason('{"Message":"Query not found"}'));
+        $this->assertSame(
+            'The user name or password is incorrect.',
+            rest_client::error_reason('{"error":"invalid_grant","error_description":"The user name or password is incorrect."}')
+        );
+        $this->assertSame('Missing required parameter', rest_client::error_reason('"Missing required parameter"'));
+        $html = "<html><h1>Bad Request</h1>\n<p>Invalid query</p></html>";
+        $this->assertSame('Bad Request Invalid query', rest_client::error_reason($html));
+        $this->assertSame('', rest_client::error_reason(''));
+        $this->assertSame('', rest_client::error_reason('{"Items":[]}'));
+        $this->assertSame(300, \core_text::strlen(rest_client::error_reason(str_repeat('x', 400))));
+    }
 }

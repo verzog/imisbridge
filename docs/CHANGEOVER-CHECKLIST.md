@@ -573,6 +573,9 @@ REST.
 ### R3. Dry run, then live
 
 - [ ] *Test connection* (manual sync page) with a member ID lists that member's rows.
+  An HTTP 400 shows iMIS's reason after it (also in the audit log); the usual
+  causes are a filter still set to prompt, *Available via REST API* not ticked, or
+  a mistyped IQA path.
 - [ ] Run the enrolment and cancellation tasks (or a one-member manual sync) and read
   the report: who would be enrolled, reactivated, suspended or created, plus every
   skipped row and its reason.
