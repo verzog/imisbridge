@@ -81,7 +81,7 @@ class rest_reader implements reader {
     /**
      * Map one IQA row's properties to a registration row.
      *
-     * @param array<string,mixed> $properties Property name => value.
+     * @param array $properties Property name => value.
      * @return registration_row
      */
     public static function to_row(array $properties): registration_row {
@@ -106,8 +106,8 @@ class rest_reader implements reader {
     /**
      * The value of the first of the given (normalised) column names that is present.
      *
-     * @param array<string,mixed> $byname Normalised column name => value.
-     * @param string[]            $names  Candidate column names, in order of preference.
+     * @param array    $byname Normalised column name => value.
+     * @param string[] $names  Candidate column names, in order of preference.
      * @return mixed The value, or null when none is present.
      */
     private static function first(array $byname, array $names) {
