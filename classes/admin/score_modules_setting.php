@@ -54,9 +54,13 @@ class score_modules_setting extends \admin_setting_configmulticheckbox {
     /**
      * Load the gradable activity types as the choices.
      *
-     * @return bool Always true.
+     * @return bool True once loaded; false during Moodle's initial install, when the
+     *              activity plugins are not installed yet (as core's own setting does).
      */
     public function load_choices() {
+        if (during_initial_install()) {
+            return false;
+        }
         if (is_array($this->choices)) {
             return true;
         }

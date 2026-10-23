@@ -502,12 +502,18 @@ class observer {
             $record->timequeued = time();
             $DB->update_record('local_imisbridge_scorepush', $record);
         } else {
-            $DB->insert_record('local_imisbridge_scorepush', (object)[
-                'userid'     => $userid,
-                'itemid'     => $itemid,
-                'finalgrade' => $finalgrade,
-                'timequeued' => time(),
-            ]);
+            try {
+                $DB->insert_record('local_imisbridge_scorepush', (object)[
+                    'userid'     => $userid,
+                    'itemid'     => $itemid,
+                    'finalgrade' => $finalgrade,
+                    'timequeued' => time(),
+                ]);
+            } catch (\dml_write_exception $e) {
+                // A concurrent event for the same learner and grade item inserted the
+                // row first (unique index); that event queues the push, so skip this one.
+                return false;
+            }
         }
         return true;
     }
