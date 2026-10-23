@@ -84,17 +84,59 @@ class manager {
     }
 
     /**
-     * Construct the active provider when it supports inbound order/group sync.
+     * Construct the sync provider ({@see sync_provider_class()}) when it can sync and
+     * has the configuration its syncs need.
      *
-     * @return org_sync_provider|null The provider, or null when the active one cannot sync.
+     * @return org_sync_provider|null The provider, or null when no configured provider can sync.
      */
     public static function org_sync_instance(): ?org_sync_provider {
-        $class = self::active_provider_class();
-        if (!is_a($class, org_sync_provider::class, true)) {
+        $class = self::sync_provider_class();
+        if (!is_a($class, org_sync_provider::class, true) || !$class::is_sync_configured()) {
             return null;
         }
         $instance = new $class();
         return ($instance instanceof org_sync_provider) ? $instance : null;
+    }
+
+    /**
+     * Whether a sync provider is available and configured, without constructing it
+     * (constructing the SOAP client fetches the WSDL, which a login must not wait on).
+     *
+     * @return bool
+     */
+    public static function sync_configured(): bool {
+        $class = self::sync_provider_class();
+        return is_a($class, org_sync_provider::class, true) && $class::is_sync_configured();
+    }
+
+    /**
+     * The provider class that runs the enrolment, cancellation and group syncs.
+     *
+     * The `sync_provider` setting picks it independently of the push provider; blank
+     * (the default) or an unknown value follows the connection provider, which is
+     * the behaviour before the setting existed.
+     *
+     * @return string Fully-qualified class name.
+     */
+    public static function sync_provider_class(): string {
+        $configured = (string)get_config('local_imisbridge', 'sync_provider');
+        return self::providers()[$configured] ?? self::active_provider_class();
+    }
+
+    /**
+     * The choices for the sync provider setting: follow the connection provider, or
+     * any registered provider that can sync.
+     *
+     * @return array<string,string> Setting value => label.
+     */
+    public static function sync_menu(): array {
+        $menu = ['' => get_string('sync_provider_same', 'local_imisbridge')];
+        foreach (self::providers() as $key => $class) {
+            if (is_a($class, org_sync_provider::class, true)) {
+                $menu[$key] = $class::label();
+            }
+        }
+        return $menu;
     }
 
     /**

@@ -27,9 +27,11 @@ namespace local_imisbridge\provider;
 /**
  * A provider that can also pull orders/cancellations/groups into Moodle.
  *
- * This is the middleware-style capability (the ATS SOAP bridge offers it): the
- * external system tells Moodle who to enrol, unenrol and group. A provider that
- * only receives pushed records (such as a direct REST API) implements
+ * The ATS SOAP bridge offers this by asking ATS to call back into Moodle; the
+ * direct iMIS REST provider offers it by reading a registrations IQA and
+ * enrolling locally. The sync provider is chosen separately from the push
+ * provider (the `sync_provider` setting), so pushes can go one way and syncs
+ * another. A provider that only receives pushed records implements
  * {@see provider_interface} alone, and {@see provider_interface::supports()}
  * returns false for CAP_ORG_SYNC.
  *
@@ -38,6 +40,14 @@ namespace local_imisbridge\provider;
  * @license    http://www.gnu.org/copyleft/gpl.html GNU GPL v3 or later
  */
 interface org_sync_provider extends provider_interface {
+    /**
+     * Whether the provider has the configuration its syncs need. This can be more
+     * than {@see provider_interface::is_configured()}, which covers pushes only.
+     *
+     * @return bool
+     */
+    public static function is_sync_configured(): bool;
+
     /**
      * Pull new orders from the external system and enrol users in Moodle.
      *

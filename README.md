@@ -20,6 +20,11 @@ Key behaviours:
 * **Tutorial group sync** (opt-in): a nightly scheduled task reads the iMIS
   `MoodleTutorialGroup` panel over REST and makes each course's groups match it.
   It uses the REST settings whichever provider is selected.
+* **Registration sync over REST** (opt-in, 1.21.0): with *Sync provider* set to
+  Direct iMIS REST and a registrations IQA configured, Moodle reads registrations
+  from iMIS and enrols active registrants (creating missing accounts) and suspends
+  cancelled ones itself, with no ATS involved. A dry run is on by default. The
+  *Sync provider* setting can also keep the ATS syncs while records go over REST.
 * **Cancellation without data loss**: the `local_imisbridge_cancel_enrolment` web
   service function lets the ATS bridge *suspend* a cancelled learner (grades and
   completion kept) instead of hard-unenrolling them.
@@ -78,6 +83,11 @@ Local plugins > iMIS Bridge_:
 > `docs/TESTING.md` §1.
 
 * **Connection provider** — *ATS SOAP bridge* (default) or *Direct iMIS REST*.
+* **Sync provider** — which provider runs the enrolment, cancellation and group
+  syncs; blank follows the connection provider.
+* **Registration sync (Direct iMIS REST)** — the registrations IQA, dry run (on by
+  default), account creation, cancelled status codes, look-back days and the
+  suspension guard.
 * **iMIS WSDL URL** — the `wsmoodle.asmx?WSDL` endpoint for your environment
   (ask ATS for the correct host). Blank by default; no SOAP call is made until it
   is set. **Service endpoint URL (override)** forces the SOAP host when the WSDL

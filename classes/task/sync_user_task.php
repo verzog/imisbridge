@@ -56,8 +56,8 @@ class sync_user_task extends \core\task\adhoc_task {
             return;
         }
 
-        if (!\local_imisbridge\util::is_configured()) {
-            mtrace('iMIS Bridge: external system not configured; skipping ' . $imisid . '.');
+        if (!\local_imisbridge\provider\manager::sync_configured()) {
+            mtrace('iMIS Bridge: no configured sync provider; skipping ' . $imisid . '.');
             return;
         }
 
@@ -74,7 +74,7 @@ class sync_user_task extends \core\task\adhoc_task {
 
         $provider = \local_imisbridge\provider\manager::org_sync_instance();
         if ($provider === null) {
-            mtrace('iMIS Bridge: active provider does not support order/group sync; skipping ' . $imisid . '.');
+            mtrace('iMIS Bridge: no configured sync provider; skipping ' . $imisid . '.');
             return;
         }
 

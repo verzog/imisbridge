@@ -4,6 +4,33 @@ All notable changes to the iMIS Bridge plugin (`local_imisbridge`) are documente
 in this file. The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.21.0] - 2026-10-23
+
+### Added
+- **Sync provider setting.** Choose which provider runs the enrolment, cancellation
+  and group syncs (the manual sync buttons, the login syncs and the nightly tasks),
+  separately from the provider that pushes records. Blank, the default, follows the
+  connection provider, so nothing changes on upgrade. Setting it to *ATS SOAP bridge*
+  while pushing over *Direct iMIS REST* keeps the ATS syncs.
+- **Registration sync over direct REST.** The REST provider can now sync: it reads a
+  **Registrations IQA** (no prompts) and, per member and course, enrols a member with
+  any active registration (creating the account first when allowed, or reactivating
+  a suspended enrolment) and suspends a member whose registrations are all cancelled
+  (grades and completion kept; nothing is unenrolled or deleted). A member and course
+  with no rows is left alone. Event codes resolve to courses through the existing
+  `MoodleCourseLookup` IQA. Settings: the IQA path (blank = off), dry run (on by
+  default), account creation, cancelled status codes (default `C`), a look-back on
+  the event end date (default 90 days) and a per-course suspension guard. Rows
+  flagged inactive by the source are ignored, and an empty read changes nothing.
+  Groups stay with the tutorial group sync. Go-live steps in
+  `docs/CHANGEOVER-CHECKLIST.md` §R.
+
+### Changed
+- The cancellation web service and the registration sync share one suspension
+  routine (`\local_imisbridge\enrolment`), so both suspend in exactly the same way.
+- The login sync, the nightly sync tasks and the manual sync page check that the
+  *sync* provider is configured, rather than the push provider.
+
 ## [1.20.0] - 2026-10-22
 
 ### Added

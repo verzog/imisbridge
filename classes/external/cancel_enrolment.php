@@ -90,10 +90,6 @@ class cancel_enrolment extends external_api {
 
         $params = self::validate_parameters(self::execute_parameters(), ['enrolments' => $enrolments]);
 
-        // All installed enrol plugins, not only the enabled ones: an enrolment
-        // owned by a globally-disabled plugin must still be suspended, or it would
-        // grant access again if the plugin were later re-enabled.
-        $plugins  = enrol_get_plugins(false);
         $results  = [];
         $warnings = [];
 
@@ -126,43 +122,9 @@ class cancel_enrolment extends external_api {
             // state rather than leaving some enrolments suspended and others not.
             $transaction = $DB->start_delegated_transaction();
             try {
-                // Suspend every enrolment the user holds in the course. Suspending
-                // keeps the enrolment row, grades and completion; it only removes
-                // access, and is undone by a later re-enrol. Nothing is deleted.
-                $suspended = 0;
-                foreach (enrol_get_instances($courseid, false) as $instance) {
-                    $plugin = $plugins[$instance->enrol] ?? null;
-                    if ($plugin === null) {
-                        // No installed plugin for this instance (orphaned); skip.
-                        continue;
-                    }
-                    $ue = $DB->get_record('user_enrolments', ['enrolid' => $instance->id, 'userid' => $userid]);
-                    if (!$ue) {
-                        continue;
-                    }
-                    if ((int)$ue->status !== ENROL_USER_SUSPENDED) {
-                        $plugin->update_user_enrol($instance, $userid, ENROL_USER_SUSPENDED);
-                    }
-
-                    // Remove the role this enrolment grants: the explicit roleid when
-                    // given, otherwise the instance's own default role (enrol.roleid).
-                    // Targeting one role id removes the learner's enrolment role (e.g.
-                    // Student) while leaving any other role — such as a manual teacher
-                    // override — in place. We cannot scope by component here: the manual
-                    // enrol plugin assigns its role with no component (roles unprotected),
-                    // so its assignment is indistinguishable from a manual one. Role
-                    // unassignment deletes assignments only, never grades/completion.
-                    $targetroleid = $roleid > 0 ? $roleid : (int)$instance->roleid;
-                    if ($targetroleid > 0) {
-                        role_unassign_all([
-                            'userid'    => $userid,
-                            'contextid' => $context->id,
-                            'roleid'    => $targetroleid,
-                        ]);
-                    }
-
-                    $suspended++;
-                }
+                // Suspend every enrolment the user holds in the course (the shared helper
+                // keeps grades and completion and removes only the enrolment's role).
+                $suspended = \local_imisbridge\enrolment::suspend($userid, $courseid, $roleid);
 
                 $transaction->allow_commit();
 

@@ -52,14 +52,9 @@ class sync_enrollments_task extends \core\task\scheduled_task {
             return;
         }
 
-        if (!\local_imisbridge\util::is_configured()) {
-            mtrace('iMIS Bridge: external system not configured; skipping enrolment sync.');
-            return;
-        }
-
         $provider = \local_imisbridge\provider\manager::org_sync_instance();
         if ($provider === null) {
-            mtrace('iMIS Bridge: active provider does not support order sync; skipping enrolment sync.');
+            mtrace('iMIS Bridge: no configured sync provider (see the Sync provider setting); skipping enrolment sync.');
             return;
         }
 

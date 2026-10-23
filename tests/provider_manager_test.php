@@ -83,7 +83,7 @@ final class provider_manager_test extends \advanced_testcase {
     }
 
     /**
-     * Capabilities differ by provider: only the SOAP bridge offers order sync.
+     * Both providers push records and offer order sync (REST from a registrations IQA).
      *
      * @return void
      */
@@ -92,30 +92,64 @@ final class provider_manager_test extends \advanced_testcase {
         $this->assertTrue(imis_client::supports(provider_interface::CAP_ORG_SYNC));
 
         $this->assertTrue(rest_client::supports(provider_interface::CAP_PUSH));
-        $this->assertFalse(rest_client::supports(provider_interface::CAP_ORG_SYNC));
+        $this->assertTrue(rest_client::supports(provider_interface::CAP_ORG_SYNC));
 
         $this->assertFalse(imis_client::supports('bogus'));
     }
 
     /**
-     * Only the SOAP bridge implements the inbound-sync contract.
+     * Both providers implement the inbound-sync contract.
      *
      * @return void
      */
     public function test_org_sync_contract(): void {
         $this->assertTrue(is_a(imis_client::class, org_sync_provider::class, true));
-        $this->assertFalse(is_a(rest_client::class, org_sync_provider::class, true));
+        $this->assertTrue(is_a(rest_client::class, org_sync_provider::class, true));
     }
 
     /**
-     * org_sync_instance returns null for a provider that cannot sync (no construction).
+     * REST syncs only once a registrations IQA is set, so a site that merely pushes
+     * over REST does not start enrolling on upgrade.
      *
      * @return void
      */
-    public function test_org_sync_instance_null_for_rest(): void {
+    public function test_rest_sync_needs_registrations_iqa(): void {
         set_config('transport', 'rest', 'local_imisbridge');
         set_config('rest_base_url', 'https://example.test', 'local_imisbridge');
+        $this->assertFalse(manager::sync_configured());
         $this->assertNull(manager::org_sync_instance());
+
+        set_config('reg_iqa', '$/_SCCA/Events/Registrations', 'local_imisbridge');
+        $this->assertTrue(manager::sync_configured());
+        $this->assertInstanceOf(rest_client::class, manager::org_sync_instance());
+    }
+
+    /**
+     * The sync provider follows the connection provider by default, and can be set
+     * separately so pushes go over REST while syncs stay on the ATS SOAP bridge.
+     *
+     * @return void
+     */
+    public function test_sync_provider_selection(): void {
+        set_config('transport', 'rest', 'local_imisbridge');
+        $this->assertSame(rest_client::class, manager::sync_provider_class(), 'blank follows the connection provider');
+
+        set_config('sync_provider', 'soap', 'local_imisbridge');
+        $this->assertSame(imis_client::class, manager::sync_provider_class());
+        $this->assertSame(rest_client::class, manager::active_provider_class(), 'pushes still go over REST');
+
+        // The SOAP bridge syncs with its own setting (a WSDL URL), not the REST one.
+        set_config('rest_base_url', 'https://example.test', 'local_imisbridge');
+        $this->assertFalse(manager::sync_configured());
+        set_config('wsdl_url', 'https://example.test/wsmoodle.asmx?WSDL', 'local_imisbridge');
+        $this->assertTrue(manager::sync_configured());
+
+        // An unrecognised value follows the connection provider.
+        set_config('sync_provider', 'bogus', 'local_imisbridge');
+        $this->assertSame(rest_client::class, manager::sync_provider_class());
+
+        $menu = manager::sync_menu();
+        $this->assertSame(['', 'soap', 'rest'], array_keys($menu));
     }
 
     /**

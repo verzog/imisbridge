@@ -54,6 +54,16 @@ if ($hassiteconfig) {
         \local_imisbridge\provider\manager::menu()
     ));
 
+    // Which provider runs the enrolment, cancellation and group syncs. Blank follows
+    // the connection provider (the behaviour before this setting existed).
+    $settings->add(new admin_setting_configselect(
+        'local_imisbridge/sync_provider',
+        get_string('sync_provider', 'local_imisbridge'),
+        get_string('sync_provider_desc', 'local_imisbridge'),
+        '',
+        \local_imisbridge\provider\manager::sync_menu()
+    ));
+
     // WSDL endpoint.
     $settings->add(new admin_setting_configtext(
         'local_imisbridge/wsdl_url',
@@ -283,6 +293,59 @@ if ($hassiteconfig) {
         get_string('task_groups_enabled', 'local_imisbridge'),
         get_string('task_groups_enabled_desc', 'local_imisbridge'),
         1
+    ));
+
+    // Registration sync over direct REST: enrol and suspend from a registrations IQA.
+    $settings->add(new admin_setting_heading(
+        'local_imisbridge/regsyncheading',
+        get_string('regsync', 'local_imisbridge'),
+        get_string('regsync_desc', 'local_imisbridge')
+    ));
+
+    $settings->add(new admin_setting_configtext(
+        'local_imisbridge/reg_iqa',
+        get_string('reg_iqa', 'local_imisbridge'),
+        get_string('reg_iqa_desc', 'local_imisbridge'),
+        '',
+        PARAM_RAW_TRIMMED
+    ));
+
+    $settings->add(new admin_setting_configcheckbox(
+        'local_imisbridge/reg_dry_run',
+        get_string('reg_dry_run', 'local_imisbridge'),
+        get_string('reg_dry_run_desc', 'local_imisbridge'),
+        1
+    ));
+
+    $settings->add(new admin_setting_configcheckbox(
+        'local_imisbridge/reg_create_users',
+        get_string('reg_create_users', 'local_imisbridge'),
+        get_string('reg_create_users_desc', 'local_imisbridge'),
+        1
+    ));
+
+    $settings->add(new admin_setting_configtext(
+        'local_imisbridge/reg_cancelled_codes',
+        get_string('reg_cancelled_codes', 'local_imisbridge'),
+        get_string('reg_cancelled_codes_desc', 'local_imisbridge'),
+        'C',
+        PARAM_RAW_TRIMMED
+    ));
+
+    $settings->add(new admin_setting_configtext(
+        'local_imisbridge/reg_lookback_days',
+        get_string('reg_lookback_days', 'local_imisbridge'),
+        get_string('reg_lookback_days_desc', 'local_imisbridge'),
+        '90',
+        PARAM_INT
+    ));
+
+    $settings->add(new admin_setting_configtext(
+        'local_imisbridge/reg_guard_pct',
+        get_string('reg_guard_pct', 'local_imisbridge'),
+        get_string('reg_guard_pct_desc', 'local_imisbridge'),
+        '50',
+        PARAM_INT
     ));
 
     // Tutorial group sync — reads the iMIS MoodleTutorialGroup panel over REST.

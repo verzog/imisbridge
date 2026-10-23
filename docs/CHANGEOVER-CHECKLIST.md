@@ -532,6 +532,56 @@ log on long REST URLs).
   changes; existing groups and memberships stay as they are. (Clearing the WSDL does
   **not** stop this feature — it uses the REST settings.)
 
+## R. Registration sync over REST (optional — replaces ATS for enrolment, 1.21.0)
+
+With **Sync provider = Direct iMIS REST**, Moodle reads a registrations IQA itself and
+enrols or suspends locally, with no ATS involved. This is what lets ATS be retired.
+Until it is proven, keep the iDMS push (§C/§D) as the enrolment mechanism. The
+**Sync provider** setting can also keep the ATS syncs while records are pushed over
+REST.
+
+### R1. iMIS side
+
+- [ ] A **registrations IQA**, *Available via REST API*, **no required prompts**, one
+  row per registration, active **and** cancelled. Columns (matched ignoring case,
+  spaces and underscores): `ID` (registrant's iMIS ID), `EventCode`, `Status`
+  (blank = active), and optionally `RegistrationKey` (e.g.
+  `CONCAT(OrderNumber, '-', ShipToId)`), `IsActiveRegistration`, `EndDate`, plus
+  `FirstName`, `LastName`, `Email` for account creation. Use the contact's own email,
+  not the order's. Join the contact on `ShipToId` as a required join.
+- [ ] **Guests excluded** in the IQA (they must not be enrolled).
+- [ ] Each event code has its `MOODLE_PRODUCTS` row (`{EventCode}/REG` → course id),
+  as for the tutorial sync (§T1).
+- [ ] The REST service account can read this IQA.
+
+### R2. Moodle side
+
+- [ ] **Registrations IQA** set to the IQA path; **Registration sync: dry run** on.
+- [ ] **Cancelled status codes** match iMIS (default `C`: a `Status` containing `C`
+  is cancelled; blank is active).
+- [ ] **Look-back** (default 90 days) covers how long after an event cancellations
+  can still arrive. Rows with no `EndDate` always count.
+- [ ] **Create accounts** on (default) if registrants may have no Moodle account yet.
+- [ ] **Sync provider = Direct iMIS REST**.
+
+### R3. Dry run, then live
+
+- [ ] *Test connection* (manual sync page) with a member ID lists that member's rows.
+- [ ] Run the enrolment and cancellation tasks (or a one-member manual sync) and read
+  the report: who would be enrolled, reactivated, suspended or created, plus every
+  skipped row and its reason.
+- [ ] Compare against current enrolments. Then turn **dry run off** and run again.
+- [ ] **Single writer:** once the REST sync is live, switch the **iDMS push** off for
+  enrolment and cancellation, so only one system enrols and suspends.
+
+### R4. Safety and rollback
+
+- [ ] An empty IQA read changes nothing; a member and course with no rows is never
+  touched; a run that would suspend 10+ members and more than the guard percentage
+  of a course skips that course's suspensions.
+- [ ] **Rollback:** set **Sync provider** back to *ATS SOAP bridge* or *Same as
+  connection provider*, or clear the Registrations IQA, and turn the iDMS push back on.
+
 ## E. Cutover — avoid double-writes (critical)
 
 - [ ] **Only one plugin's observers active at a time.** With both installed,

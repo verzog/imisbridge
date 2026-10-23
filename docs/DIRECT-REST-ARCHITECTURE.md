@@ -430,13 +430,19 @@ trigger writeback, the audit log, the kill-switches, and SSO (handled by
    - the `POST` entity shape and the `PUT` update contract (§5.6) need confirming
      against the target iMIS; the read-only `cli/test_rest.php` is the safe first
      check.
-4. **Inbound pull task (§6)** — the strategic win; retire ATS once proven. — not
-   started. The **tutorial group sync (1.19.0–1.19.5)** is the first REST pull in
-   production and proves the pattern this task will reuse: token auth, `PagedResult`
-   paging, prompted IQA lookups (§6.1), matching members via `imis_id_source`,
-   writing through Moodle's internal API from a scheduled task, and aborting
-   without changes on an empty or failed read. It runs whatever the `transport`
-   setting is.
+4. **Inbound pull task (§6)** — the strategic win; retire ATS once proven. —
+   **DONE (1.21.0)**, building on the pattern the tutorial group sync (1.19.x)
+   proved. With **Sync provider = Direct iMIS REST** and a **Registrations IQA** set,
+   the enrolment and cancellation syncs read that IQA (no prompts; columns `ID`,
+   `EventCode`, `Status`, plus optional `RegistrationKey`, `IsActiveRegistration`,
+   `EndDate`, `FirstName`, `LastName`, `Email`) and decide **per member and course**:
+   any active registration enrols (creating the account first when allowed, or
+   reactivating a suspended enrolment); all-cancelled suspends (grades kept); no rows
+   changes nothing. The event code resolves to a course through the same
+   `MoodleCourseLookup` IQA (§5.2). Safety: dry run by default, empty-read abort,
+   look-back window on `EndDate`, rows flagged inactive ignored, and a per-course
+   suspension guard. Groups stay with the tutorial group sync. The **Sync provider**
+   setting can instead keep the ATS SOAP syncs while pushes use REST.
 
 Phases 1–3 ship behind the switch with zero risk to the live SOAP path (default
 `transport = soap`). Phase 4 is what lets the ATS subscription be cancelled.
