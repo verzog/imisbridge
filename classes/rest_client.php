@@ -68,6 +68,9 @@ class rest_client implements \local_imisbridge\provider\org_sync_provider {
     /** @var int Unix time after which the cached token must be refreshed. */
     private int $tokenexpiry = 0;
 
+    /** @var registration\registration_sync|null The registration sync, built once per client. */
+    private ?registration\registration_sync $regsync = null;
+
     /**
      * Constructor — reads REST settings from plugin configuration.
      *
@@ -206,13 +209,18 @@ class rest_client implements \local_imisbridge\provider\org_sync_provider {
     }
 
     /**
-     * Build the registration sync engine from the plugin settings.
+     * The registration sync engine, built from the plugin settings once per client.
+     * Its reader keeps the rows it read, so an enrolment pass followed by a
+     * cancellation pass (as a login sync runs them) reads the IQA only once.
      *
      * @return registration\registration_sync
      */
     private function registration_sync(): registration\registration_sync {
+        if ($this->regsync !== null) {
+            return $this->regsync;
+        }
         $codes = array_filter(array_map('trim', explode(',', (string)get_config('local_imisbridge', 'reg_cancelled_codes'))));
-        return new registration\registration_sync(
+        return $this->regsync = new registration\registration_sync(
             new registration\rest_reader($this, trim((string)get_config('local_imisbridge', 'reg_iqa'))),
             new tutorial\rest_course_resolver($this),
             [

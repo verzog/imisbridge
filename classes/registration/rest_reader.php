@@ -54,6 +54,9 @@ class rest_reader implements reader {
     /** @var string The IQA document path. */
     private string $queryname;
 
+    /** @var registration_row[]|null The rows from the first read, reused by later calls. */
+    private ?array $rows = null;
+
     /**
      * Build the reader.
      *
@@ -66,16 +69,20 @@ class rest_reader implements reader {
     }
 
     /**
-     * Read every row of the registrations IQA.
+     * Read every row of the registrations IQA. The IQA is read once per reader; later
+     * calls return the same rows (a reader lives for one task run).
      *
      * @return registration_row[]
      */
     public function fetch_rows(): array {
-        $rows = [];
-        foreach ($this->client->run_iqa($this->queryname) as $entity) {
-            $rows[] = self::to_row(rest_client::properties($entity));
+        if ($this->rows === null) {
+            $rows = [];
+            foreach ($this->client->run_iqa($this->queryname) as $entity) {
+                $rows[] = self::to_row(rest_client::properties($entity));
+            }
+            $this->rows = $rows;
         }
-        return $rows;
+        return $this->rows;
     }
 
     /**

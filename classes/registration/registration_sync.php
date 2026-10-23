@@ -24,7 +24,6 @@
 
 namespace local_imisbridge\registration;
 
-use context_course;
 use local_imisbridge\enrolment;
 use local_imisbridge\tutorial\course_resolver;
 use local_imisbridge\util;
@@ -39,6 +38,11 @@ use local_imisbridge\util;
  *   no Moodle account gets one created first, when account creation is on.
  * - **cancel** mode: a member whose registrations for a course are **all** cancelled
  *   has their enrolment suspended (grades and completion kept; nothing is deleted).
+ *
+ * A blank status is active and a status containing a cancelled code is cancelled.
+ * Any other status is unrecognised: the row grants nothing, and a member and course
+ * with one is never suspended either, so a new iMIS state (pending, waitlisted) can
+ * neither give access nor take it away until it is mapped.
  *
  * A member and course with no rows at all is left alone, so a registration that
  * ages out of the source, or a partial read, never removes anyone. Rows flagged
@@ -143,6 +147,7 @@ class registration_sync {
             'alreadyactive'   => 0,
             'suspended'       => 0,
             'guardskipped'    => 0,
+            'failed'          => 0,
             'aborted'         => false,
             'messages'        => [],
         ];
@@ -175,11 +180,12 @@ class registration_sync {
      * @param registration_row[] $rows      The source rows.
      * @param string|null        $contactid Keep only this member's rows, or null for all.
      * @param array              $report    The running report, by reference.
-     * @return array key => ['imisid', 'courseid', 'active' => bool, 'cancelled' => bool, 'row', 'keys' => string[]]
+     * @return array key => ['imisid', 'courseid', 'active', 'cancelled', 'unknown' (bools), 'row', 'keys' => string[]]
      */
     private function build_pairs(array $rows, ?string $contactid, array &$report): array {
         $cutoff   = ($this->lookbackdays > 0) ? $this->now - $this->lookbackdays * DAYSECS : null;
         $unmapped = [];
+        $unknown  = [];
         $pairs    = [];
 
         foreach ($rows as $row) {
@@ -219,16 +225,25 @@ class registration_sync {
                     'courseid'  => $courseid,
                     'active'    => false,
                     'cancelled' => false,
+                    'unknown'   => false,
                     'row'       => $row,
                     'keys'      => [],
                 ];
             }
-            if ($this->is_cancelled($row->status)) {
-                $pairs[$key]['cancelled'] = true;
-            } else {
+            if ($row->status === '') {
                 $pairs[$key]['active'] = true;
                 // Prefer an active row's contact details for account creation.
                 $pairs[$key]['row'] = $row;
+            } else if ($this->is_cancelled($row->status)) {
+                $pairs[$key]['cancelled'] = true;
+            } else {
+                $pairs[$key]['unknown'] = true;
+                if (!isset($unknown[$row->status])) {
+                    $this->log($report, "status \"{$row->status}\" is not recognised (not blank and no cancelled code); "
+                        . "its registrations neither enrol nor suspend");
+                    $unknown[$row->status] = true;
+                }
+                $report['rowsskipped']++;
             }
             if ($row->key !== '') {
                 $pairs[$key]['keys'][] = $row->key;
@@ -238,16 +253,13 @@ class registration_sync {
     }
 
     /**
-     * Whether a registration status means cancelled (contains a cancelled code).
+     * Whether a (non-blank) registration status means cancelled (contains a cancelled code).
      *
      * @param string $status The raw status.
      * @return bool
      */
     private function is_cancelled(string $status): bool {
         $status = \core_text::strtolower($status);
-        if ($status === '') {
-            return false;
-        }
         foreach ($this->cancelledcodes as $code) {
             if (str_contains($status, $code)) {
                 return true;
@@ -279,18 +291,30 @@ class registration_sync {
                     continue;
                 }
                 $reason = $this->cannot_create($pair['row']);
+                if ($reason === null && enrolment::manual_instance($courseid) === null) {
+                    // Checked before creating, so a live run never leaves an account it cannot enrol.
+                    $reason = 'the course has no enabled manual enrolment method';
+                }
                 if ($reason !== null) {
                     $this->log($report, "{$label}: cannot create an account ({$reason}); not enrolled");
                     $report['rowsskipped']++;
                     continue;
                 }
-                $report['accountscreated']++;
                 if ($this->dryrun) {
                     $this->log($report, "{$label}: would create an account and enrol");
+                    $report['accountscreated']++;
                     $report['enrolled']++;
                     continue;
                 }
-                $userid = $this->create_account($pair['row']);
+                try {
+                    $userid = $this->create_account($pair['row']);
+                } catch (\Throwable $e) {
+                    // One bad record must not stop every later registrant being processed.
+                    $this->log($report, "{$label}: account creation failed ({$e->getMessage()}); not enrolled");
+                    $report['failed']++;
+                    continue;
+                }
+                $report['accountscreated']++;
                 $this->log($report, "{$label}: created account (user {$userid})");
             } else {
                 $userid = (int)$user->id;
@@ -329,10 +353,13 @@ class registration_sync {
         global $CFG, $DB;
         require_once($CFG->libdir . '/enrollib.php');
 
-        // Collect, per course, the members who still have an active enrolment.
-        $bycourse = [];
+        // Collect, per course, the members who still hold an unsuspended enrolment.
+        // That includes future-dated ones and ones owned by a disabled plugin, which
+        // would otherwise grant access later despite the cancellation.
+        $unsuspended = [];
+        $bycourse    = [];
         foreach ($pairs as $pair) {
-            if ($pair['active'] || !$pair['cancelled']) {
+            if ($pair['active'] || $pair['unknown'] || !$pair['cancelled']) {
                 continue;
             }
             $user = util::find_user_by_imis_id($pair['imisid']);
@@ -340,7 +367,8 @@ class registration_sync {
                 continue;
             }
             $courseid = (int)$pair['courseid'];
-            if (!is_enrolled(context_course::instance($courseid), $user->id, '', true)) {
+            $unsuspended[$courseid] ??= array_flip(enrolment::unsuspended_userids($courseid));
+            if (!isset($unsuspended[$courseid][(int)$user->id])) {
                 continue;
             }
             $bycourse[$courseid][(int)$user->id] = $pair['imisid'];
@@ -348,7 +376,7 @@ class registration_sync {
 
         foreach ($bycourse as $courseid => $members) {
             $count  = count($members);
-            $active = count_enrolled_users(context_course::instance($courseid), '', 0, true);
+            $active = count($unsuspended[$courseid]);
             if ($count >= $this->guardfloor && $active > 0 && ($count / $active) * 100 > $this->guardpct) {
                 $this->log($report, "course {$courseid}: suspension guard tripped (would suspend {$count} of "
                     . "{$active} active enrolments); skipping its suspensions");

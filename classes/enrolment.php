@@ -69,14 +69,8 @@ class enrolment {
             return self::ALREADY;
         }
 
-        $instance = null;
-        foreach (enrol_get_instances($courseid, true) as $candidate) {
-            if ($candidate->enrol === 'manual') {
-                $instance = $candidate;
-                break;
-            }
-        }
-        $plugin = enrol_get_plugin('manual');
+        $instance = self::manual_instance($courseid);
+        $plugin   = enrol_get_plugin('manual');
         if ($instance === null || $plugin === null) {
             return self::NO_INSTANCE;
         }
@@ -88,6 +82,46 @@ class enrolment {
             $plugin->enrol_user($instance, $userid, (int)$instance->roleid, 0, 0, ENROL_USER_ACTIVE);
         }
         return $existing ? self::REACTIVATED : self::ENROLLED;
+    }
+
+    /**
+     * The course's first enabled manual enrolment instance, or null when it has none
+     * (or the manual enrol plugin is disabled site-wide).
+     *
+     * @param int $courseid The course ID.
+     * @return \stdClass|null
+     */
+    public static function manual_instance(int $courseid): ?\stdClass {
+        global $CFG;
+        require_once($CFG->libdir . '/enrollib.php');
+
+        foreach (enrol_get_instances($courseid, true) as $candidate) {
+            if ($candidate->enrol === 'manual') {
+                return $candidate;
+            }
+        }
+        return null;
+    }
+
+    /**
+     * The learners who hold at least one unsuspended enrolment in a course, by any
+     * method and whatever its dates or plugin state. This is wider than "active today":
+     * a future-dated enrolment, or one owned by a disabled plugin, would still grant
+     * access later, so it counts.
+     *
+     * @param int $courseid The course ID.
+     * @return int[] User IDs.
+     */
+    public static function unsuspended_userids(int $courseid): array {
+        global $CFG, $DB;
+        require_once($CFG->libdir . '/enrollib.php');
+
+        $sql = "SELECT DISTINCT ue.userid
+                  FROM {user_enrolments} ue
+                  JOIN {enrol} e ON e.id = ue.enrolid
+                 WHERE e.courseid = :courseid AND ue.status = :active";
+        $ids = $DB->get_fieldset_sql($sql, ['courseid' => $courseid, 'active' => ENROL_USER_ACTIVE]);
+        return array_map('intval', $ids);
     }
 
     /**

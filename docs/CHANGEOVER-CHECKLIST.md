@@ -549,7 +549,8 @@ REST.
   `CONCAT(OrderNumber, '-', ShipToId)`), `IsActiveRegistration`, `EndDate`, plus
   `FirstName`, `LastName`, `Email` for account creation. Use the contact's own email,
   not the order's. Join the contact on `ShipToId` as a required join.
-- [ ] **Guests excluded** in the IQA (they must not be enrolled).
+- [ ] **Guests excluded** in the IQA (they must not be enrolled). Not needed where
+  every registrant has their own iMIS account.
 - [ ] Each event code has its `MOODLE_PRODUCTS` row (`{EventCode}/REG` → course id),
   as for the tutorial sync (§T1).
 - [ ] The REST service account can read this IQA.
@@ -558,7 +559,8 @@ REST.
 
 - [ ] **Registrations IQA** set to the IQA path; **Registration sync: dry run** on.
 - [ ] **Cancelled status codes** match iMIS (default `C`: a `Status` containing `C`
-  is cancelled; blank is active).
+  is cancelled; blank is active). Any other status is reported as not recognised
+  and neither enrols nor suspends, so check the dry-run report for those lines.
 - [ ] **Look-back** (default 90 days) covers how long after an event cancellations
   can still arrive. Rows with no `EndDate` always count.
 - [ ] **Create accounts** on (default) if registrants may have no Moodle account yet.
@@ -576,8 +578,8 @@ REST.
 
 ### R4. Safety and rollback
 
-- [ ] An empty IQA read changes nothing; a member and course with no rows is never
-  touched; a run that would suspend 10+ members and more than the guard percentage
+- [ ] An empty IQA read changes nothing; a member and course with no rows (or with an
+  unrecognised status) is never suspended; a run that would suspend 10+ members and more than the guard percentage
   of a course skips that course's suspensions.
 - [ ] **Rollback:** set **Sync provider** back to *ATS SOAP bridge* or *Same as
   connection provider*, or clear the Registrations IQA, and turn the iDMS push back on.

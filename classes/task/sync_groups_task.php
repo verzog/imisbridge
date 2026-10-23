@@ -57,6 +57,13 @@ class sync_groups_task extends \core\task\scheduled_task {
             mtrace('iMIS Bridge: no configured sync provider (see the Sync provider setting); skipping group sync.');
             return;
         }
+        if ($provider instanceof \local_imisbridge\rest_client) {
+            // Under REST, groups come from the tutorial group sync. Return without
+            // touching the watermark, so switching back to the ATS bridge resumes its
+            // incremental sync from where it left off rather than skipping changes.
+            mtrace('iMIS Bridge: ' . $provider->update_groups() . ' Skipping group sync.');
+            return;
+        }
 
         mtrace('iMIS Bridge: Starting group sync...');
         try {

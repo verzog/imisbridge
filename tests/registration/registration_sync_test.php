@@ -390,6 +390,81 @@ final class registration_sync_test extends \advanced_testcase {
     }
 
     /**
+     * A status that is neither blank nor cancelled grants nothing and never suspends,
+     * even alongside a cancelled registration.
+     *
+     * @return void
+     */
+    public function test_unrecognised_status_neither_enrols_nor_suspends(): void {
+        $newcomer = $this->member('20018');
+        $enrolled = $this->member('20016', true);
+
+        $report = $this->engine([$this->row('20018', 'P')])->run(registration_sync::MODE_ENROL);
+        $this->assertSame(0, $report['enrolled']);
+        $this->assertSame(1, $report['rowsskipped']);
+        $this->assertFalse($this->active((int)$newcomer->id));
+
+        $report = $this->engine([$this->row('20016', 'C'), $this->row('20016', 'P')])->run(registration_sync::MODE_CANCEL);
+        $this->assertSame(0, $report['suspended']);
+        $this->assertTrue($this->active((int)$enrolled->id));
+    }
+
+    /**
+     * Cancellation also suspends an enrolment that only starts in the future.
+     *
+     * @return void
+     */
+    public function test_suspends_future_dated_enrolment(): void {
+        global $DB;
+        $user = $this->member('20016');
+        $this->getDataGenerator()->enrol_user($user->id, $this->course->id, 'student', 'manual', time() + 7 * DAYSECS);
+        $this->assertFalse($this->active((int)$user->id), 'not active until it starts');
+
+        $report = $this->engine([$this->row('20016', 'C')])->run(registration_sync::MODE_CANCEL);
+
+        $this->assertSame(1, $report['suspended']);
+        $this->assertFalse($DB->record_exists('user_enrolments', ['userid' => $user->id, 'status' => ENROL_USER_ACTIVE]));
+    }
+
+    /**
+     * Without an enabled manual enrolment method, no account is created (or reported as
+     * would-be created in a dry run) for a registrant who could not then be enrolled.
+     *
+     * @return void
+     */
+    public function test_no_account_without_manual_enrolment_method(): void {
+        global $DB;
+        $DB->set_field('enrol', 'status', ENROL_INSTANCE_DISABLED, ['courseid' => $this->course->id, 'enrol' => 'manual']);
+
+        foreach ([true, false] as $dryrun) {
+            $report = $this->engine([$this->row('20040')], ['dryrun' => $dryrun])->run(registration_sync::MODE_ENROL);
+
+            $this->assertSame(0, $report['accountscreated']);
+            $this->assertSame(0, $report['enrolled']);
+            $this->assertSame(1, $report['rowsskipped']);
+            $this->assertFalse($DB->record_exists('user', ['idnumber' => '20040']));
+        }
+    }
+
+    /**
+     * With the iMIS ID source set to username, a remote MNet account with that username
+     * is not taken for the member.
+     *
+     * @covers \local_imisbridge\util::find_user_by_imis_id
+     * @return void
+     */
+    public function test_username_lookup_ignores_remote_mnet_accounts(): void {
+        global $CFG;
+        set_config('imis_id_source', 'username', 'local_imisbridge');
+        $this->getDataGenerator()->create_user(['username' => '20050', 'mnethostid' => $CFG->mnet_localhost_id + 1]);
+
+        $this->assertNull(\local_imisbridge\util::find_user_by_imis_id('20050'));
+
+        $local = $this->getDataGenerator()->create_user(['username' => '20050']);
+        $this->assertSame((int)$local->id, (int)\local_imisbridge\util::find_user_by_imis_id('20050')->id);
+    }
+
+    /**
      * The REST reader maps columns by alias or caption, ignoring case, spaces and
      * underscores, and reads the active flag and end date.
      *
@@ -404,9 +479,9 @@ final class registration_sync_test extends \advanced_testcase {
             'Status'                 => 'C',
             'Is Active Registration' => 'True',
             'End_Date'               => '2026-10-30T00:00:00',
-            'First Name'             => 'Nicola',
-            'Last Name'              => 'Hill',
-            'Email'                  => 'Nicola20016@mailinator.com',
+            'First Name'             => 'Alex',
+            'Last Name'              => 'Example',
+            'Email'                  => 'member20016@example.com',
         ]);
 
         $this->assertSame('20016', $row->imisid);
@@ -415,8 +490,8 @@ final class registration_sync_test extends \advanced_testcase {
         $this->assertSame('C', $row->status);
         $this->assertTrue($row->isactive);
         $this->assertSame(strtotime('2026-10-30T00:00:00'), $row->enddate);
-        $this->assertSame('Nicola', $row->firstname);
-        $this->assertSame('Hill', $row->lastname);
+        $this->assertSame('Alex', $row->firstname);
+        $this->assertSame('Example', $row->lastname);
 
         $blank = rest_reader::to_row(['ID' => '1', 'EventCode' => 'X']);
         $this->assertNull($blank->isactive);
