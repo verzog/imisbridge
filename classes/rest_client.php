@@ -418,8 +418,9 @@ class rest_client implements \local_imisbridge\provider\org_sync_provider {
 
     /**
      * A short, single-line reason from an iMIS error response body: the message from a
-     * JSON error (Message, ExceptionMessage, error_description or error), a JSON string,
-     * or else the body's text. Markup is removed, and it is at most 300 characters; empty
+     * JSON error (the detailed ExceptionMessage or error_description before a generic
+     * Message or error), a JSON string, or else the body's text without its scripts and
+     * styles. Markup is removed, and it is at most 300 characters; empty
      * when the body says nothing.
      *
      * @param string $raw The raw response body.
@@ -431,7 +432,7 @@ class rest_client implements \local_imisbridge\provider\org_sync_provider {
         if (is_string($decoded)) {
             $text = $decoded;
         } else if (is_object($decoded)) {
-            foreach (['Message', 'message', 'ExceptionMessage', 'error_description', 'error'] as $key) {
+            foreach (['ExceptionMessage', 'error_description', 'Message', 'message', 'error'] as $key) {
                 if (isset($decoded->$key) && is_scalar($decoded->$key) && trim((string)$decoded->$key) !== '') {
                     $text = (string)$decoded->$key;
                     break;
@@ -439,7 +440,8 @@ class rest_client implements \local_imisbridge\provider\org_sync_provider {
             }
         }
         if ($text === '' && $decoded === null) {
-            $text = $raw;
+            // An HTML error page: drop scripts and styles, whose text would crowd out the reason.
+            $text = preg_replace('#<(script|style)\b[^>]*>.*?</\1\s*>#is', ' ', $raw) ?? $raw;
         }
         // Markup is removed from every reason: it is shown on admin pages as-is.
         $text = trim(preg_replace('/\s+/u', ' ', strip_tags($text)) ?? '');

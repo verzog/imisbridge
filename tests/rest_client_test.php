@@ -250,12 +250,19 @@ final class rest_client_test extends \advanced_testcase {
     public function test_error_reason(): void {
         $this->assertSame('Query not found', rest_client::error_reason('{"Message":"Query not found"}'));
         $this->assertSame(
+            'Missing required parameter: Code',
+            rest_client::error_reason('{"Message":"An error has occurred.","ExceptionMessage":"Missing required parameter: Code"}')
+        );
+        $this->assertSame(
             'The user name or password is incorrect.',
             rest_client::error_reason('{"error":"invalid_grant","error_description":"The user name or password is incorrect."}')
         );
         $this->assertSame('Missing required parameter', rest_client::error_reason('"Missing required parameter"'));
         $html = "<html><h1>Bad Request</h1>\n<p>Invalid query</p></html>";
         $this->assertSame('Bad Request Invalid query', rest_client::error_reason($html));
+        $page = '<html><head><style type="text/css">body { color: red; }</style><script>var x = 1;</script></head>'
+            . '<body><h1>502 Bad Gateway</h1></body></html>';
+        $this->assertSame('502 Bad Gateway', rest_client::error_reason($page));
         $this->assertSame('', rest_client::error_reason(''));
         $this->assertSame('', rest_client::error_reason('{"Items":[]}'));
         $this->assertSame(300, \core_text::strlen(rest_client::error_reason(str_repeat('x', 400))));
