@@ -114,7 +114,7 @@ class registration_sync {
             (array)($options['cancelledcodes'] ?? ['C'])
         );
         $this->cancelledcodes = array_values(array_filter($codes, static fn($code) => $code !== ''));
-        $this->lookbackdays   = max(0, (int)($options['lookbackdays'] ?? 90));
+        $this->lookbackdays   = max(0, (int)($options['lookbackdays'] ?? 7));
         $this->createusers    = !empty($options['createusers']);
         $this->guardpct       = max(0, min(100, (int)($options['guardpct'] ?? 50)));
         $this->guardfloor     = max(1, (int)($options['guardfloor'] ?? 10));
@@ -138,6 +138,7 @@ class registration_sync {
         $report = [
             'mode'            => $mode,
             'dryrun'          => $this->dryrun,
+            'lookbackdays'    => $this->lookbackdays,
             'rowsread'        => 0,
             'rowsskipped'     => 0,
             'rowsoutofwindow' => 0,

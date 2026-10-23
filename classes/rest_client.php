@@ -71,6 +71,9 @@ class rest_client implements \local_imisbridge\provider\org_sync_provider {
     /** @var registration\registration_sync|null The registration sync, built once per client. */
     private ?registration\registration_sync $regsync = null;
 
+    /** @var bool Apply registrations whatever their event's end date (one-member manual override). */
+    private bool $ignorelookback = false;
+
     /**
      * Constructor — reads REST settings from plugin configuration.
      *
@@ -152,6 +155,19 @@ class rest_client implements \local_imisbridge\provider\org_sync_provider {
     }
 
     /**
+     * Apply registrations for events that ended before the look-back window, for the
+     * rest of this client's life. Only the one-member manual sync on the admin page
+     * uses this, so an administrator can apply a late cancellation or enrolment; the
+     * scheduled tasks always keep the window.
+     *
+     * @return void
+     */
+    public function ignore_lookback(): void {
+        $this->ignorelookback = true;
+        $this->regsync = null;
+    }
+
+    /**
      * Groups come from the tutorial group sync task, which already reads iMIS over
      * REST; running it here (on every login) would re-read the whole panel each time.
      *
@@ -183,11 +199,12 @@ class rest_client implements \local_imisbridge\provider\org_sync_provider {
             foreach ($rows as $row) {
                 if (strcasecmp($row->imisid, trim($contactid)) === 0) {
                     $out .= sprintf(
-                        '  %s  event %s  status "%s"  active %s%s',
+                        '  %s  event %s  status "%s"  active %s  ends %s%s',
                         $row->key,
                         $row->eventcode,
                         $row->status,
                         var_export($row->isactive, true),
+                        $row->enddate === null ? '-' : userdate($row->enddate, '%Y-%m-%d'),
                         PHP_EOL
                     );
                 }
@@ -227,7 +244,7 @@ class rest_client implements \local_imisbridge\provider\org_sync_provider {
                 'dryrun'         => util::is_enabled('reg_dry_run'),
                 'createusers'    => util::is_enabled('reg_create_users'),
                 'cancelledcodes' => $codes ?: ['C'],
-                'lookbackdays'   => self::int_setting('reg_lookback_days', 90),
+                'lookbackdays'   => $this->ignorelookback ? 0 : self::int_setting('reg_lookback_days', 7),
                 'guardpct'       => self::int_setting('reg_guard_pct', 50),
             ]
         );
@@ -348,7 +365,9 @@ class rest_client implements \local_imisbridge\provider\org_sync_provider {
 
         $decoded = json_decode((string)$response);
         if ($code !== 200 || !is_object($decoded) || empty($decoded->access_token)) {
-            logger::record_call('token', null, null, logger::STATUS_ERROR, 'HTTP ' . $code);
+            $reason = self::error_reason((string)$response);
+            $error  = 'HTTP ' . $code . ($reason !== '' ? ': ' . $reason : '');
+            logger::record_call('token', null, null, logger::STATUS_ERROR, $error);
             throw new \moodle_exception('resttokenfailed', 'local_imisbridge', '', $code);
         }
 
@@ -367,9 +386,11 @@ class rest_client implements \local_imisbridge\provider\org_sync_provider {
      * @param string      $path        Path beginning with '/', appended to the base URL.
      * @param array|null  $json        Body to send as JSON, or null for no body.
      * @param string|null $imisid      The affected contact iMIS ID, for the audit log.
-     * @param bool        $capturebody Whether to store the response body in the audit log.
-     *                                 False for bulk reads whose body holds many contacts'
-     *                                 data that could not be attributed to a single user.
+     * @param bool        $capturebody Whether to store a successful response body in the
+     *                                 audit log. False for bulk reads whose body holds many
+     *                                 contacts' data that could not be attributed to a single
+     *                                 user. An error response carries no such data, so its
+     *                                 body is always eligible.
      * @return object The decoded response: {code:int, body:mixed, raw:string}.
      * @throws \moodle_exception On a non-2xx response or transport failure.
      */
@@ -388,24 +409,60 @@ class rest_client implements \local_imisbridge\provider\org_sync_provider {
         }
 
         $ok = ($result->code >= 200 && $result->code < 300);
+        // On failure, iMIS says why in the body (a missing prompt, an unknown query);
+        // keep that short reason with the error, whatever the payload-capture setting.
+        $reason = $ok ? '' : self::error_reason($result->raw);
+        $error  = 'HTTP ' . $result->code . ($reason !== '' ? ': ' . $reason : '');
         logger::record_call(
             $method . ' ' . $path,
             $imisid,
             null,
             $ok ? logger::STATUS_SUCCESS : logger::STATUS_ERROR,
-            $ok ? null : 'HTTP ' . $result->code,
+            $ok ? null : $error,
             ($json !== null) ? json_encode($json) : null,
-            $capturebody ? $result->raw : null
+            ($capturebody || !$ok) ? $result->raw : null
         );
 
         if (!$ok) {
             // Throw so the adhoc task retries with backoff, and so a failed read is
             // never mistaken for "no activity" (which would cause a duplicate POST).
-            $detail = $method . ' ' . $path . ' returned HTTP ' . $result->code;
+            $detail = $method . ' ' . $path . ' returned ' . $error;
             throw new \moodle_exception('restrequestfailed', 'local_imisbridge', '', $detail);
         }
 
         return $result;
+    }
+
+    /**
+     * A short, single-line reason from an iMIS error response body: the message from a
+     * JSON error (the detailed ExceptionMessage or error_description before a generic
+     * Message or error), a JSON string, or else the body's text without its scripts and
+     * styles. Markup is removed, and it is at most 300 characters; empty
+     * when the body says nothing.
+     *
+     * @param string $raw The raw response body.
+     * @return string
+     */
+    public static function error_reason(string $raw): string {
+        $decoded = json_decode($raw);
+        $text = '';
+        if (is_string($decoded)) {
+            $text = $decoded;
+        } else if (is_object($decoded)) {
+            foreach (['ExceptionMessage', 'error_description', 'Message', 'message', 'error'] as $key) {
+                if (isset($decoded->$key) && is_scalar($decoded->$key) && trim((string)$decoded->$key) !== '') {
+                    $text = (string)$decoded->$key;
+                    break;
+                }
+            }
+        }
+        if ($text === '' && $decoded === null) {
+            // An HTML error page: drop scripts and styles, whose text would crowd out the reason.
+            $text = preg_replace('#<(script|style)\b[^>]*>.*?</\1\s*>#is', ' ', $raw) ?? $raw;
+        }
+        // Markup is removed from every reason: it is shown on admin pages as-is.
+        $text = trim(preg_replace('/\s+/u', ' ', strip_tags($text)) ?? '');
+        return \core_text::strlen($text) > 300 ? \core_text::substr($text, 0, 297) . '...' : $text;
     }
 
     /**

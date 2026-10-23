@@ -336,7 +336,7 @@ if ($hassiteconfig) {
         'local_imisbridge/reg_lookback_days',
         get_string('reg_lookback_days', 'local_imisbridge'),
         get_string('reg_lookback_days_desc', 'local_imisbridge'),
-        '90',
+        '7',
         PARAM_INT
     ));
 

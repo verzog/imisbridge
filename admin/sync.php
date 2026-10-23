@@ -32,6 +32,8 @@ admin_externalpage_setup('local_imisbridge_sync');
 // Use POST to avoid action/contactid appearing in browser history and server logs.
 $action    = optional_param('action', '', PARAM_ALPHANUMEXT);
 $contactid = optional_param('contactid', '', PARAM_TEXT);
+// One-member override: include registrations outside the REST look-back window.
+$ignorelookback = optional_param('ignorelookback', 0, PARAM_BOOL);
 $message    = '';
 $error      = '';
 $notice     = '';
@@ -102,6 +104,9 @@ $providerclass = \local_imisbridge\provider\manager::active_provider_class();
 // differ from the push provider (the Sync provider setting).
 $syncclass     = \local_imisbridge\provider\manager::sync_provider_class();
 $cansync       = is_a($syncclass, \local_imisbridge\provider\org_sync_provider::class, true);
+// Only the REST registration sync has a look-back window to override.
+$canoverride   = is_a($syncclass, \local_imisbridge\rest_client::class, true);
+$ignorelookback = $ignorelookback && $canoverride;
 // Every provider can push records, so the manual "push completion" test applies to all.
 $canpush       = $providerclass::supports(\local_imisbridge\provider\provider_interface::CAP_PUSH);
 
@@ -288,10 +293,15 @@ if ($action === 'testconnection' && confirm_sesskey()) {
                 'confirm'   => 1,
                 'sesskey'   => sesskey(),
             ]);
+            $confirmtext = get_string('confirmsync', 'local_imisbridge', s($contactid));
+            if ($ignorelookback) {
+                $continueurl->param('ignorelookback', 1);
+                $confirmtext .= ' ' . get_string('reg_ignore_lookback_confirm', 'local_imisbridge');
+            }
 
             echo $OUTPUT->header();
             echo $OUTPUT->confirm(
-                get_string('confirmsync', 'local_imisbridge', s($contactid)),
+                $confirmtext,
                 new single_button($continueurl, get_string('continue'), 'post'),
                 new moodle_url('/local/imisbridge/admin/sync.php')
             );
@@ -307,6 +317,9 @@ if ($action === 'testconnection' && confirm_sesskey()) {
             if ($provider === null) {
                 $error = get_string('providernotsupported', 'local_imisbridge', $syncclass::label());
             } else {
+                if ($ignorelookback && $provider instanceof \local_imisbridge\rest_client) {
+                    $provider->ignore_lookback();
+                }
                 $scope = get_string('forcontact', 'local_imisbridge', s($contactid));
 
                 // Collect each call's raw result so a manual sync of a few records can be
@@ -380,6 +393,19 @@ if ($cansync) {
         . ' value="' . $cidvalue . '" placeholder="' . s(get_string('contactidplaceholder', 'local_imisbridge')) . '">';
     echo html_writer::tag('small', get_string('contactidhelp', 'local_imisbridge'), ['class' => 'form-text text-muted']);
     echo html_writer::end_div();
+    if ($canoverride) {
+        echo html_writer::start_div('form-check mt-2');
+        // Always shown unticked, so an override never carries over to the next sync.
+        echo '<input type="checkbox" id="ignorelookback" name="ignorelookback" value="1" class="form-check-input">';
+        echo html_writer::tag('label', get_string('reg_ignore_lookback', 'local_imisbridge'), [
+            'for'   => 'ignorelookback',
+            'class' => 'form-check-label',
+        ]);
+        echo html_writer::tag('small', get_string('reg_ignore_lookback_help', 'local_imisbridge'), [
+            'class' => 'form-text text-muted d-block',
+        ]);
+        echo html_writer::end_div();
+    }
     echo html_writer::start_div('mt-3 d-flex gap-2 flex-wrap');
     echo '<button type="submit" name="action" value="enrollments" class="btn btn-primary">'
         . s(get_string('sync_enrollments', 'local_imisbridge')) . '</button>';

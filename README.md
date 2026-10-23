@@ -86,7 +86,8 @@ Local plugins > iMIS Bridge_:
 * **Sync provider** — which provider runs the enrolment, cancellation and group
   syncs; blank follows the connection provider.
 * **Registration sync (Direct iMIS REST)** — the registrations IQA, dry run (on by
-  default), account creation, cancelled status codes, look-back days and the
+  default), account creation, cancelled status codes, look-back days (default 7
+  after the event ends; a one-member manual sync can override it) and the
   suspension guard.
 * **iMIS WSDL URL** — the `wsmoodle.asmx?WSDL` endpoint for your environment
   (ask ATS for the correct host). Blank by default; no SOAP call is made until it

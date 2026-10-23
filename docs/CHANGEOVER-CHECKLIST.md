@@ -561,8 +561,11 @@ REST.
 - [ ] **Cancelled status codes** match iMIS (default `C`: a `Status` containing `C`
   is cancelled; blank is active). Any other status is reported as not recognised
   and neither enrols nor suspends, so check the dry-run report for those lines.
-- [ ] **Look-back** (default 90 days) covers how long after an event cancellations
-  can still arrive. Rows with no `EndDate` always count.
+- [ ] **Look-back** (default 7 days after the event's `EndDate`). Registrations close
+  before an event ends, so a short window still catches every normal change and the
+  rare late cancellation. Anything later: run a one-member manual sync with
+  *Include events outside the look-back window* ticked. Rows with no `EndDate`
+  always count.
 - [ ] **Create accounts** on (default) if registrants may have no Moodle account yet.
 - [ ] **Login syncs off** to start (*Sync enrolments on login*, *Sync cancellations on
   login*, *Sync groups on login*): under REST each login sync reads the whole IQA.
@@ -573,6 +576,9 @@ REST.
 ### R3. Dry run, then live
 
 - [ ] *Test connection* (manual sync page) with a member ID lists that member's rows.
+  An HTTP 400 shows iMIS's reason after it (also in the audit log); the usual
+  causes are a filter still set to prompt, *Available via REST API* not ticked, or
+  a mistyped IQA path.
 - [ ] Run the enrolment and cancellation tasks (or a one-member manual sync) and read
   the report: who would be enrolled, reactivated, suspended or created, plus every
   skipped row and its reason.

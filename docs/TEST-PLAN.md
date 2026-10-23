@@ -347,6 +347,7 @@ in `CHANGEOVER-CHECKLIST.md` §R.
 | N8 | Member with no rows; event ended before the look-back; IsActiveRegistration false | No change | ☐ | |
 | N9 | IQA returns no rows | Run aborts with no changes | ☐ | |
 | N10 | Run would suspend 10+ and >50% of a course | That course's suspensions skipped and logged | ☐ | |
+| N11 | Manual one-member sync with *Include events outside the look-back window* ticked, for a cancellation on an event that ended before the window | Confirmation mentions the override; report shows `lookbackdays => 0`; enrolment suspended (or would be, in dry run). Unticked, and in the nightly tasks, the row stays out of window | ☐ | Late override |
 
 ---
 
@@ -384,3 +385,4 @@ in `CHANGEOVER-CHECKLIST.md` §R.
 | 2026-10-22 | 1.19.7: L3 now expects per-member `would add` / `would remove` dry-run lines for new and existing groups. |
 | 2026-10-22 | 1.20.0: add D7–D9 for the activity score push (`Push activity scores` checklist, sent on grading, unchanged regrades not re-sent). |
 | 2026-10-23 | 1.21.0: add §N for the Sync provider setting and the REST registration sync. |
+| 2026-10-23 | 1.22.0: N11 for the one-member look-back override; the default look-back is now 7 days. |
