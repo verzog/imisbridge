@@ -71,6 +71,9 @@ class rest_client implements \local_imisbridge\provider\org_sync_provider {
     /** @var registration\registration_sync|null The registration sync, built once per client. */
     private ?registration\registration_sync $regsync = null;
 
+    /** @var bool Apply registrations whatever their event's end date (one-member manual override). */
+    private bool $ignorelookback = false;
+
     /**
      * Constructor — reads REST settings from plugin configuration.
      *
@@ -152,6 +155,19 @@ class rest_client implements \local_imisbridge\provider\org_sync_provider {
     }
 
     /**
+     * Apply registrations for events that ended before the look-back window, for the
+     * rest of this client's life. Only the one-member manual sync on the admin page
+     * uses this, so an administrator can apply a late cancellation or enrolment; the
+     * scheduled tasks always keep the window.
+     *
+     * @return void
+     */
+    public function ignore_lookback(): void {
+        $this->ignorelookback = true;
+        $this->regsync = null;
+    }
+
+    /**
      * Groups come from the tutorial group sync task, which already reads iMIS over
      * REST; running it here (on every login) would re-read the whole panel each time.
      *
@@ -183,11 +199,12 @@ class rest_client implements \local_imisbridge\provider\org_sync_provider {
             foreach ($rows as $row) {
                 if (strcasecmp($row->imisid, trim($contactid)) === 0) {
                     $out .= sprintf(
-                        '  %s  event %s  status "%s"  active %s%s',
+                        '  %s  event %s  status "%s"  active %s  ends %s%s',
                         $row->key,
                         $row->eventcode,
                         $row->status,
                         var_export($row->isactive, true),
+                        $row->enddate === null ? '-' : userdate($row->enddate, '%Y-%m-%d'),
                         PHP_EOL
                     );
                 }
@@ -227,7 +244,7 @@ class rest_client implements \local_imisbridge\provider\org_sync_provider {
                 'dryrun'         => util::is_enabled('reg_dry_run'),
                 'createusers'    => util::is_enabled('reg_create_users'),
                 'cancelledcodes' => $codes ?: ['C'],
-                'lookbackdays'   => self::int_setting('reg_lookback_days', 90),
+                'lookbackdays'   => $this->ignorelookback ? 0 : self::int_setting('reg_lookback_days', 7),
                 'guardpct'       => self::int_setting('reg_guard_pct', 50),
             ]
         );

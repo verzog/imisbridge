@@ -4,9 +4,21 @@ All notable changes to the iMIS Bridge plugin (`local_imisbridge`) are documente
 in this file. The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [1.21.1] - 2026-10-23
+## [1.22.0] - 2026-10-23
+
+### Added
+- **One-member look-back override.** With Direct iMIS REST as the sync provider, the
+  manual sync page has *Include events outside the look-back window*: for that one
+  member, registrations for events that ended before the window are applied too
+  (for example a cancellation processed after the course ended). It is unticked on
+  every page load, is named in the confirmation, and dry run still applies. The
+  nightly tasks always keep the window. The report now shows the `lookbackdays` used.
+- *Test connection* lists each registration's end date.
 
 ### Changed
+- The registration sync look-back now defaults to **7 days** after the event's end
+  date (was 90). Registrations close before an event ends, so a short window still
+  catches every normal change. Sites that saved 90 keep it until they change it.
 - A failed iMIS REST call now records why: the reason iMIS gives in its error
   response (for example a missing IQA prompt or an unknown query) is added to the
   audit-log error and to the message on the sync page, as `HTTP 400: <reason>`.

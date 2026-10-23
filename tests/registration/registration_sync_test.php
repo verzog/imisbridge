@@ -311,6 +311,28 @@ final class registration_sync_test extends \advanced_testcase {
     }
 
     /**
+     * With no look-back (0, as the one-member manual override uses), a cancellation on
+     * an event that ended long ago is still applied, and the report names the window.
+     *
+     * @return void
+     */
+    public function test_no_lookback_applies_old_events(): void {
+        $user = $this->member('20016', true);
+        $now  = time();
+        $rows = [$this->row('20016', 'C', true, $now - 200 * DAYSECS)];
+
+        $report = $this->engine($rows, ['lookbackdays' => 7, 'now' => $now])->run(registration_sync::MODE_CANCEL);
+        $this->assertSame(7, $report['lookbackdays']);
+        $this->assertSame(1, $report['rowsoutofwindow']);
+        $this->assertTrue($this->active((int)$user->id));
+
+        $report = $this->engine($rows, ['lookbackdays' => 0, 'now' => $now])->run(registration_sync::MODE_CANCEL);
+        $this->assertSame(0, $report['lookbackdays']);
+        $this->assertSame(1, $report['suspended']);
+        $this->assertFalse($this->active((int)$user->id));
+    }
+
+    /**
      * A member with no rows is left alone, even when others are cancelled.
      *
      * @return void
