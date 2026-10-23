@@ -118,6 +118,7 @@ redacted either way.
 | `GetBridgeSettings`, `MoodleGetUserProfile`, `getActivityByIDAndType`, `getIQARows` | Connection test / API | Read: some yes | Read only |
 | Completion push (`MoodleUpdate`) | Course completion | Yes | Writes status, score and the start/completion/grant dates to the canonical `MOODLE` activity record (credit is derived by iMIS from the product) |
 | Quiz score push (`CreateActivity`) | Graded quiz submission | Yes | Creates an append-only `MOODLENOTE` record ("Moodle course N score", `Note2 = score`). Never `MoodleUpdate`, so a re-attempt cannot overwrite the course's completion record (since 1.16.0) |
+| Activity score note (`CreateActivity`) | An activity of a type ticked in _Push activity scores_ is **graded** (none ticked by default; quiz excluded — it has its own push) | Yes | Creates an append-only `MOODLENOTE` ("Score: <activity>", `Note2 = score`) with the raw grade; an unchanged regrade is not sent again (1.20.0) |
 | Module note (`CreateActivity`) | Module completion, or the _Push activity note (test)_ control — **both** require _Push module completions_ on (default off; graded modules only) | Yes | Creates an append-only `MOODLENOTE` record (`Note2 = modulecompletion`) |
 | Enrolment sync (`SendNewOrdersToMoodle`) | Login, nightly task, manual | No | Creates iMIS activity records **and** pushes an enrol notice to the bridge's configured Moodle |
 | Cancellation sync (`SendCancelledOrdersToMoodle`) | Login, nightly task, manual | No | Marks iMIS activity records cancelled **and** pushes an unenrol notice to the bridge's configured Moodle |
@@ -147,7 +148,8 @@ checkbox:
 
 - **Automatic sync controls:** sync enrolments / cancellations / groups on
   login; push course completions; push quiz scores (all default **on**); push
-  module completions (default **off**).
+  module completions (default **off**); push activity scores — a checklist of
+  activity types (none ticked by default).
 - **Scheduled tasks:** the nightly enrolment / cancellation / group sync tasks
   (default **on**).
 - **Tutorial group sync:** its own enable switch (default **off**) plus a dry-run

@@ -164,7 +164,9 @@ class imis_client implements \local_imisbridge\provider\org_sync_provider {
     }
 
     /**
-     * Push a supplementary module-completion note via createActivity (MOODLENOTE).
+     * Push a supplementary module note via createActivity (MOODLENOTE): a module
+     * completion (`Note2 = modulecompletion`), or an activity score when `notekind`
+     * is 'score' (`Note2 = score`, "Score: <activity>").
      *
      * Field names mirror the vendor's proven call against the same ATS service;
      * confirm against the live WSDL if a field is rejected.
@@ -174,16 +176,17 @@ class imis_client implements \local_imisbridge\provider\org_sync_provider {
      */
     public function push_module_note(\stdClass $data): void {
         $cmname = (string)($data->cmname ?? '');
+        $isscore = (($data->notekind ?? '') === 'score');
         $this->create_activity(self::build_note_params(
             (string)$data->imisid,
             (string)($data->coursenum ?? ''),
-            'Module completion: ' . $cmname,
+            ($isscore ? 'Score: ' : 'Module completion: ') . $cmname,
             (string)($data->status ?? ''),
             (float)($data->score ?? 0),
             (string)($data->date ?? date('Y-m-d')),
             [
                 'UserField5' => (int)($data->cmid ?? 0),
-                'Note2'      => 'modulecompletion',
+                'Note2'      => $isscore ? 'score' : 'modulecompletion',
                 'SourceCode' => (string)($data->modname ?? ''),
                 'Description' => $cmname,
             ]

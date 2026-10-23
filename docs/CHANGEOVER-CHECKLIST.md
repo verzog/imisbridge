@@ -21,7 +21,7 @@ live before, with, or after the changeover; §T has its own checks.
 | Concern | Vendor `local_imis` | New `local_imisbridge` |
 |---|---|---|
 | Completion → iMIS | `course_completed` → `MoodleUpdate` (canonical MOODLE record) | `course_completed` → `MoodleUpdate` — **same** |
-| Score → iMIS | `user_graded` → `createActivity` (MOODLENOTE) | `quiz_attempt_submitted` → `CreateActivity` (MOODLENOTE, `Note2 = score`) — same record type, **quiz only** |
+| Score → iMIS | `user_graded` → `createActivity` (MOODLENOTE) | Quiz: `quiz_attempt_submitted` → `CreateActivity` (MOODLENOTE, `Note2 = score`). Other activities (1.20.0): `user_graded` → `CreateActivity` (MOODLENOTE, `Note2 = score`, per activity) for the types ticked in **Push activity scores** — same record type; **opt-in per activity type** |
 | Module completions | `course_module_completion_updated` → MOODLENOTE | **opt-in** via `push_module_completions` (default off, **graded modules only**) |
 | Inbound provisioning | `local_imis_*` web-service functions (in-plugin) | **create/enrol: none in-plugin** → Moodle **core** functions on a hand-built service; **cancel:** `local_imisbridge_cancel_enrolment` (suspend, keeps data) |
 | Tutorial groups | none | **new:** nightly REST pull of the `MoodleTutorialGroup` panel (§T) |
@@ -30,7 +30,7 @@ live before, with, or after the changeover; §T has its own checks.
 
 Verified from the code: the new plugin's observers are `user_loggedin`,
 `course_completed`, `mod_quiz\event\attempt_submitted`, and (opt-in)
-`course_module_completion_updated`. Its web-service functions are
+`course_module_completion_updated` and `core\event\user_graded`. Its web-service functions are
 `local_imisbridge_get_completions_since` (a read-only completions pull) and
 `local_imisbridge_cancel_enrolment` (suspend-not-unenrol cancellation, §C), both on
 a restricted service — it exposes **no** create/get/update/enrol functions.
@@ -41,19 +41,25 @@ a restricted service — it exposes **no** create/get/update/enrol functions.
 
 Resolve these before cutover — they are behaviour changes, not bugs:
 
-1. **Score coverage narrows.** The vendor wrote a score note on **any**
-   `user_graded` (every gradebook activity); the new plugin writes one on **quiz
-   submission only**. Both write the same kind of record — an append-only
-   `MOODLENOTE`, never the canonical `MOODLE` completion record. If any course awards
-   credit via a non-quiz graded activity (assignment, SCORM, lesson, …), that score
-   will **not** flow to iMIS. Decide whether quiz-only is acceptable, or add a
-   `user_graded` observer / make the trigger configurable.
+1. **Choose which activities send scores.** The vendor wrote a score note on
+   **any** `user_graded` (every gradebook activity). The new plugin always sends
+   quiz scores (on submission, *Push quiz scores*), and since 1.20.0 sends scores for
+   other activity types **when they are graded** — tick them in **Push activity
+   scores** (none ticked by default). The list is built from every gradable activity
+   installed (including third-party ones such as `mod_casestudy`), so tick each type
+   that awards credit — e.g. *Assignment*, *Case study*. Each is an append-only
+   `MOODLENOTE` ("Score: <activity>", `Note2 = score`), never the canonical `MOODLE`
+   completion record. Unlike the vendor, an **unchanged** regrade is not sent again,
+   so a bulk rescale cannot flood iMIS. Only activities that write their grades
+   through Moodle's gradebook API can send scores; standard activities all do.
 2. **The module-completion MOODLENOTE trail is opt-in.** The vendor also wrote
    `MOODLENOTE` records for module completions. The new plugin can too — enable
    `push_module_completions` (default off, graded modules only). Decide whether
    that trail is needed by any iMIS report (if so, turn the toggle on and mind the
-   volume). Together with decision 1, the only notes the vendor wrote that the new
-   plugin cannot are score notes for non-quiz graded activities.
+   volume). With decision 1, the plugin can now write every kind of note the vendor
+   wrote. A tutor-marked activity is better covered by decision 1 than by this one:
+   its completion note goes out when the learner completes it, often before it is
+   marked (score 0), while its score note goes out when it is marked.
 3. **Inbound behaviour changes.** Moodle's core `core_user_create_users`
    **throws when the user already exists** (the vendor returned "already exists =
    success"), and the core functions have no idempotency or create/enrol
@@ -112,6 +118,9 @@ Order matters here — disable writes **before** entering any endpoint.
 > or, if you need the plugin to send something other than the raw id, add a
 > product-identifier-source setting rather than touching the id.
 
+- [ ] For each type ticked in **Push activity scores**, grade one activity (e.g. mark
+  a case study) and confirm a **`MOODLENOTE`** "Score: <activity>" lands with the
+  learner's raw grade, and that saving the same mark again does **not** add another.
 - [ ] Submit a graded quiz and confirm the score lands as a **`MOODLENOTE`** record
   ("Moodle course N score") — and that the course's `MOODLE` completion record is
   **unchanged** by it (a re-attempt after completion must never overwrite it).
@@ -584,8 +593,9 @@ unticking *Enable tutorial group sync* (§T5).
 A changeover is confirmed successful when: **B** passes (new records match vendor
 records and the existing history), **C** passes (inbound create/enrol works,
 including hidden courses and existing users), **E** holds (no double-writes), the
-two coverage gaps (score trigger, MOODLENOTE trail) are a conscious accepted
-decision, and **F** shows a clean audit log in both directions with no duplicates.
+note choices — which activity types send scores and whether module-completion notes
+are sent (decisions 1–2) — are made deliberately, and **F** shows a clean audit log
+in both directions with no duplicates.
 
 The tutorial group sync is signed off separately when **T3** (a live run matches
 iMIS, including a removal) and **T4** (empty-read abort and removal guard

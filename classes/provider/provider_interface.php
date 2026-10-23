@@ -91,9 +91,11 @@ interface provider_interface {
     public function push_score(\stdClass $data): void;
 
     /**
-     * Push a supplementary course-module completion note to the external system.
+     * Push a supplementary course-module note to the external system: a module
+     * completion, or an activity score when `notekind` is 'score'.
      *
-     * @param \stdClass $data The queued push data (imisid, coursenum, cmid, modname, cmname, status, score, date).
+     * @param \stdClass $data The queued push data (imisid, coursenum, cmid, modname, cmname, status, score, date,
+     *                        optional notekind).
      * @return void
      */
     public function push_module_note(\stdClass $data): void;

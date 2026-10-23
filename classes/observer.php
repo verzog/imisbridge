@@ -371,6 +371,190 @@ class observer {
     }
 
     /**
+     * Triggered when a learner's grade is written. Queues a score MOODLENOTE push for
+     * an activity of a type ticked in the `push_score_modules` checklist.
+     *
+     * This is what lets a tutor-marked activity (an assignment, a case study, ...)
+     * send its score when it is **marked**, which is often after the learner has
+     * completed it. Only the activity's own grade counts (grade item type `mod`,
+     * item number 0); course and category totals and manual gradebook items are
+     * ignored, and quiz is left to its own push on submission. Like every score, it
+     * is written as an append-only MOODLENOTE, never the course-completion record.
+     *
+     * Each learner and grade item has one tracking row ({@see claim_score_push()}):
+     * an unchanged grade is not sent again, a cleared grade cancels any push still
+     * queued, and when several pushes queue in a burst only the latest is sent.
+     *
+     * @param \core\event\user_graded $event The user graded event.
+     * @return void
+     */
+    public static function user_graded(\core\event\user_graded $event): void {
+        global $DB, $CFG;
+        require_once($CFG->libdir . '/gradelib.php');
+
+        $modules = util::score_push_modules();
+        if (empty($modules) || !util::is_configured()) {
+            return;
+        }
+
+        // The event's object is the grade_grades row.
+        $grade = \grade_grade::fetch(['id' => $event->objectid]);
+        if (empty($grade)) {
+            return;
+        }
+        $item = $grade->load_grade_item();
+        if (
+            empty($item) || $item->itemtype !== 'mod' || (int)$item->itemnumber !== 0
+                || !in_array($item->itemmodule, $modules, true)
+        ) {
+            return;
+        }
+
+        $user = $DB->get_record('user', ['id' => $grade->userid], 'id, username, idnumber, email');
+        if (empty($user)) {
+            return;
+        }
+        $imisid = util::get_imis_id($user);
+        if ($imisid === '') {
+            return;
+        }
+
+        $cm = get_coursemodule_from_instance($item->itemmodule, $item->iteminstance, $item->courseid);
+        if (!$cm) {
+            return;
+        }
+
+        // Serialise claims for this learner and grade item, so concurrent grading
+        // events cannot interleave their read-then-write of the tracking row.
+        $lock = \core\lock\lock_config::get_lock_factory('local_imisbridge_scorepush')
+            ->get_lock($user->id . '_' . $item->id, 10);
+        if (!$lock) {
+            debugging('local_imisbridge: could not lock the score push for user ' . $user->id
+                . ' and grade item ' . $item->id . '; skipped', DEBUG_DEVELOPER);
+            return;
+        }
+        try {
+            // Re-read the grade inside the lock, so the claim records the latest
+            // stored grade even when another request changed it meanwhile.
+            $grade = \grade_grade::fetch(['id' => $event->objectid]);
+            $finalgrade = ($grade && $grade->finalgrade !== null) ? (float)$grade->finalgrade : null;
+
+            $generation = self::claim_score_push((int)$user->id, (int)$item->id, $finalgrade);
+            if ($generation === null || $finalgrade === null) {
+                // Unchanged, or cleared (which cancels any queued push): nothing to send.
+                return;
+            }
+
+            $data = self::score_note_data($imisid, $cm, (int)$user->id, $item, $grade);
+            $data->generation = $generation;
+            $task = new task\push_score_note_task();
+            $task->set_custom_data($data);
+            \core\task\manager::queue_adhoc_task($task);
+        } finally {
+            $lock->release();
+        }
+    }
+
+    /**
+     * Build the data for an activity score MOODLENOTE push.
+     *
+     * The score is the raw gradebook grade (the actual mark), as on module notes.
+     * The status is PASS or FAIL against the grade item's pass mark when it has one,
+     * otherwise COMPLETE.
+     *
+     * @param string       $imisid The iMIS contact ID.
+     * @param \stdClass    $cm     The course-module record (needs id, course, modname, name).
+     * @param int          $userid The Moodle user ID.
+     * @param \grade_item  $item   The activity's grade item.
+     * @param \grade_grade $grade  The learner's grade.
+     * @return \stdClass The queued push data.
+     */
+    public static function score_note_data(
+        string $imisid,
+        \stdClass $cm,
+        int $userid,
+        \grade_item $item,
+        \grade_grade $grade
+    ): \stdClass {
+        $passed = $grade->is_passed($item);
+        $status = ($passed === null) ? 'COMPLETE' : ($passed ? 'PASS' : 'FAIL');
+        $graded = !empty($grade->timemodified) ? (int)$grade->timemodified : time();
+
+        return (object)[
+            'notekind'  => 'score',
+            'imisid'    => $imisid,
+            'userid'    => $userid,
+            'itemid'    => (int)$item->id,
+            'coursenum' => (string)$cm->course,
+            'cmid'      => (int)$cm->id,
+            'modname'   => $cm->modname,
+            'cmname'    => format_string($cm->name),
+            'status'    => $status,
+            'score'     => (float)$grade->finalgrade,
+            'date'      => date('Y-m-d', $graded),
+        ];
+    }
+
+    /**
+     * Record a learner's grade for a grade item in the tracking row and decide
+     * whether to queue a push. Call with the score-push lock for the pair held.
+     *
+     * The row holds the last grade queued (or null once cleared) and a generation
+     * number that increases with every change. A queued push carries the generation
+     * it was claimed with, and {@see task\push_score_note_task} sends only when that
+     * still matches the row, so:
+     * - an unchanged grade claims nothing (returns null), so it is not sent again;
+     * - a cleared grade (null) bumps the generation, cancelling any queued push, and
+     *   claims nothing; re-entering the same grade afterwards is sent;
+     * - in a burst (A, B, A ...) only the push holding the latest generation is sent.
+     *
+     * @param int        $userid     The Moodle user ID.
+     * @param int        $itemid     The grade item ID.
+     * @param float|null $finalgrade The grade now stored, or null when cleared.
+     * @return int|null The generation to queue the push with, or null to queue nothing.
+     */
+    public static function claim_score_push(int $userid, int $itemid, ?float $finalgrade): ?int {
+        global $DB, $CFG;
+        require_once($CFG->libdir . '/gradelib.php');
+
+        $record = $DB->get_record('local_imisbridge_scorepush', ['userid' => $userid, 'itemid' => $itemid]);
+
+        if ($finalgrade === null) {
+            if ($record && $record->finalgrade !== null) {
+                $record->finalgrade = null;
+                $record->generation = (int)$record->generation + 1;
+                $record->timequeued = time();
+                $DB->update_record('local_imisbridge_scorepush', $record);
+            }
+            return null;
+        }
+
+        if (
+            $record && $record->finalgrade !== null
+                && !grade_floats_different((float)$record->finalgrade, $finalgrade)
+        ) {
+            return null;
+        }
+
+        if ($record) {
+            $record->finalgrade = $finalgrade;
+            $record->generation = (int)$record->generation + 1;
+            $record->timequeued = time();
+            $DB->update_record('local_imisbridge_scorepush', $record);
+            return (int)$record->generation;
+        }
+
+        $DB->insert_record('local_imisbridge_scorepush', (object)[
+            'userid'     => $userid,
+            'itemid'     => $itemid,
+            'finalgrade' => $finalgrade,
+            'generation' => 1,
+            'timequeued' => time(),
+        ]);
+        return 1;
+    }
+
+    /**
      * Map a course-module completion state to the iMIS MOODLENOTE status.
      *
      * Only completed states map to a value; an incomplete or unknown state returns

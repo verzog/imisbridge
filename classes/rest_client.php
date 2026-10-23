@@ -153,19 +153,21 @@ class rest_client implements \local_imisbridge\provider\provider_interface {
     }
 
     /**
-     * Push a supplementary module-completion note as a MOODLENOTE activity.
+     * Push a supplementary module note — a module completion, or an activity score
+     * when `notekind` is 'score' — as a MOODLENOTE activity.
      *
      * @param \stdClass $data The queued push data.
      * @return void
      */
     public function push_module_note(\stdClass $data): void {
+        $label = (($data->notekind ?? '') === 'score') ? 'Score: ' : 'Module completion: ';
         $this->add_note(
             (string)$data->imisid,
             (string)($data->coursenum ?? ''),
             (string)($data->status ?? ''),
             (float)($data->score ?? 0),
             (string)($data->date ?? date('Y-m-d')),
-            'Module completion: ' . (string)($data->cmname ?? ''),
+            $label . (string)($data->cmname ?? ''),
             ['UF_5' => (int)($data->cmid ?? 0)]
         );
     }
