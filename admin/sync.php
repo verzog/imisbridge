@@ -98,7 +98,10 @@ $notecourse    = 0;
 // support inbound sync (the ATS SOAP bridge). A provider that only receives pushed
 // records (direct REST) does not, so these controls are gated on that capability.
 $providerclass = \local_imisbridge\provider\manager::active_provider_class();
-$cansync       = is_a($providerclass, \local_imisbridge\provider\org_sync_provider::class, true);
+// The sync buttons and the connection test run on the sync provider, which can
+// differ from the push provider (the Sync provider setting).
+$syncclass     = \local_imisbridge\provider\manager::sync_provider_class();
+$cansync       = is_a($syncclass, \local_imisbridge\provider\org_sync_provider::class, true);
 // Every provider can push records, so the manual "push completion" test applies to all.
 $canpush       = $providerclass::supports(\local_imisbridge\provider\provider_interface::CAP_PUSH);
 
@@ -109,7 +112,7 @@ if ($action === 'testconnection' && confirm_sesskey()) {
     try {
         $provider = \local_imisbridge\provider\manager::org_sync_instance();
         if ($provider === null) {
-            $error = get_string('providernotsupported', 'local_imisbridge', $providerclass::label());
+            $error = get_string('providernotsupported', 'local_imisbridge', $syncclass::label());
         } else {
             $testoutput = $provider->diagnostics(!empty($contactid) ? $contactid : null);
         }
@@ -302,7 +305,7 @@ if ($action === 'testconnection' && confirm_sesskey()) {
         try {
             $provider = \local_imisbridge\provider\manager::org_sync_instance();
             if ($provider === null) {
-                $error = get_string('providernotsupported', 'local_imisbridge', $providerclass::label());
+                $error = get_string('providernotsupported', 'local_imisbridge', $syncclass::label());
             } else {
                 $scope = get_string('forcontact', 'local_imisbridge', s($contactid));
 
@@ -311,21 +314,21 @@ if ($action === 'testconnection' && confirm_sesskey()) {
                 $results = [];
                 switch ($action) {
                     case 'enrollments':
-                        $results['SendNewOrdersToMoodle'] = $provider->sync_orders($cid);
+                        $results['Enrolments'] = $provider->sync_orders($cid);
                         break;
 
                     case 'cancellations':
-                        $results['SendCancelledOrdersToMoodle'] = $provider->sync_cancelled_orders($cid);
+                        $results['Cancellations'] = $provider->sync_cancelled_orders($cid);
                         break;
 
                     case 'groups':
-                        $results['UpdateMoodleGroups'] = $provider->update_groups($cid);
+                        $results['Groups'] = $provider->update_groups($cid);
                         break;
 
                     case 'all':
-                        $results['SendNewOrdersToMoodle']       = $provider->sync_orders($cid);
-                        $results['SendCancelledOrdersToMoodle'] = $provider->sync_cancelled_orders($cid);
-                        $results['UpdateMoodleGroups']          = $provider->update_groups($cid);
+                        $results['Enrolments']    = $provider->sync_orders($cid);
+                        $results['Cancellations'] = $provider->sync_cancelled_orders($cid);
+                        $results['Groups']        = $provider->update_groups($cid);
                         break;
                 }
 
@@ -397,7 +400,7 @@ if ($cansync) {
     // The active provider receives pushed records but has no manual order/group
     // sync or connection test; say so instead of showing controls that would fail.
     echo $OUTPUT->notification(
-        get_string('providernotsupported', 'local_imisbridge', $providerclass::label()),
+        get_string('providernotsupported', 'local_imisbridge', $syncclass::label()),
         'notifymessage'
     );
 }

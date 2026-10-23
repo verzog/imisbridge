@@ -92,6 +92,15 @@ class imis_client implements \local_imisbridge\provider\org_sync_provider {
     }
 
     /**
+     * The ATS SOAP bridge syncs with the same configuration it pushes with.
+     *
+     * @return bool
+     */
+    public static function is_sync_configured(): bool {
+        return self::is_configured();
+    }
+
+    /**
      * The ATS SOAP bridge both pushes records and offers inbound order/group sync.
      *
      * @param string $capability One of the provider CAP_* constants.

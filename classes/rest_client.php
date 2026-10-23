@@ -43,7 +43,7 @@ namespace local_imisbridge;
  * @copyright  2024 Vernon Spain
  * @license    http://www.gnu.org/copyleft/gpl.html GNU GPL v3 or later
  */
-class rest_client implements \local_imisbridge\provider\provider_interface {
+class rest_client implements \local_imisbridge\provider\org_sync_provider {
     /** @var string Canonical activity type for the per-course completion record. */
     public const ACTIVITY_MOODLE = 'MOODLE';
 
@@ -67,6 +67,9 @@ class rest_client implements \local_imisbridge\provider\provider_interface {
 
     /** @var int Unix time after which the cached token must be refreshed. */
     private int $tokenexpiry = 0;
+
+    /** @var registration\registration_sync|null The registration sync, built once per client. */
+    private ?registration\registration_sync $regsync = null;
 
     /**
      * Constructor — reads REST settings from plugin configuration.
@@ -105,13 +108,129 @@ class rest_client implements \local_imisbridge\provider\provider_interface {
     }
 
     /**
-     * The direct REST provider pushes records; it has no inbound order/group sync.
+     * The direct REST provider pushes records and syncs enrolments from a
+     * registrations IQA.
      *
      * @param string $capability One of the provider CAP_* constants.
      * @return bool
      */
     public static function supports(string $capability): bool {
-        return $capability === \local_imisbridge\provider\provider_interface::CAP_PUSH;
+        return in_array($capability, [
+            \local_imisbridge\provider\provider_interface::CAP_PUSH,
+            \local_imisbridge\provider\provider_interface::CAP_ORG_SYNC,
+        ], true);
+    }
+
+    /**
+     * Syncing needs the REST connection and a registrations IQA, so a site that only
+     * pushes over REST (no IQA set) never starts enrolling on upgrade.
+     *
+     * @return bool
+     */
+    public static function is_sync_configured(): bool {
+        return self::is_configured() && trim((string)get_config('local_imisbridge', 'reg_iqa')) !== '';
+    }
+
+    /**
+     * Enrol members with an active registration (and create missing accounts).
+     *
+     * @param string|null $contactid One member's iMIS ID, or null for all members.
+     * @return array The sync report.
+     */
+    public function sync_orders(?string $contactid = null): mixed {
+        return $this->registration_sync()->run(registration\registration_sync::MODE_ENROL, $contactid);
+    }
+
+    /**
+     * Suspend members whose registrations for a course are all cancelled.
+     *
+     * @param string|null $contactid One member's iMIS ID, or null for all members.
+     * @return array The sync report.
+     */
+    public function sync_cancelled_orders(?string $contactid = null): mixed {
+        return $this->registration_sync()->run(registration\registration_sync::MODE_CANCEL, $contactid);
+    }
+
+    /**
+     * Groups come from the tutorial group sync task, which already reads iMIS over
+     * REST; running it here (on every login) would re-read the whole panel each time.
+     *
+     * @param string|null $contactid   Unused.
+     * @param string|null $courseid    Unused.
+     * @param string|null $lastupdated Unused.
+     * @return string A note saying where groups are synced.
+     */
+    public function update_groups(?string $contactid = null, ?string $courseid = null, ?string $lastupdated = null): mixed {
+        return get_string('regsync_groupsnote', 'local_imisbridge');
+    }
+
+    /**
+     * Read-only check: authenticate and read the registrations IQA, listing one
+     * member's registrations when an iMIS ID is given.
+     *
+     * @param string|null $contactid Optional member iMIS ID.
+     * @return string The diagnostic report.
+     */
+    public function diagnostics(?string $contactid): string {
+        $query = trim((string)get_config('local_imisbridge', 'reg_iqa'));
+        $out   = 'REST base URL: ' . $this->baseurl . PHP_EOL;
+        $this->get_token();
+        $out  .= 'Token: OK' . PHP_EOL;
+
+        $rows = (new registration\rest_reader($this, $query))->fetch_rows();
+        $out .= 'Registrations IQA ' . $query . ': ' . count($rows) . ' row(s)' . PHP_EOL;
+        if (!empty($contactid)) {
+            foreach ($rows as $row) {
+                if (strcasecmp($row->imisid, trim($contactid)) === 0) {
+                    $out .= sprintf(
+                        '  %s  event %s  status "%s"  active %s%s',
+                        $row->key,
+                        $row->eventcode,
+                        $row->status,
+                        var_export($row->isactive, true),
+                        PHP_EOL
+                    );
+                }
+            }
+        }
+        return $out;
+    }
+
+    /**
+     * An integer setting, or the default when it is unset or blank (an explicit 0 is kept).
+     *
+     * @param string $name    The setting name.
+     * @param int    $default The default.
+     * @return int
+     */
+    private static function int_setting(string $name, int $default): int {
+        $value = get_config('local_imisbridge', $name);
+        return ($value === false || trim((string)$value) === '') ? $default : (int)$value;
+    }
+
+    /**
+     * The registration sync engine, built from the plugin settings once per client.
+     * Its reader keeps the rows it read, so an enrolment pass followed by a
+     * cancellation pass (as a login sync runs them) reads the IQA only once.
+     *
+     * @return registration\registration_sync
+     */
+    private function registration_sync(): registration\registration_sync {
+        if ($this->regsync !== null) {
+            return $this->regsync;
+        }
+        $codes = array_filter(array_map('trim', explode(',', (string)get_config('local_imisbridge', 'reg_cancelled_codes'))));
+        return $this->regsync = new registration\registration_sync(
+            new registration\rest_reader($this, trim((string)get_config('local_imisbridge', 'reg_iqa'))),
+            new tutorial\rest_course_resolver($this),
+            [
+                'dryrun'         => util::is_enabled('reg_dry_run'),
+                'createusers'    => util::is_enabled('reg_create_users'),
+                'cancelledcodes' => $codes ?: ['C'],
+                'lookbackdays'   => self::int_setting('reg_lookback_days', 90),
+                'guardpct'       => self::int_setting('reg_guard_pct', 50),
+            ]
+        );
     }
 
     /**
@@ -777,6 +896,25 @@ class rest_client implements \local_imisbridge\provider\provider_interface {
         }
         // No explicit paging metadata: the response was not paged, so stop here.
         return [false, $offset + $pagecount];
+    }
+
+    /**
+     * All of a GenericEntityData row's properties as name => value, with type-wrapped
+     * scalars unwrapped (a missing value is null).
+     *
+     * @param object $entity The row.
+     * @return array<string,mixed>
+     */
+    public static function properties(object $entity): array {
+        $out = [];
+        foreach (self::values($entity->Properties ?? null) as $prop) {
+            if (!isset($prop->Name)) {
+                continue;
+            }
+            $value = $prop->Value ?? null;
+            $out[(string)$prop->Name] = (is_object($value) && isset($value->{'$value'})) ? $value->{'$value'} : $value;
+        }
+        return $out;
     }
 
     /**

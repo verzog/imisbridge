@@ -45,8 +45,9 @@ class observer {
     public static function user_loggedin(\core\event\user_loggedin $event): void {
         global $DB;
 
-        // No WSDL configured means no client can be built; skip rather than queue a failing task.
-        if (!util::is_configured()) {
+        // Login syncs run on the sync provider; with none configured, skip rather
+        // than queue a task that can only fail.
+        if (!provider\manager::sync_configured()) {
             return;
         }
 

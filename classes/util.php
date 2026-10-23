@@ -136,21 +136,26 @@ class util {
      * field as the rest of the plugin ('username', 'idnumber' or 'email'), so a
      * site that maps iMIS ids onto idnumber (not username) still resolves. An
      * empty id, no match, or an ambiguous match (more than one active user with
-     * that value) all return null rather than guessing.
+     * that value) all return null rather than guessing. Usernames are only unique per
+     * MNet host, so a username match is limited to local accounts.
      *
      * @param string $imisid The iMIS contact id to resolve.
      * @return \stdClass|null The single matching active user, or null.
      */
     public static function find_user_by_imis_id(string $imisid): ?\stdClass {
-        global $DB;
+        global $CFG, $DB;
 
         $imisid = trim($imisid);
         if ($imisid === '') {
             return null;
         }
 
-        $field = self::imis_id_source();
-        $matches = $DB->get_records('user', [$field => $imisid, 'deleted' => 0], '', '*', 0, 2);
+        $field  = self::imis_id_source();
+        $params = [$field => $imisid, 'deleted' => 0];
+        if ($field === 'username') {
+            $params['mnethostid'] = $CFG->mnet_localhost_id;
+        }
+        $matches = $DB->get_records('user', $params, '', '*', 0, 2);
         if (count($matches) !== 1) {
             return null;
         }

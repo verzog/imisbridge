@@ -10,11 +10,22 @@ adding a provider class — no change to the observers, tasks or admin pages.
 
 | Setting value | Class | Talks to | Capabilities |
 |---------------|-------|----------|--------------|
-| `soap` | `\local_imisbridge\imis_client` | iMIS via the ATS `wsmoodle.asmx` middleware | push + inbound order/group sync |
-| `rest` | `\local_imisbridge\rest_client` | the iMIS REST API directly | push only |
+| `soap` | `\local_imisbridge\imis_client` | iMIS via the ATS `wsmoodle.asmx` middleware | push + order/group sync (ATS calls back into Moodle) |
+| `rest` | `\local_imisbridge\rest_client` | the iMIS REST API directly | push + registration sync (reads a registrations IQA and enrols locally, 1.21.0) |
 
-The active provider is chosen by the **Connection provider** setting
-(`local_imisbridge/transport`).
+Two settings pick the providers independently:
+
+- **Connection provider** (`local_imisbridge/transport`) sends records: completions,
+  scores and notes.
+- **Sync provider** (`local_imisbridge/sync_provider`) runs the enrolment,
+  cancellation and group syncs: the manual sync buttons, the login syncs and the
+  nightly tasks. Blank (the default) follows the connection provider. Setting it to
+  `soap` while the connection provider is `rest` keeps the ATS syncs while records
+  go over REST.
+
+A provider syncs only when `is_sync_configured()` says its sync settings are present:
+the WSDL URL for `soap`; the REST connection **and** a Registrations IQA for `rest`.
+So a site that only pushes over REST never starts enrolling on upgrade.
 
 ## The contract
 
@@ -28,11 +39,11 @@ A provider implements `\local_imisbridge\provider\provider_interface`:
   each taking the queued task's custom-data object.
 
 A provider that can also pull orders/cancellations/groups into Moodle additionally
-implements `\local_imisbridge\provider\org_sync_provider` (the ATS SOAP bridge
-does; the REST provider does not). `\local_imisbridge\provider\manager` resolves
-the active provider and returns `null` from `org_sync_instance()` when the active
-provider cannot sync, so the scheduled tasks and the manual sync page skip or hide
-those controls automatically.
+implements `\local_imisbridge\provider\org_sync_provider` (both shipped providers
+do), including the static `is_sync_configured()`. `\local_imisbridge\provider\manager`
+resolves the sync provider and returns `null` from `org_sync_instance()` when it
+cannot sync or is not configured to, so the scheduled tasks, the login sync and the
+manual sync page skip or hide those controls automatically.
 
 ## Features outside the provider
 

@@ -330,6 +330,24 @@ Called by the ATS bridge in place of `enrol_manual_unenrol_users`
 | M4 | Function not in the token's service | `accessexception` before the function runs | ☐ | See the §C troubleshooting entry |
 | M5 | Hidden course | Works when the service account has `moodle/course:view` + `viewhiddencourses` | ☐ | `validate_context()` still runs `require_login()` |
 
+## N. Sync provider and REST registration sync (1.21.0)
+
+Writes Moodle enrolments on the Moodle it runs on; reads iMIS only. Go-live steps are
+in `CHANGEOVER-CHECKLIST.md` §R.
+
+| ID | Test | Expected | Status | Notes |
+|----|------|----------|--------|-------|
+| N1 | Sync provider blank (default), connection provider SOAP | Syncs behave exactly as before | ☐ | |
+| N2 | Connection provider REST, Sync provider ATS SOAP bridge | Pushes go over REST; manual sync buttons, login and nightly syncs use ATS | ☐ | Option A |
+| N3 | Sync provider REST, Registrations IQA blank | Sync tasks skip ("no configured sync provider"); buttons hidden | ☐ | No enrolling on upgrade |
+| N4 | Sync provider REST, IQA set, dry run on | Report lists would-enrol / reactivate / suspend / create; no changes | ☐ | |
+| N5 | Dry run off: active registration | Member enrolled with Student; a suspended enrolment is reactivated | ☐ | |
+| N6 | Registrant with no account | Account created (username and ID number = iMIS ID), then enrolled; skipped with a reason when name/email missing | ☐ | |
+| N7 | Only cancelled registrations for a course | Enrolment suspended, grades kept; an active registration for the same course prevents it | ☐ | |
+| N8 | Member with no rows; event ended before the look-back; IsActiveRegistration false | No change | ☐ | |
+| N9 | IQA returns no rows | Run aborts with no changes | ☐ | |
+| N10 | Run would suspend 10+ and >50% of a course | That course's suspensions skipped and logged | ☐ | |
+
 ---
 
 ## Pending decisions (resolve before the relevant tests)
@@ -365,3 +383,4 @@ Called by the ATS bridge in place of `enrol_manual_unenrol_users`
 | 2026-10-22 | Documentation consistency review (1.19.6): D3 corrected to `CreateActivity`/MOODLENOTE (the quiz-score path since 1.16.0); added D6 (module notes); E4 now expects a blank Member ID to be refused (1.19.1); F1 lists all five tasks; new §L (tutorial group sync) and §M (`local_imisbridge_cancel_enrolment`); §P inbound framing updated to the core-functions service; "Not yet built" marks in-plugin provisioning as superseded. |
 | 2026-10-22 | 1.19.7: L3 now expects per-member `would add` / `would remove` dry-run lines for new and existing groups. |
 | 2026-10-22 | 1.20.0: add D7–D9 for the activity score push (`Push activity scores` checklist, sent on grading, unchanged regrades not re-sent). |
+| 2026-10-23 | 1.21.0: add §N for the Sync provider setting and the REST registration sync. |
