@@ -180,11 +180,22 @@ final class provider_test extends \advanced_testcase {
         provider::export_user_data($approved);
         $this->assertTrue(writer::with_context($systemcontext)->has_any_data());
 
+        // Queue a score push for each user, as the observer would.
+        foreach ([$user, $other] as $u) {
+            $task = new \local_imisbridge\task\push_score_note_task();
+            $task->set_custom_data((object)['userid' => $u->id, 'itemid' => 42, 'generation' => 1, 'imisid' => 'x']);
+            \core\task\manager::queue_adhoc_task($task);
+        }
+
         provider::delete_data_for_user($approved);
         $this->assertEquals(0, $DB->count_records('local_imisbridge_scorepush', ['userid' => $user->id]));
+        $queued = \core\task\manager::get_adhoc_tasks(\local_imisbridge\task\push_score_note_task::class);
+        $this->assertCount(1, $queued, 'the erased user\'s queued score push is deleted');
+        $this->assertEquals($other->id, reset($queued)->get_custom_data()->userid);
         $this->assertEquals(1, $DB->count_records('local_imisbridge_scorepush', ['userid' => $other->id]));
 
         provider::delete_data_for_users(new approved_userlist($systemcontext, 'local_imisbridge', [$other->id]));
         $this->assertEquals(0, $DB->count_records('local_imisbridge_scorepush'));
+        $this->assertCount(0, \core\task\manager::get_adhoc_tasks(\local_imisbridge\task\push_score_note_task::class));
     }
 }

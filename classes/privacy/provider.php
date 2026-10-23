@@ -226,6 +226,7 @@ class provider implements
         if ($context->contextlevel == CONTEXT_SYSTEM) {
             $DB->delete_records('local_imisbridge_log');
             $DB->delete_records('local_imisbridge_scorepush');
+            self::delete_queued_score_pushes(null);
         }
     }
 
@@ -244,6 +245,7 @@ class provider implements
             if ($context->contextlevel == CONTEXT_SYSTEM) {
                 $DB->delete_records('local_imisbridge_log', ['userid' => $userid]);
                 $DB->delete_records('local_imisbridge_scorepush', ['userid' => $userid]);
+                self::delete_queued_score_pushes([(int)$userid]);
             }
         }
     }
@@ -270,5 +272,26 @@ class provider implements
         [$insql, $inparams] = $DB->get_in_or_equal($userids, SQL_PARAMS_NAMED);
         $DB->delete_records_select('local_imisbridge_log', "userid {$insql}", $inparams);
         $DB->delete_records_select('local_imisbridge_scorepush', "userid {$insql}", $inparams);
+        self::delete_queued_score_pushes(array_map('intval', $userids));
+    }
+
+    /**
+     * Delete queued activity score pushes, which carry the learner's member ID and
+     * score in their task data, so an erased learner's score is never sent.
+     *
+     * @param int[]|null $userids The learners whose pushes to delete, or null for all.
+     * @return void
+     */
+    protected static function delete_queued_score_pushes(?array $userids): void {
+        global $DB;
+
+        $classname = '\\' . \local_imisbridge\task\push_score_note_task::class;
+        $tasks = $DB->get_records('task_adhoc', ['classname' => $classname], '', 'id, customdata');
+        foreach ($tasks as $task) {
+            $data = json_decode((string)$task->customdata);
+            if ($userids === null || in_array((int)($data->userid ?? 0), $userids, true)) {
+                $DB->delete_records('task_adhoc', ['id' => $task->id]);
+            }
+        }
     }
 }

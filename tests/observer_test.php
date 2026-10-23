@@ -584,10 +584,10 @@ final class observer_test extends \advanced_testcase {
      * @param string    $modname    The activity's module name.
      * @param \stdClass $instance   The activity instance (needs id).
      * @param \stdClass $user       The learner.
-     * @param float     $finalgrade The grade to store.
+     * @param float|null $finalgrade The grade to store, or null to clear it.
      * @return push_score_note_task[]
      */
-    private function observe_grade(string $modname, \stdClass $instance, \stdClass $user, float $finalgrade): array {
+    private function observe_grade(string $modname, \stdClass $instance, \stdClass $user, ?float $finalgrade): array {
         global $CFG, $DB;
         require_once($CFG->libdir . '/gradelib.php');
 
@@ -655,6 +655,22 @@ final class observer_test extends \advanced_testcase {
             }
         }
         $this->fail("no queued score note with score {$score}");
+    }
+
+    /**
+     * The queued score-note task claimed with the given generation.
+     *
+     * @param push_score_note_task[] $tasks      The queued tasks.
+     * @param int                    $generation The generation to find.
+     * @return push_score_note_task
+     */
+    private function task_with_generation(array $tasks, int $generation): push_score_note_task {
+        foreach ($tasks as $task) {
+            if ((int)$task->get_custom_data()->generation === $generation) {
+                return $task;
+            }
+        }
+        $this->fail("no queued score note with generation {$generation}");
     }
 
     /**
@@ -781,5 +797,79 @@ final class observer_test extends \advanced_testcase {
         // would fail here, as the WSDL is not reachable).
         $this->expectOutputRegex('/superseded by a later grade/');
         $first->execute();
+    }
+
+    /**
+     * Clearing a grade cancels the push still queued for it, and re-entering the
+     * same grade afterwards is sent again.
+     *
+     * @covers \local_imisbridge\observer::claim_score_push
+     * @covers \local_imisbridge\task\push_score_note_task
+     * @return void
+     */
+    public function test_cleared_grade_cancels_queued_push(): void {
+        $this->resetAfterTest();
+        [$user, $assign] = $this->score_push_fixture('assign');
+
+        $tasks = $this->observe_grade('assign', $assign, $user, 80.0);
+        $this->assertCount(1, $tasks);
+        $queued = reset($tasks);
+
+        // The grade is cleared before cron runs: nothing new is queued...
+        $this->assertCount(1, $this->observe_grade('assign', $assign, $user, null));
+
+        // ...and the 80 already queued is not sent.
+        ob_start();
+        $queued->execute();
+        $this->assertMatchesRegularExpression('/superseded/', ob_get_clean());
+
+        // Entering 80 again is a change from "cleared", so it is queued.
+        $this->assertCount(2, $this->observe_grade('assign', $assign, $user, 80.0));
+    }
+
+    /**
+     * In a burst of regrades (A, B, A) only the latest push is current, so the
+     * earlier A is not sent twice.
+     *
+     * @covers \local_imisbridge\observer::claim_score_push
+     * @covers \local_imisbridge\task\push_score_note_task
+     * @return void
+     */
+    public function test_burst_sends_only_latest_push(): void {
+        global $DB;
+        $this->resetAfterTest();
+        [$user, $assign] = $this->score_push_fixture('assign');
+
+        $this->observe_grade('assign', $assign, $user, 80.0);
+        $this->observe_grade('assign', $assign, $user, 90.0);
+        $tasks = $this->observe_grade('assign', $assign, $user, 80.0);
+        $this->assertCount(3, $tasks);
+
+        $claim = $DB->get_record('local_imisbridge_scorepush', ['userid' => $user->id]);
+        $this->assertSame(3, (int)$claim->generation);
+
+        foreach ([1, 2] as $stale) {
+            ob_start();
+            $this->task_with_generation($tasks, $stale)->execute();
+            $this->assertMatchesRegularExpression('/superseded/', ob_get_clean(), "generation {$stale} is stale");
+        }
+    }
+
+    /**
+     * A queued push whose tracking row is gone (erased for privacy) is not sent.
+     *
+     * @covers \local_imisbridge\task\push_score_note_task
+     * @return void
+     */
+    public function test_score_note_task_skips_when_claim_missing(): void {
+        global $DB;
+        $this->resetAfterTest();
+        [$user, $assign] = $this->score_push_fixture('assign');
+
+        $tasks = $this->observe_grade('assign', $assign, $user, 80.0);
+        $DB->delete_records('local_imisbridge_scorepush');
+
+        $this->expectOutputRegex('/superseded by a later grade, cleared or erased/');
+        reset($tasks)->execute();
     }
 }

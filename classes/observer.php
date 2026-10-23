@@ -378,11 +378,12 @@ class observer {
      * send its score when it is **marked**, which is often after the learner has
      * completed it. Only the activity's own grade counts (grade item type `mod`,
      * item number 0); course and category totals and manual gradebook items are
-     * ignored, and quiz is left to its own push on submission. A grade that is
-     * unchanged from the last one queued for this learner and grade item is not sent
-     * again, so a bulk regrade cannot flood iMIS with duplicate notes. Like every
-     * score, it is written as an append-only MOODLENOTE, never the course-completion
-     * record.
+     * ignored, and quiz is left to its own push on submission. Like every score, it
+     * is written as an append-only MOODLENOTE, never the course-completion record.
+     *
+     * Each learner and grade item has one tracking row ({@see claim_score_push()}):
+     * an unchanged grade is not sent again, a cleared grade cancels any push still
+     * queued, and when several pushes queue in a burst only the latest is sent.
      *
      * @param \core\event\user_graded $event The user graded event.
      * @return void
@@ -396,11 +397,9 @@ class observer {
             return;
         }
 
-        // The event's object is the grade_grades row; read it fresh so a burst of
-        // events all see the latest stored grade.
+        // The event's object is the grade_grades row.
         $grade = \grade_grade::fetch(['id' => $event->objectid]);
-        if (empty($grade) || $grade->finalgrade === null) {
-            // Grade removed or not yet set: nothing to report.
+        if (empty($grade)) {
             return;
         }
         $item = $grade->load_grade_item();
@@ -425,15 +424,35 @@ class observer {
             return;
         }
 
-        $finalgrade = (float)$grade->finalgrade;
-        if (!self::claim_score_push((int)$user->id, (int)$item->id, $finalgrade)) {
-            // Same grade as the last one queued: do not send it again.
+        // Serialise claims for this learner and grade item, so concurrent grading
+        // events cannot interleave their read-then-write of the tracking row.
+        $lock = \core\lock\lock_config::get_lock_factory('local_imisbridge_scorepush')
+            ->get_lock($user->id . '_' . $item->id, 10);
+        if (!$lock) {
+            debugging('local_imisbridge: could not lock the score push for user ' . $user->id
+                . ' and grade item ' . $item->id . '; skipped', DEBUG_DEVELOPER);
             return;
         }
+        try {
+            // Re-read the grade inside the lock, so the claim records the latest
+            // stored grade even when another request changed it meanwhile.
+            $grade = \grade_grade::fetch(['id' => $event->objectid]);
+            $finalgrade = ($grade && $grade->finalgrade !== null) ? (float)$grade->finalgrade : null;
 
-        $task = new task\push_score_note_task();
-        $task->set_custom_data(self::score_note_data($imisid, $cm, (int)$user->id, $item, $grade));
-        \core\task\manager::queue_adhoc_task($task);
+            $generation = self::claim_score_push((int)$user->id, (int)$item->id, $finalgrade);
+            if ($generation === null || $finalgrade === null) {
+                // Unchanged, or cleared (which cancels any queued push): nothing to send.
+                return;
+            }
+
+            $data = self::score_note_data($imisid, $cm, (int)$user->id, $item, $grade);
+            $data->generation = $generation;
+            $task = new task\push_score_note_task();
+            $task->set_custom_data($data);
+            \core\task\manager::queue_adhoc_task($task);
+        } finally {
+            $lock->release();
+        }
     }
 
     /**
@@ -477,45 +496,62 @@ class observer {
     }
 
     /**
-     * Record a grade as the latest queued for a learner and grade item, unless it is
-     * the same as the one already recorded.
+     * Record a learner's grade for a grade item in the tracking row and decide
+     * whether to queue a push. Call with the score-push lock for the pair held.
      *
-     * The table holds the last grade **queued**; {@see task\push_score_note_task}
-     * checks it again before sending, so when several regrades queue in a burst only
-     * the latest value is sent.
+     * The row holds the last grade queued (or null once cleared) and a generation
+     * number that increases with every change. A queued push carries the generation
+     * it was claimed with, and {@see task\push_score_note_task} sends only when that
+     * still matches the row, so:
+     * - an unchanged grade claims nothing (returns null), so it is not sent again;
+     * - a cleared grade (null) bumps the generation, cancelling any queued push, and
+     *   claims nothing; re-entering the same grade afterwards is sent;
+     * - in a burst (A, B, A ...) only the push holding the latest generation is sent.
      *
-     * @param int   $userid     The Moodle user ID.
-     * @param int   $itemid     The grade item ID.
-     * @param float $finalgrade The grade to queue.
-     * @return bool True when the grade is new or changed (queue it); false when unchanged.
+     * @param int        $userid     The Moodle user ID.
+     * @param int        $itemid     The grade item ID.
+     * @param float|null $finalgrade The grade now stored, or null when cleared.
+     * @return int|null The generation to queue the push with, or null to queue nothing.
      */
-    public static function claim_score_push(int $userid, int $itemid, float $finalgrade): bool {
+    public static function claim_score_push(int $userid, int $itemid, ?float $finalgrade): ?int {
         global $DB, $CFG;
         require_once($CFG->libdir . '/gradelib.php');
 
         $record = $DB->get_record('local_imisbridge_scorepush', ['userid' => $userid, 'itemid' => $itemid]);
-        if ($record && !grade_floats_different((float)$record->finalgrade, $finalgrade)) {
-            return false;
+
+        if ($finalgrade === null) {
+            if ($record && $record->finalgrade !== null) {
+                $record->finalgrade = null;
+                $record->generation = (int)$record->generation + 1;
+                $record->timequeued = time();
+                $DB->update_record('local_imisbridge_scorepush', $record);
+            }
+            return null;
         }
+
+        if (
+            $record && $record->finalgrade !== null
+                && !grade_floats_different((float)$record->finalgrade, $finalgrade)
+        ) {
+            return null;
+        }
+
         if ($record) {
             $record->finalgrade = $finalgrade;
+            $record->generation = (int)$record->generation + 1;
             $record->timequeued = time();
             $DB->update_record('local_imisbridge_scorepush', $record);
-        } else {
-            try {
-                $DB->insert_record('local_imisbridge_scorepush', (object)[
-                    'userid'     => $userid,
-                    'itemid'     => $itemid,
-                    'finalgrade' => $finalgrade,
-                    'timequeued' => time(),
-                ]);
-            } catch (\dml_write_exception $e) {
-                // A concurrent event for the same learner and grade item inserted the
-                // row first (unique index); that event queues the push, so skip this one.
-                return false;
-            }
+            return (int)$record->generation;
         }
-        return true;
+
+        $DB->insert_record('local_imisbridge_scorepush', (object)[
+            'userid'     => $userid,
+            'itemid'     => $itemid,
+            'finalgrade' => $finalgrade,
+            'generation' => 1,
+            'timequeued' => time(),
+        ]);
+        return 1;
     }
 
     /**

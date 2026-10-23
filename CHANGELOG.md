@@ -19,11 +19,18 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   for the module-completion note. None are ticked by default; quiz is not listed,
   as quiz scores keep their own push on submission. Only the activity's own grade
   is sent (not course or category totals, not manual gradebook items).
-- **Unchanged regrades are not re-sent.** A new `local_imisbridge_scorepush` table
-  records the last grade queued per learner and grade item; a grading event whose
-  grade matches it sends nothing, and when a burst of regrades queues several
-  pushes, only the latest value is sent. The table is covered by the privacy
-  provider (export and deletion).
+- **Unchanged regrades are not re-sent, and only the latest grade is.** A new
+  `local_imisbridge_scorepush` table keeps one row per learner and grade item with
+  the last grade queued and a **generation** number that increases on every change;
+  each queued push carries the generation it was claimed with and is sent only if
+  it is still current. So an unchanged regrade sends nothing; in a burst (A, B, A)
+  only the latest push is sent; and **clearing a grade cancels** any push still
+  queued (re-entering the grade later sends it). Claims for a learner and grade item
+  are serialised with a lock and re-read the stored grade, so concurrent grading
+  requests cannot leave a stale value. The table is covered by the privacy provider
+  (export and deletion), and erasure also deletes the learner's **queued** score
+  pushes, which hold their member ID and score; a push whose row is gone is never
+  sent.
 
 ## [1.19.7] - 2026-10-22
 

@@ -52,8 +52,7 @@ class push_score_note_task extends \core\task\adhoc_task {
      * @return void
      */
     public function execute(): void {
-        global $CFG, $DB;
-        require_once($CFG->libdir . '/gradelib.php');
+        global $DB;
 
         $data = $this->get_custom_data();
 
@@ -73,15 +72,17 @@ class push_score_note_task extends \core\task\adhoc_task {
             return;
         }
 
-        // A later grade for the same learner and activity supersedes this one: when a
-        // burst of regrades queued several tasks, send only the latest value.
-        $latest = $DB->get_record('local_imisbridge_scorepush', [
+        // Send only the push that holds the current generation for this learner and
+        // grade item. A later grade, or the grade being cleared, bumps the generation
+        // (so in a burst only the latest push is sent); a missing row means the data
+        // was erased (privacy) or never claimed, so nothing is sent.
+        $claim = $DB->get_record('local_imisbridge_scorepush', [
             'userid' => (int)($data->userid ?? 0),
             'itemid' => (int)($data->itemid ?? 0),
         ]);
-        if ($latest && grade_floats_different((float)$latest->finalgrade, (float)$data->score)) {
+        if (!$claim || (int)$claim->generation !== (int)($data->generation ?? 0)) {
             mtrace('iMIS Bridge: score for ' . $data->imisid . ' (cm ' . (int)$data->cmid
-                . ') superseded by a later grade; skipping.');
+                . ') superseded by a later grade, cleared or erased; skipping.');
             return;
         }
 
