@@ -564,6 +564,10 @@ REST.
 - [ ] **Look-back** (default 90 days) covers how long after an event cancellations
   can still arrive. Rows with no `EndDate` always count.
 - [ ] **Create accounts** on (default) if registrants may have no Moodle account yet.
+- [ ] **Login syncs off** to start (*Sync enrolments on login*, *Sync cancellations on
+  login*, *Sync groups on login*): under REST each login sync reads the whole IQA.
+  The nightly tasks cover everyone, and the manual sync page handles an urgent
+  member. Turn them on later only if *Test connection* shows a small, fast IQA.
 - [ ] **Sync provider = Direct iMIS REST**.
 
 ### R3. Dry run, then live
