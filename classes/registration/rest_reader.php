@@ -89,26 +89,34 @@ class rest_reader implements reader {
         foreach ($properties as $name => $value) {
             $byname[self::normalise((string)$name)] = $value;
         }
-        $get = static function (string ...$names) use ($byname) {
-            foreach ($names as $name) {
-                if (array_key_exists($name, $byname) && $byname[$name] !== null) {
-                    return $byname[$name];
-                }
-            }
-            return null;
-        };
 
         return new registration_row(
-            (string)$get('id'),
-            (string)$get('eventcode'),
-            (string)$get('status'),
-            (string)$get('registrationkey'),
-            self::to_bool($get('isactiveregistration', 'isactive')),
-            self::to_time($get('enddate', 'enddatetime')),
-            (string)$get('firstname'),
-            (string)$get('lastname'),
-            (string)$get('email')
+            (string)self::first($byname, ['id']),
+            (string)self::first($byname, ['eventcode']),
+            (string)self::first($byname, ['status']),
+            (string)self::first($byname, ['registrationkey']),
+            self::to_bool(self::first($byname, ['isactiveregistration', 'isactive'])),
+            self::to_time(self::first($byname, ['enddate', 'enddatetime'])),
+            (string)self::first($byname, ['firstname']),
+            (string)self::first($byname, ['lastname']),
+            (string)self::first($byname, ['email'])
         );
+    }
+
+    /**
+     * The value of the first of the given (normalised) column names that is present.
+     *
+     * @param array<string,mixed> $byname Normalised column name => value.
+     * @param string[]            $names  Candidate column names, in order of preference.
+     * @return mixed The value, or null when none is present.
+     */
+    private static function first(array $byname, array $names) {
+        foreach ($names as $name) {
+            if (array_key_exists($name, $byname) && $byname[$name] !== null) {
+                return $byname[$name];
+            }
+        }
+        return null;
     }
 
     /**
