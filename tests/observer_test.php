@@ -382,6 +382,26 @@ final class observer_test extends \advanced_testcase {
     }
 
     /**
+     * A *Push course id overrides* entry replaces the course number in completion and
+     * module-note pushes; other courses keep their own id.
+     *
+     * @covers \local_imisbridge\util::push_course_number
+     * @return void
+     */
+    public function test_push_course_id_override(): void {
+        $this->resetAfterTest();
+
+        $course = $this->getDataGenerator()->create_course();
+        $other  = $this->getDataGenerator()->create_course();
+        $assign = $this->getDataGenerator()->create_module('assign', ['course' => $course->id]);
+        set_config('push_course_overrides', "# Staging\n{$course->id}=2152\n", 'local_imisbridge');
+
+        $this->assertSame('2152', observer::completion_push_data('20018', $course, 0)->coursenum);
+        $this->assertSame('2152', observer::module_note_data('20018', get_coursemodule_from_id('', $assign->cmid), 0)->coursenum);
+        $this->assertSame((string)$other->id, observer::completion_push_data('20018', $other, 0)->coursenum);
+    }
+
+    /**
      * module_note_data() builds a supplementary note (never a completion): it
      * targets the push_module_completions toggle and carries the course module.
      *

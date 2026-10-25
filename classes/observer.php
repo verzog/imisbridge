@@ -208,7 +208,7 @@ class observer {
         return (object)[
             'toggle'    => 'push_module_completions',
             'imisid'    => $imisid,
-            'coursenum' => (string)$cm->course,
+            'coursenum' => util::push_course_number((int)$cm->course),
             'cmid'      => (int)$cm->id,
             'modname'   => $cm->modname,
             'cmname'    => format_string($cm->name),
@@ -360,7 +360,7 @@ class observer {
         $task = new task\push_module_note_task();
         $task->set_custom_data([
             'imisid'    => $imisid,
-            'coursenum' => (string)$cm->course,
+            'coursenum' => util::push_course_number((int)$cm->course),
             'cmid'      => (int)$cm->id,
             'modname'   => $cm->modname,
             'cmname'    => format_string($cm->name),
@@ -486,7 +486,7 @@ class observer {
             'imisid'    => $imisid,
             'userid'    => $userid,
             'itemid'    => (int)$item->id,
-            'coursenum' => (string)$cm->course,
+            'coursenum' => util::push_course_number((int)$cm->course),
             'cmid'      => (int)$cm->id,
             'modname'   => $cm->modname,
             'cmname'    => format_string($cm->name),
@@ -793,13 +793,13 @@ class observer {
      * maps it to the iMIS product code through the MOODLE_PRODUCTS lookup table
      * (Code = iMIS product code, Description = numeric Moodle course id), and the
      * vendor's existing activity history is keyed on it. It is NOT the course
-     * idnumber or shortname.
+     * idnumber or shortname. A *Push course id overrides* entry replaces it (staging).
      *
      * @param \stdClass $course Course record with the numeric id.
      * @return string
      */
     private static function course_number(\stdClass $course): string {
-        return (string)$course->id;
+        return util::push_course_number((int)$course->id);
     }
 
     /**

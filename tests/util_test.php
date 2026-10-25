@@ -115,4 +115,14 @@ final class util_test extends \advanced_testcase {
         set_config('wsdl_url', '', 'local_imisbridge');
         $this->assertFalse(util::is_configured());
     }
+
+    /**
+     * Push course id overrides parse only `moodleid=imisid` lines of positive whole numbers.
+     *
+     * @return void
+     */
+    public function test_parse_push_course_overrides(): void {
+        $text = "# comment\n\n19 = 2152\r\n7=abc\nX=5\n0=3\n9=0\nnoequals\n20=3001";
+        $this->assertSame([19 => 2152, 20 => 3001], util::parse_push_course_overrides($text));
+    }
 }
