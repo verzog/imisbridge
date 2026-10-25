@@ -348,6 +348,7 @@ in `CHANGEOVER-CHECKLIST.md` §R.
 | N9 | IQA returns no rows | Run aborts with no changes | ☐ | |
 | N10 | Run would suspend 10+ and >50% of a course | That course's suspensions skipped and logged | ☐ | |
 | N11 | Manual one-member sync with *Include events outside the look-back window* ticked, for a cancellation on an event that ended before the window | Confirmation mentions the override; report shows `lookbackdays => 0`; enrolment suspended (or would be, in dry run). Unticked, and in the nightly tasks, the row stays out of window | ☐ | Late override |
+| N12 | *Course mapping overrides* `ACCD_26=<test course>` on staging | ACCD_26 registrations (and its tutorial groups) resolve to the test course with no `MoodleCourseLookup` call for that code; a mapping to a missing course is "no Moodle course mapped" | ☐ | Staging only |
 
 ---
 
@@ -386,3 +387,4 @@ in `CHANGEOVER-CHECKLIST.md` §R.
 | 2026-10-22 | 1.20.0: add D7–D9 for the activity score push (`Push activity scores` checklist, sent on grading, unchanged regrades not re-sent). |
 | 2026-10-23 | 1.21.0: add §N for the Sync provider setting and the REST registration sync. |
 | 2026-10-23 | 1.22.0: N11 for the one-member look-back override; the default look-back is now 7 days. |
+| 2026-10-25 | 1.23.0: N12 for the course mapping overrides. |

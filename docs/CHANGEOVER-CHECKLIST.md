@@ -552,7 +552,9 @@ REST.
 - [ ] **Guests excluded** in the IQA (they must not be enrolled). Not needed where
   every registrant has their own iMIS account.
 - [ ] Each event code has its `MOODLE_PRODUCTS` row (`{EventCode}/REG` → course id),
-  as for the tutorial sync (§T1).
+  as for the tutorial sync (§T1). The course id is the numeric Moodle course id of
+  the site iMIS talks to. On staging, *Course mapping overrides* can point an event at
+  a test course instead (leave it empty in production).
 - [ ] The REST service account can read this IQA.
 
 ### R2. Moodle side

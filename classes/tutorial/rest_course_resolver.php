@@ -43,6 +43,10 @@ use local_imisbridge\rest_client;
  * the sync skips it, while a failed lookup read throws (in run_iqa) and the whole sync
  * aborts, so a transient outage never makes codes look unmapped.
  *
+ * The *Course mapping overrides* setting (`CODE=courseid` lines) is checked first: a
+ * listed code resolves to its course without reading iMIS, so a staging site can point
+ * an event at a test course without editing MOODLE_PRODUCTS.
+ *
  * @package    local_imisbridge
  * @copyright  2024 Vernon Spain
  * @license    http://www.gnu.org/copyleft/gpl.html GNU GPL v3 or later
@@ -72,6 +76,9 @@ class rest_course_resolver implements course_resolver {
     /** @var array<string,int|null> Per-run cache of bare code => resolved course id (or null). */
     private array $cache = [];
 
+    /** @var array<string,int> Course mapping overrides: lower-case code => course id. */
+    private array $overrides;
+
     /**
      * Build the resolver, reading the IQA query name and code suffix from settings.
      *
@@ -86,6 +93,31 @@ class rest_course_resolver implements course_resolver {
 
         $suffix = get_config('local_imisbridge', 'tutorial_course_code_suffix');
         $this->suffix = ($suffix === false) ? self::DEFAULT_SUFFIX : (string)$suffix;
+
+        $this->overrides = self::parse_overrides((string)get_config('local_imisbridge', 'course_map_overrides'));
+    }
+
+    /**
+     * Parse the course mapping overrides: one `CODE=courseid` per line (the code bare,
+     * e.g. ACCD_26, or with its product suffix, e.g. ACCD_26/REG). Blank lines, lines
+     * starting with # and lines without a positive course id are ignored.
+     *
+     * @param string $text The setting value.
+     * @return array<string,int> Lower-case code => course id.
+     */
+    public static function parse_overrides(string $text): array {
+        $overrides = [];
+        foreach (preg_split('/\R/', $text) ?: [] as $line) {
+            $line = trim($line);
+            if ($line === '' || str_starts_with($line, '#') || !str_contains($line, '=')) {
+                continue;
+            }
+            [$code, $id] = array_map('trim', explode('=', $line, 2));
+            if ($code !== '' && ctype_digit($id) && (int)$id > 0) {
+                $overrides[\core_text::strtolower($code)] = (int)$id;
+            }
+        }
+        return $overrides;
     }
 
     /**
@@ -111,6 +143,15 @@ class rest_course_resolver implements course_resolver {
         // The IQA's required Code prompt matches the full product code, so look up
         // {code}/REG (the panel stores only the bare event code).
         $lookupcode = $code . $this->suffix;
+
+        // A local override wins and iMIS is not read; it must still name a real course.
+        foreach ([$code, $lookupcode] as $candidate) {
+            $override = $this->overrides[\core_text::strtolower($candidate)] ?? null;
+            if ($override !== null) {
+                $this->cache[$code] = $DB->record_exists('course', ['id' => $override]) ? $override : null;
+                return $this->cache[$code];
+            }
+        }
 
         $courseid = null;
         foreach ($this->client->run_iqa($this->queryname, [$lookupcode]) as $row) {

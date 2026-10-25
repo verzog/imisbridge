@@ -393,6 +393,14 @@ if ($hassiteconfig) {
         PARAM_RAW_TRIMMED
     ));
 
+    $settings->add(new admin_setting_configtextarea(
+        'local_imisbridge/course_map_overrides',
+        get_string('course_map_overrides', 'local_imisbridge'),
+        get_string('course_map_overrides_desc', 'local_imisbridge'),
+        '',
+        PARAM_RAW
+    ));
+
     // Audit log controls.
     $settings->add(new admin_setting_heading(
         'local_imisbridge/auditlogheading',
