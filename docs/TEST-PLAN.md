@@ -349,6 +349,7 @@ in `CHANGEOVER-CHECKLIST.md` §R.
 | N10 | Run would suspend 10+ and >50% of a course | That course's suspensions skipped and logged | ☐ | |
 | N11 | Manual one-member sync with *Include events outside the look-back window* ticked, for a cancellation on an event that ended before the window | Confirmation mentions the override; report shows `lookbackdays => 0`; enrolment suspended (or would be, in dry run). Unticked, and in the nightly tasks, the row stays out of window | ☐ | Late override |
 | N12 | *Course mapping overrides* `ACCD_26=<test course>` on staging | ACCD_26 registrations (and its tutorial groups) resolve to the test course with no `MoodleCourseLookup` call for that code; a mapping to a missing course is "no Moodle course mapped" | ☐ | Staging only |
+| N13 | *Push course id overrides* `19=2152` on staging; push a completion from course 19 for a member with an existing iMIS result for 2152 | The push carries course 2152; over REST the member's existing MOODLE row for 2152 is updated in place (same SEQN), not duplicated; notes are appended as MOODLENOTE | ☐ | Staging only |
 
 ---
 
@@ -388,3 +389,4 @@ in `CHANGEOVER-CHECKLIST.md` §R.
 | 2026-10-23 | 1.21.0: add §N for the Sync provider setting and the REST registration sync. |
 | 2026-10-23 | 1.22.0: N11 for the one-member look-back override; the default look-back is now 7 days. |
 | 2026-10-25 | 1.23.0: N12 for the course mapping overrides. |
+| 2026-10-25 | 1.24.0: N13 for the push course id overrides. |

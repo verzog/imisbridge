@@ -401,6 +401,14 @@ if ($hassiteconfig) {
         PARAM_RAW
     ));
 
+    $settings->add(new admin_setting_configtextarea(
+        'local_imisbridge/push_course_overrides',
+        get_string('push_course_overrides', 'local_imisbridge'),
+        get_string('push_course_overrides_desc', 'local_imisbridge'),
+        '',
+        PARAM_RAW
+    ));
+
     // Audit log controls.
     $settings->add(new admin_setting_heading(
         'local_imisbridge/auditlogheading',

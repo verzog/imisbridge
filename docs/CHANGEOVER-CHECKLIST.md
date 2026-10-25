@@ -554,7 +554,8 @@ REST.
 - [ ] Each event code has its `MOODLE_PRODUCTS` row (`{EventCode}/REG` → course id),
   as for the tutorial sync (§T1). The course id is the numeric Moodle course id of
   the site iMIS talks to. On staging, *Course mapping overrides* can point an event at
-  a test course instead (leave it empty in production).
+  a test course instead, and *Push course id overrides* can make that course's pushes
+  report the course id iMIS holds results for (leave both empty in production).
 - [ ] The REST service account can read this IQA.
 
 ### R2. Moodle side

@@ -104,6 +104,8 @@ $string['privacy:metadata:local_imisbridge_scorepush:userid'] = 'The learner who
 $string['providernotsupported'] = 'No sync provider is ready. The sync provider ({$a}) either cannot run the enrolment, cancellation and group syncs or is missing its sync settings: the ATS SOAP bridge needs the WSDL URL; Direct iMIS REST needs the REST connection and a Registrations IQA. Choose and configure it under Sync provider in the plugin settings.';
 $string['push_completions'] = 'Push course completions';
 $string['push_completions_desc'] = 'When enabled, completing a course sends the learner\'s result to the membership system. Turn off to stop all completion writes.';
+$string['push_course_overrides'] = 'Push course id overrides';
+$string['push_course_overrides_desc'] = 'The reverse of Course mapping overrides, for pushes to iMIS: one line per course as moodleid=imisid (for example 19=2152). Completions, quiz scores, activity scores and module notes from Moodle course 19 are then sent to iMIS as course 2152, so on a staging site they reach the results iMIS already holds for that course (and a completion updates the existing record, as a live push from 2152 would). Lines starting with # are ignored. Meant for testing on a staging site; leave it empty in production.';
 $string['push_module_completions'] = 'Push module completions';
 $string['push_module_completions_desc'] = 'When enabled, completing a **graded** activity sends a supplementary note record to the membership system. Off by default; ungraded activities are never sent, and this never changes the course-completion record. Note this fires per activity, so it can be high volume.';
 $string['push_quiz_scores'] = 'Push quiz scores';

@@ -103,6 +103,43 @@ class util {
     }
 
     /**
+     * The course number a push sends to iMIS for a Moodle course: the numeric course
+     * id, or its replacement from the *Push course id overrides* setting
+     * (`moodleid=imisid` lines). The override lets a staging course report itself as
+     * the course id iMIS already holds results for, e.g. 19=2152.
+     *
+     * @param int $courseid The Moodle course id.
+     * @return string The course number to send.
+     */
+    public static function push_course_number(int $courseid): string {
+        $overrides = self::parse_push_course_overrides((string)get_config('local_imisbridge', 'push_course_overrides'));
+        return (string)($overrides[$courseid] ?? $courseid);
+    }
+
+    /**
+     * Parse the push course id overrides: one `moodleid=imisid` per line, both
+     * positive whole numbers. Blank lines, lines starting with # and anything else
+     * malformed are ignored.
+     *
+     * @param string $text The setting value.
+     * @return array<int,int> Moodle course id => course id sent to iMIS.
+     */
+    public static function parse_push_course_overrides(string $text): array {
+        $overrides = [];
+        foreach (preg_split('/\R/', $text) ?: [] as $line) {
+            $line = trim($line);
+            if ($line === '' || str_starts_with($line, '#') || !str_contains($line, '=')) {
+                continue;
+            }
+            [$from, $to] = array_map('trim', explode('=', $line, 2));
+            if (ctype_digit($from) && ctype_digit($to) && (int)$from > 0 && (int)$to > 0) {
+                $overrides[(int)$from] = (int)$to;
+            }
+        }
+        return $overrides;
+    }
+
+    /**
      * The Moodle user field configured as the source of the iMIS contact ID.
      *
      * Defaults to 'username' so existing installations keep their behaviour.

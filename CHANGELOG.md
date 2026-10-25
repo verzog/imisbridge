@@ -4,6 +4,16 @@ All notable changes to the iMIS Bridge plugin (`local_imisbridge`) are documente
 in this file. The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.24.0] - 2026-10-25
+
+### Added
+- **Push course id overrides** (under Tutorial group sync, after Course mapping
+  overrides): `moodleid=imisid` lines that replace the course number sent to iMIS
+  by completion, quiz-score, activity-score and module-note pushes. A staging course
+  can report itself as the course iMIS already holds results for (e.g. `19=2152`),
+  so a completion updates that existing record as a live push would. Meant for
+  testing; leave it empty in production.
+
 ## [1.23.0] - 2026-10-25
 
 ### Added
