@@ -462,6 +462,10 @@ class registration_sync {
             'mnethostid' => $CFG->mnet_localhost_id,
             'password'   => generate_password(32),
         ];
+        if (method_exists(\core\user::class, 'create_user')) {
+            // Moodle 5.3 and later; user_create_user() is deprecated there.
+            return \core\user::create_user($user, true, true);
+        }
         return (int)user_create_user($user, true, true);
     }
 

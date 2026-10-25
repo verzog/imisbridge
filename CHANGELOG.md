@@ -4,6 +4,21 @@ All notable changes to the iMIS Bridge plugin (`local_imisbridge`) are documente
 in this file. The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.23.0] - 2026-10-25
+
+### Added
+- **Course mapping overrides** (under Tutorial group sync): Moodle-side
+  `EVENTCODE=courseid` lines checked before the iMIS `MoodleCourseLookup`, so a
+  staging site can point an event at a test course without editing
+  `MOODLE_PRODUCTS`. Used by the registration sync and the tutorial group sync; a
+  mapping to a missing course is unmapped. Pushes to iMIS are unchanged. Meant for
+  testing; leave it empty in production.
+
+### Fixed
+- Registration sync account creation no longer triggers a deprecation notice on
+  Moodle 5.3: it uses `\core\user::create_user()` where that exists and falls back
+  to `user_create_user()` on 5.1 and 5.2.
+
 ## [1.22.0] - 2026-10-23
 
 ### Added

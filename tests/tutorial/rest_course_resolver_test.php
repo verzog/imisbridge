@@ -176,4 +176,33 @@ final class rest_course_resolver_test extends \advanced_testcase {
         $this->assertSame((int)$course->id, $resolver->resolve_courseid('ATS_BRIDGE'));
         $this->assertCount(1, $client->calls, 'the IQA is called once per code, then cached');
     }
+
+    /**
+     * A course mapping override resolves the code without reading iMIS, by bare code or
+     * full product code, ignoring case; an override to a missing course is unmapped.
+     *
+     * @return void
+     */
+    public function test_override_wins_without_reading_imis(): void {
+        $course = $this->getDataGenerator()->create_course();
+        set_config('course_map_overrides', "# Staging test courses\nACCD_26={$course->id}\n"
+            . "rpldERM_26/REG={$course->id}\nGONE=999999\n", 'local_imisbridge');
+        $client = $this->stub_client([$this->entity(['Code' => 'ACCD_26/REG', 'Description' => '2152'])]);
+
+        $resolver = new rest_course_resolver($client);
+        $this->assertSame((int)$course->id, $resolver->resolve_courseid('ACCD_26'));
+        $this->assertSame((int)$course->id, $resolver->resolve_courseid('RPLDERM_26'));
+        $this->assertNull($resolver->resolve_courseid('GONE'));
+        $this->assertSame([], $client->calls, 'iMIS is not read for an overridden code');
+    }
+
+    /**
+     * Override lines are parsed leniently: comments, blanks and malformed lines are skipped.
+     *
+     * @return void
+     */
+    public function test_parse_overrides(): void {
+        $text = "# comment\n\nACCD_26 = 19\r\nBAD=abc\nNOEQUALS\n=5\nZERO=0\nDERM_JUL26/REG=9";
+        $this->assertSame(['accd_26' => 19, 'derm_jul26/reg' => 9], rest_course_resolver::parse_overrides($text));
+    }
 }
