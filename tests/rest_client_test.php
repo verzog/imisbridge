@@ -94,9 +94,10 @@ final class rest_client_test extends \advanced_testcase {
     }
 
     /**
-     * A note is laid out as the vendor's MOODLENOTE rows: course number in PRODUCT_CODE
-     * (never UF_1), activity name in DESCRIPTION, note text and category in NOTE/NOTE_2,
-     * the date in TRANSACTION_DATE and THRU_DATE, and extras such as UF_5 and SOURCE_CODE.
+     * A note is a full vendor-shaped MOODLENOTE record: every column with its .NET type,
+     * the course number in PRODUCT_CODE (UF_1 sent empty), the activity name in
+     * DESCRIPTION, note text and category in NOTE/NOTE_2, the date in TRANSACTION_DATE
+     * and THRU_DATE, and extras such as UF_5 (as a decimal) and SOURCE_CODE.
      *
      * @return void
      */
@@ -113,20 +114,25 @@ final class rest_client_test extends \advanced_testcase {
             ['UF_5' => 1507, 'SOURCE_CODE' => 'quiz', 'UF_6' => '']
         );
 
+        $this->assertSame('Asi.Soa.Core.DataContracts.GenericEntityData, Asi.Contracts', $body['$type']);
+        $this->assertSame('Activity', $body['EntityTypeName']);
+        $this->assertCount(44, $body['Properties']['$values'], 'every column of a vendor note');
         $this->assertSame('MOODLENOTE', $this->body_value($body, 'ACTIVITY_TYPE'));
         $this->assertSame('20022', $this->body_value($body, 'PartyId'));
         $this->assertSame('2152', $this->body_value($body, 'PRODUCT_CODE'));
-        $this->assertFalse($this->body_has($body, 'UF_1'));
+        $this->assertTrue($this->body_has($body, 'UF_1'));
+        $this->assertNull($this->body_value($body, 'UF_1'), 'UF_1 is sent without a value');
         $this->assertSame('PASS', $this->body_value($body, 'UF_3'));
-        $this->assertSame(2.0, $this->body_value($body, 'UF_4'));
-        $this->assertSame(1507, $this->body_value($body, 'UF_5'));
+        $this->assertSame(['$type' => 'System.Decimal', '$value' => 2.0], $this->body_value($body, 'UF_4'));
+        $this->assertSame(['$type' => 'System.Decimal', '$value' => 1507.0], $this->body_value($body, 'UF_5'));
+        $this->assertSame(['$type' => 'System.Boolean', '$value' => false], $this->body_value($body, 'RECURRING_REQUEST'));
         $this->assertSame('Practice Exam', $this->body_value($body, 'DESCRIPTION'));
         $this->assertSame('Module completed : Practice Exam', $this->body_value($body, 'NOTE'));
         $this->assertSame('modulecompletion', $this->body_value($body, 'NOTE_2'));
         $this->assertSame('quiz', $this->body_value($body, 'SOURCE_CODE'));
         $this->assertSame('2026-10-26', $this->body_value($body, 'TRANSACTION_DATE'));
         $this->assertSame('2026-10-26', $this->body_value($body, 'THRU_DATE'));
-        $this->assertFalse($this->body_has($body, 'UF_6'));
+        $this->assertNull($this->body_value($body, 'UF_6'), 'an empty extra leaves the column empty');
     }
 
     /**
