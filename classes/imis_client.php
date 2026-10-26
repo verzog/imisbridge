@@ -137,16 +137,32 @@ class imis_client implements \local_imisbridge\provider\org_sync_provider {
      * @return void
      */
     public function push_score(\stdClass $data): void {
+        $this->create_activity(self::build_score_params($data));
+    }
+
+    /**
+     * The createActivity parameters for a quiz score note, worded as the REST
+     * transport writes it: Description "Moodle course N score", Note "Score : Moodle
+     * course N", Note2 "score" and SourceCode "quiz".
+     *
+     * @param \stdClass $data The queued push data.
+     * @return array The createActivity parameters (without the AuthToken).
+     */
+    public static function build_score_params(\stdClass $data): array {
         $courseid = (string)($data->coursenum ?? '');
-        $this->create_activity(self::build_note_params(
+        return self::build_note_params(
             (string)$data->imisid,
             $courseid,
-            'Moodle course ' . $courseid . ' score',
+            'Score : Moodle course ' . $courseid,
             (string)($data->status ?? ''),
             (float)($data->score ?? 0),
             (string)($data->completiondate ?? date('Y-m-d')),
-            ['Note2' => 'score']
-        ));
+            [
+                'Note2'       => 'score',
+                'SourceCode'  => 'quiz',
+                'Description' => 'Moodle course ' . $courseid . ' score',
+            ]
+        );
     }
 
     /**
