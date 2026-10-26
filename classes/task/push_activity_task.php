@@ -55,6 +55,11 @@ class push_activity_task extends \core\task\adhoc_task {
         if (empty($data->imisid)) {
             return;
         }
+        // Re-check the iMIS ID format: it may have been set to Digits only after queueing.
+        if (!\local_imisbridge\util::is_valid_imis_id((string)$data->imisid)) {
+            mtrace('iMIS Bridge: ' . $data->imisid . ' is not in the iMIS ID format; skipping.');
+            return;
+        }
 
         // Re-check the governing write toggle: an admin may have disabled it after
         // this task was queued but before cron reached it.
