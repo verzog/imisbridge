@@ -77,11 +77,41 @@ class enrolment {
 
         $existing = $DB->record_exists('user_enrolments', ['enrolid' => $instance->id, 'userid' => $userid]);
         if (!$dryrun) {
-            // Re-enrolling an existing (suspended) enrolment updates its status to
-            // active and reassigns the role, keeping its grades and completion.
-            $plugin->enrol_user($instance, $userid, (int)$instance->roleid, 0, 0, ENROL_USER_ACTIVE);
+            if ($existing) {
+                self::reactivate($plugin, $instance, $userid);
+            } else {
+                $plugin->enrol_user($instance, $userid, (int)$instance->roleid, 0, 0, ENROL_USER_ACTIVE);
+            }
         }
         return $existing ? self::REACTIVATED : self::ENROLLED;
+    }
+
+    /**
+     * Make an existing (suspended or expired) manual enrolment active again and give
+     * back its default role, keeping its grades and completion.
+     *
+     * This deliberately avoids enrol_user(): Moodle sends the course welcome message
+     * on every enrol_user() call, not only for a new enrolment, so reactivating
+     * through it would welcome a returning learner a second time.
+     *
+     * @param \enrol_plugin $plugin   The manual enrol plugin.
+     * @param \stdClass     $instance The course's manual enrolment instance.
+     * @param int           $userid   The Moodle user ID.
+     * @return void
+     */
+    private static function reactivate(\enrol_plugin $plugin, \stdClass $instance, int $userid): void {
+        $plugin->update_user_enrol($instance, $userid, ENROL_USER_ACTIVE, 0, 0);
+
+        $roleid = (int)$instance->roleid;
+        if ($roleid <= 0) {
+            return;
+        }
+        $contextid = context_course::instance((int)$instance->courseid)->id;
+        if ($plugin->roles_protected()) {
+            role_assign($roleid, $userid, $contextid, 'enrol_' . $instance->enrol, (int)$instance->id);
+        } else {
+            role_assign($roleid, $userid, $contextid);
+        }
     }
 
     /**

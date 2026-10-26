@@ -4,6 +4,16 @@ All notable changes to the iMIS Bridge plugin (`local_imisbridge`) are documente
 in this file. The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.26.4] - 2026-10-26
+
+### Fixed
+- **A cancelled learner who registered again got the course welcome email a second
+  time.** Moodle sends the welcome message on every manual `enrol_user()` call, not
+  only for a new enrolment, and the registration sync reactivated a suspended
+  enrolment through it. Reactivation now switches the existing enrolment back on and
+  restores its Student role directly, so a learner is welcomed once, when first
+  enrolled. Grades and completion are kept as before.
+
 ## [1.26.3] - 2026-10-26
 
 ### Fixed
