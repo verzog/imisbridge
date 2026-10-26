@@ -394,3 +394,4 @@ in `CHANGEOVER-CHECKLIST.md` §R.
 | 2026-10-25 | 1.24.0: N13 for the push course id overrides. |
 | 2026-10-26 | 1.25.0: N14 for the results back-fill. |
 | 2026-10-26 | 1.26.0: N15 for the iMIS ID format setting. |
+| 2026-10-26 | CHANGEOVER-CHECKLIST §S: staging rehearsal on the Catalyst copy of live Moodle with a refreshed iMIS staging (no overrides; endpoints forced to staging before the first cron). |
