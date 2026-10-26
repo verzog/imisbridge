@@ -601,6 +601,14 @@ REST.
   of a course skips that course's suspensions.
 - [ ] **Rollback:** set **Sync provider** back to *ATS SOAP bridge* or *Same as
   connection provider*, or clear the Registrations IQA, and turn the iDMS push back on.
+- [ ] **Course welcome email.** If a course's *Manual enrolments* method has *Send
+  course welcome message* on, Moodle emails a learner each time they are enrolled
+  through it. The registration sync sends it once per new enrolment: learners already
+  active are skipped, and since 1.26.4 a cancelled learner who registers again is
+  reactivated without a second welcome. The ATS bridge and the iDMS push enrol through
+  Moodle's `enrol_manual_enrol_users` web service, which sends the message on **every**
+  call, even for a learner already enrolled, so a re-sent order means a second email.
+  Decide per course before the first full sync, which can enrol hundreds at once.
 
 ## S. Staging rehearsal on the Catalyst copy (before the production cutover)
 
