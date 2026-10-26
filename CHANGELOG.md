@@ -11,6 +11,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   the same wording as the direct REST transport: Description "Moodle course N score",
   Note "Score : Moodle course N", Note2 `score` and SourceCode `quiz`, so the
   Description column in iMIS Course Notes is filled in.
+- **Course mapping overrides help text.** It now says the ATS bridge enrolment sync
+  ignores these mappings, and points to *Push course id overrides* for sending pushes
+  from an overridden course, instead of advising that pushes be left off.
 
 ## [1.26.2] - 2026-10-26
 
