@@ -425,32 +425,49 @@ class observer {
             return;
         }
 
+        self::queue_score_push((int)$user->id, $imisid, $cm, $item, (int)$event->objectid);
+    }
+
+    /**
+     * Claim and queue an activity score push for one learner's grade, unless the grade
+     * is unchanged since the last push or has been cleared. Shared by the user_graded
+     * observer and the back-fill, so both send a score at most once per change.
+     *
+     * @param int         $userid  The Moodle user ID.
+     * @param string      $imisid  The learner's iMIS ID.
+     * @param \stdClass   $cm      The course-module record.
+     * @param \grade_item $item    The activity's grade item.
+     * @param int         $gradeid The grade_grades row ID.
+     * @return bool Whether a push was queued.
+     */
+    public static function queue_score_push(int $userid, string $imisid, \stdClass $cm, \grade_item $item, int $gradeid): bool {
         // Serialise claims for this learner and grade item, so concurrent grading
         // events cannot interleave their read-then-write of the tracking row.
         $lock = \core\lock\lock_config::get_lock_factory('local_imisbridge_scorepush')
-            ->get_lock($user->id . '_' . $item->id, 10);
+            ->get_lock($userid . '_' . $item->id, 10);
         if (!$lock) {
-            debugging('local_imisbridge: could not lock the score push for user ' . $user->id
+            debugging('local_imisbridge: could not lock the score push for user ' . $userid
                 . ' and grade item ' . $item->id . '; skipped', DEBUG_DEVELOPER);
-            return;
+            return false;
         }
         try {
             // Re-read the grade inside the lock, so the claim records the latest
             // stored grade even when another request changed it meanwhile.
-            $grade = \grade_grade::fetch(['id' => $event->objectid]);
+            $grade = \grade_grade::fetch(['id' => $gradeid]);
             $finalgrade = ($grade && $grade->finalgrade !== null) ? (float)$grade->finalgrade : null;
 
-            $generation = self::claim_score_push((int)$user->id, (int)$item->id, $finalgrade);
+            $generation = self::claim_score_push($userid, (int)$item->id, $finalgrade);
             if ($generation === null || $finalgrade === null) {
                 // Unchanged, or cleared (which cancels any queued push): nothing to send.
-                return;
+                return false;
             }
 
-            $data = self::score_note_data($imisid, $cm, (int)$user->id, $item, $grade);
+            $data = self::score_note_data($imisid, $cm, $userid, $item, $grade);
             $data->generation = $generation;
             $task = new task\push_score_note_task();
             $task->set_custom_data($data);
             \core\task\manager::queue_adhoc_task($task);
+            return true;
         } finally {
             $lock->release();
         }
