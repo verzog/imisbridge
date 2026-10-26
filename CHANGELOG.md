@@ -4,6 +4,21 @@ All notable changes to the iMIS Bridge plugin (`local_imisbridge`) are documente
 in this file. The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.25.0] - 2026-10-26
+
+### Added
+- **Results back-fill** (`cli/backfill.php`): queues pushes for one course's existing
+  results as if they had just happened — course completions (with their real
+  completion and start dates) and/or activity scores of the types ticked in *Push
+  activity scores*. A dry run by default; `--execute` queues the pushes for cron.
+  Options: `--course`, `--type=completions|scores|all`, `--member`. Pushes honour the
+  push toggles and push course id overrides, and a score already sent and unchanged
+  is not sent again (the back-fill uses the live score claim).
+
+### Changed
+- The activity score claim-and-queue step is now `observer::queue_score_push()`,
+  shared by the `user_graded` observer and the back-fill (no behaviour change).
+
 ## [1.24.0] - 2026-10-25
 
 ### Added

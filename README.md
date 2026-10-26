@@ -32,6 +32,9 @@ Key behaviours:
   task so iMIS round-trips never block the login request, and nightly scheduled
   tasks can run a full enrolment and cancellation sync plus an incremental group
   sync (ATS SOAP bridge only; each toggle can be turned off).
+* A command-line **results back-fill** (`cli/backfill.php --course=ID`) sends one
+  course's existing completions and/or activity scores to iMIS, as if each had just
+  happened. A dry run unless `--execute` is given.
 * An admin page (Site administration > Plugins > Local plugins > iMIS Bridge >
   *Open sync admin*) provides a connection test, a one-member manual sync (a Member
   ID is required) and test controls for pushing a single completion or module note.
