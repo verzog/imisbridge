@@ -105,6 +105,42 @@ final class backfill_test extends \advanced_testcase {
     }
 
     /**
+     * With the Digits only iMIS ID format, an anonymised account is skipped with a reason.
+     *
+     * @return void
+     */
+    public function test_skips_ids_not_in_imis_format(): void {
+        $this->completer('20016', time());
+        $this->completer('anon47', time());
+        set_config('imis_id_format', 'digits', 'local_imisbridge');
+
+        $report = (new backfill((int)$this->course->id, true))->completions();
+
+        $this->assertSame(1, $report['queued']);
+        $this->assertSame(1, $report['skipped']);
+        $this->assertStringContainsString("'anon47' is not in the iMIS ID format", implode("\n", $report['messages']));
+        $tasks = \core\task\manager::get_adhoc_tasks(push_activity_task::class);
+        $this->assertSame('20016', reset($tasks)->get_custom_data()->imisid);
+    }
+
+    /**
+     * A push queued before Digits only was set is skipped when it runs, not sent.
+     *
+     * @covers \local_imisbridge\task\push_activity_task::execute
+     * @return void
+     */
+    public function test_queued_push_skipped_after_format_change(): void {
+        $this->completer('anon47', time());
+        (new backfill((int)$this->course->id, true))->completions();
+        $tasks = \core\task\manager::get_adhoc_tasks(push_activity_task::class);
+        $this->assertCount(1, $tasks);
+
+        set_config('imis_id_format', 'digits', 'local_imisbridge');
+        $this->expectOutputRegex('/anon47 is not in the iMIS ID format; skipping/');
+        reset($tasks)->execute();
+    }
+
+    /**
      * --member limits the back-fill to one learner, and a push course id override applies.
      *
      * @return void

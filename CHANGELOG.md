@@ -4,6 +4,18 @@ All notable changes to the iMIS Bridge plugin (`local_imisbridge`) are documente
 in this file. The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.26.0] - 2026-10-26
+
+### Added
+- **iMIS ID format** setting (*Any value*, the default, or *Digits only*). With
+  *Digits only*, a user whose username or ID number is not all digits — such as
+  `admin` or an anonymised test account like `anon47` — is treated as having no iMIS
+  ID: nothing is pushed for them, they get no login sync, and the results back-fill
+  skips them and says why. Stops pushes for such accounts failing in iMIS (HTTP 500)
+  and retrying. Does not apply when the iMIS ID source is email. Pushes and login
+  syncs queued before the switch are checked again when they run, so their retries
+  stop too.
+
 ## [1.25.0] - 2026-10-26
 
 ### Added

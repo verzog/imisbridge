@@ -55,6 +55,11 @@ class sync_user_task extends \core\task\adhoc_task {
         if (empty($imisid)) {
             return;
         }
+        // Re-check the iMIS ID format: it may have been set to Digits only after queueing.
+        if (!\local_imisbridge\util::is_valid_imis_id((string)$imisid)) {
+            mtrace('iMIS Bridge: ' . $imisid . ' is not in the iMIS ID format; skipping.');
+            return;
+        }
 
         if (!\local_imisbridge\provider\manager::sync_configured()) {
             mtrace('iMIS Bridge: no configured sync provider; skipping ' . $imisid . '.');

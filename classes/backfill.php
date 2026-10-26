@@ -222,13 +222,15 @@ class backfill {
     private function imis_id(int $userid, array &$report): ?string {
         global $DB;
         $user = $DB->get_record('user', ['id' => $userid, 'deleted' => 0], 'id, username, idnumber, email');
+        $raw = $user ? trim((string)($user->{util::imis_id_source()} ?? '')) : '';
         $imisid = $user ? util::get_imis_id($user) : '';
         if ($this->member !== null && strcasecmp($imisid, $this->member) !== 0) {
             return null;
         }
         if ($imisid === '') {
             $report['skipped']++;
-            $this->log($report, "user {$userid}: no iMIS ID; skipped");
+            $reason = ($raw === '') ? 'no iMIS ID' : "'{$raw}' is not in the iMIS ID format";
+            $this->log($report, "user {$userid}: {$reason}; skipped");
             return null;
         }
         return $imisid;
