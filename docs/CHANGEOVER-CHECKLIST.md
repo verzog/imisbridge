@@ -9,6 +9,10 @@ The crux of "successful" is: (B) the new plugin writes the **same** iMIS records
 the vendor did, (C) inbound create/enrol still works, and (E) **only one** plugin
 writes at a time. Everything else supports those.
 
+**Rehearse on the Catalyst staging copy first (§S):** a recent copy of live Moodle
+with a refreshed iMIS staging lets every sync and push be tested on realistic,
+non-production data before the cutover.
+
 **Tutorial group sync (§T) is a separate go-live.** It is new functionality the
 vendor never had (iMIS tutorial groups → Moodle course groups, over direct REST),
 so it has no parity to prove and does not depend on the vendor swap. It can go
@@ -596,6 +600,89 @@ REST.
   of a course skips that course's suspensions.
 - [ ] **Rollback:** set **Sync provider** back to *ATS SOAP bridge* or *Same as
   connection provider*, or clear the Registrations IQA, and turn the iDMS push back on.
+
+## S. Staging rehearsal on the Catalyst copy (before the production cutover)
+
+After the move to Catalyst, they provide a **recent copy of live Moodle** as a staging
+site, and iMIS staging can be **refreshed** from production on request. Course ids and
+`MOODLE_PRODUCTS` then match live, so the syncs and pushes can be rehearsed end to end
+on realistic, non-production data, with **no course overrides**.
+
+### S1. Before the copy's first cron run (ask Catalyst)
+
+A copy of live carries live's plugin settings: the production iMIS REST URL and
+service account, the ATS WSDL and token, and every push switched on. Its first cron
+run could write to **production iMIS**.
+
+- [ ] Catalyst pins the endpoints and credentials in the staging `config.php`, so the
+  copy can never reach production (forced settings cannot be changed in the UI):
+  ```php
+  $CFG->forced_plugin_settings['local_imisbridge'] = [
+      'rest_base_url' => 'https://<imis-staging-host>',
+      'rest_username' => '<staging service account>',
+      'rest_password' => '<staging password>',
+      'wsdl_url'      => '',  // or the ATS staging WSDL
+      'auth_token'    => '',  // or the ATS staging token
+  ];
+  $CFG->noemailever = true;   // the copy holds real member emails
+  ```
+- [ ] The vendor plugin (`local_imis`) on the copy is disabled, or pointed at staging,
+  for the same reason.
+- [ ] If ATS staging is used, its bridge settings point at the **staging** Moodle (§D).
+- [ ] iMIS staging has been refreshed, and the registrations IQA, `MoodleCourseLookup`
+  and `MoodleTutorialGroup` exist there with *Available via REST API* and no required
+  prompts (§R1, §T1).
+- [ ] **Shell access:** a managed host may not offer one. Ask Catalyst to enable
+  *Run now* for scheduled tasks (needs *Path to PHP CLI*), or to run named tasks on
+  request. The results back-fill (`cli/backfill.php`) is command-line only.
+
+### S2. First login: switch writes off, configure
+
+- [ ] Upgrade `local_imisbridge` to the current release.
+- [ ] Push toggles **off** to start: *Push completions*, *Push quiz scores*, *Push
+  module completions*, and no types ticked in *Push activity scores*.
+- [ ] Login syncs **off** (*Sync enrolments / cancellations / groups on login*).
+- [ ] *Connection provider* and *Sync provider*: Direct iMIS REST.
+- [ ] *Registrations IQA* set; *look-back* 7; *Registration sync: dry run* **on**.
+- [ ] *iMIS ID format*: **Digits only**.
+- [ ] *Tutorial group sync*: enabled, *dry run* **on**.
+- [ ] *Course mapping overrides* and *Push course id overrides*: **empty**.
+- [ ] *Test connection* with a known member lists their registrations, with end dates.
+
+### S3. Syncs: dry run, then live
+
+- [ ] Run *Sync enrolments* and *Sync cancellations* (scheduled tasks). Review the
+  report: would-create and would-enrol should be **small** (live already holds most
+  accounts and enrolments); no unexpected suspensions; unmapped events are only
+  non-Moodle events; no "status not recognised" lines.
+- [ ] Run *Sync tutorial groups* in dry run; review the would-add / would-remove lines.
+- [ ] Turn both dry runs **off**, run again, and spot-check a few courses (enrolments,
+  new accounts' details and SAML2 sign-in, `imis:` groups and members).
+
+### S4. Pushes against real existing records
+
+- [ ] Turn *Push completions* on. *Push completion* (sync page) for a member who
+  already has a `MOODLE` row for that course: the audit log shows a `PUT` to that row's
+  `SEQN`; the row is updated in place, with **no duplicate**. A member without a row
+  gets a new one (`POST`). A repeat push still leaves one row.
+- [ ] Turn *Push module completions* and *Push quiz scores* on. *Push activity note*,
+  a student quiz submission and a module completion each add a `MOODLENOTE` in the
+  *Course Notes* panel, in the vendor's format ("Module completed : …" / "Score : …");
+  the `MOODLE` row is untouched.
+- [ ] Optional: tick a type in *Push activity scores* (e.g. Assignment), grade one,
+  then re-grade with the same mark: one "Score : …" note, nothing on the re-grade.
+- [ ] Back-fill one member, then one course (`cli/backfill.php --course=ID
+  [--member=IMISID]`, dry run first): completions arrive with their real dates;
+  non-numeric IDs are skipped; a second run sends no scores again.
+- [ ] Audit log: no errors other than ones you can explain.
+
+### S5. Compare with the vendor, then sign off
+
+- [ ] For a few members, the records the plugin wrote on staging match what the
+  vendor wrote on production for the same course: same row, status and grade
+  columns, and notes in the same columns.
+- [ ] Note anything that differs, decide it, and record it below; then plan the
+  production cutover (§A to §G, and §R for the registration sync).
 
 ## E. Cutover — avoid double-writes (critical)
 
