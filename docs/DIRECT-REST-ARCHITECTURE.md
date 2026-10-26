@@ -140,7 +140,7 @@ The vendor wrote **two** different kinds of record, via two different SOAP ops:
 | Record | Vendor SOAP op | Meaning | Key columns |
 |---|---|---|---|
 | **`MOODLE`** | `MoodleUpdate` | Canonical completion/enrolment state | `UF_1`=course id, `UF_3`=status, `UF_4`=grade |
-| **`MOODLENOTE`** | `createActivity` | Supplementary audit notes (module completions, grades, enrol/login trail) | `PRODUCT_CODE`=Moodle course number (`UF_1` empty), `DESCRIPTION`=activity name, `NOTE`=`Module completed : <activity>` / `Score : <activity>`, `NOTE_2`=category (`modulecompletion`/`score`), `SOURCE_CODE`=module type, `UF_3`=status, `UF_4`=score, `UF_5`=cmid, `THRU_DATE`=date — confirmed against a vendor-written row (1.26.1) |
+| **`MOODLENOTE`** | `createActivity` | Supplementary audit notes (module completions, grades, enrol/login trail) | `PRODUCT_CODE`=Moodle course number (`UF_1` empty), `DESCRIPTION`=activity name, `NOTE`=`Module completed : <activity>` / `Score : <activity>`, `NOTE_2`=category (`modulecompletion`/`score`), `SOURCE_CODE`=module type, `UF_3`=status, `UF_4`=score, `UF_5`=cmid, `THRU_DATE`=date — confirmed against a vendor-written row (1.26.1). iMIS only accepts a note sent as the full record (every column, typed decimals/ints/booleans, envelope `$type`) — 1.26.2 |
 
 The hand-verified REST notes document the **`MOODLE`** record (§5.3). The
 `MOODLENOTE` trail is optional and secondary — implement the `MOODLE` record first;

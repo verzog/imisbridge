@@ -750,8 +750,9 @@ class rest_client implements \local_imisbridge\provider\org_sync_provider {
      * Build a MOODLENOTE activity laid out as the vendor bridge writes them, which is
      * what its Course Notes panel shows: the course number in PRODUCT_CODE with UF_1
      * left empty, the activity name in DESCRIPTION, the note text in NOTE, its category
-     * in NOTE_2, and the date in both TRANSACTION_DATE and THRU_DATE. (Notes that set
-     * UF_1 instead and left these empty were rejected by iMIS with HTTP 500.)
+     * in NOTE_2, and the date in both TRANSACTION_DATE and THRU_DATE. Every other
+     * column is sent too, with its .NET type, as on the vendor's rows: iMIS rejects a
+     * note that carries only the set columns (HTTP 500) and accepts the full record.
      *
      * @param string $partyid     The contact iMIS ID.
      * @param string $coursenum   The Moodle course number (PRODUCT_CODE).
@@ -775,28 +776,93 @@ class rest_client implements \local_imisbridge\provider\org_sync_provider {
         string $note2,
         array $extra = []
     ): array {
-        $props = [];
-        self::put($props, 'PartyId', $partyid);
-        self::put($props, 'ACTIVITY_TYPE', self::ACTIVITY_MOODLENOTE);
-        self::put($props, 'PRODUCT_CODE', $coursenum);
-        self::put($props, 'UF_3', $status);
-        self::put($props, 'UF_4', $score);
-        self::put($props, 'TRANSACTION_DATE', $date);
-        self::put($props, 'THRU_DATE', $date);
-        self::put($props, 'DESCRIPTION', \core_text::substr($description, 0, 255));
-        self::put($props, 'NOTE', $note);
-        self::put($props, 'NOTE_2', $note2);
+        // Every column of a vendor-written note, in iMIS's order, with its .NET type:
+        // iMIS rejected (HTTP 500) a note carrying only the set columns, and accepted
+        // a full copy of a vendor note. Null means the column is sent without a value.
+        $values = [
+            'ACTION_CODES'          => null,
+            'ACTIVITY_TYPE'         => self::ACTIVITY_MOODLENOTE,
+            'AMOUNT'                => self::typed('System.Decimal', 0),
+            'ATTACH_SEQN'           => self::typed('System.Int32', 0),
+            'ATTACH_TOTAL'          => self::typed('System.Int32', 0),
+            'BATCH_NUM'             => null,
+            'CAMPAIGN_CODE'         => null,
+            'CATEGORY'              => null,
+            'CO_ID'                 => null,
+            'DESCRIPTION'           => \core_text::substr($description, 0, 255),
+            'EFFECTIVE_DATE'        => null,
+            'GRACE_PERIOD'          => self::typed('System.Int32', 0),
+            'PartyId'               => $partyid,
+            'INTENT_TO_EDIT'        => null,
+            'MEM_TRIB_CODE'         => null,
+            'MEMBER_TYPE'           => null,
+            'NEXT_INSTALL_DATE'     => null,
+            'NOTE'                  => $note,
+            'NOTE_2'                => $note2,
+            'OBJECT'                => null,
+            'ORG_CODE'              => null,
+            'ORIGINATING_TRANS_NUM' => self::typed('System.Int32', 0),
+            'OTHER_CODE'            => null,
+            'OTHER_ID'              => null,
+            'PAY_METHOD'            => null,
+            'PRODUCT_CODE'          => $coursenum,
+            'QUANTITY'              => self::typed('System.Decimal', 0),
+            'RECURRING_REQUEST'     => self::typed('System.Boolean', false),
+            'SOLICITOR_ID'          => null,
+            'SOURCE_CODE'           => null,
+            'SOURCE_SYSTEM'         => null,
+            'STATUS_CODE'           => null,
+            'TAXABLE_VALUE'         => self::typed('System.Decimal', 0),
+            'THRU_DATE'             => $date,
+            'TICKLER_DATE'          => null,
+            'TRANSACTION_DATE'      => $date,
+            'UF_1'                  => null,
+            'UF_2'                  => null,
+            'UF_3'                  => $status,
+            'UF_4'                  => self::typed('System.Decimal', $score),
+            'UF_5'                  => self::typed('System.Decimal', 0),
+            'UF_6'                  => null,
+            'UF_7'                  => null,
+            'UNITS'                 => self::typed('System.Decimal', 0),
+        ];
+        $decimals = ['AMOUNT', 'QUANTITY', 'TAXABLE_VALUE', 'UNITS', 'UF_4', 'UF_5'];
         foreach ($extra as $name => $value) {
-            if ($value !== null && $value !== '') {
-                self::put($props, (string)$name, $value);
+            if ($value === null || $value === '') {
+                continue;
             }
+            $values[(string)$name] = in_array($name, $decimals, true) ? self::typed('System.Decimal', (float)$value) : $value;
+        }
+
+        $props = [];
+        foreach ($values as $name => $value) {
+            $prop = ['$type' => 'Asi.Soa.Core.DataContracts.GenericPropertyData, Asi.Contracts', 'Name' => $name];
+            if ($value !== null && $value !== '') {
+                $prop['Value'] = $value;
+            }
+            $props[] = $prop;
         }
 
         return [
+            '$type'                       => 'Asi.Soa.Core.DataContracts.GenericEntityData, Asi.Contracts',
+            'EntityTypeName'              => 'Activity',
             'PrimaryParentEntityTypeName' => 'Party',
             'PrimaryParentIdentity'       => self::identity_block($partyid),
-            'Properties'                  => ['$values' => $props],
+            'Properties'                  => [
+                '$type'   => 'Asi.Soa.Core.DataContracts.GenericPropertyDataCollection, Asi.Contracts',
+                '$values' => $props,
+            ],
         ];
+    }
+
+    /**
+     * A typed scalar as iMIS writes one: `{"$type": "System.Decimal", "$value": 0}`.
+     *
+     * @param string         $type  The .NET type name, e.g. System.Decimal.
+     * @param int|float|bool $value The value.
+     * @return array
+     */
+    private static function typed(string $type, $value): array {
+        return ['$type' => $type, '$value' => $value];
     }
 
     /**
