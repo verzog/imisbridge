@@ -24,6 +24,7 @@
  * Usage:
  *   php local/imisbridge/cli/test_rest.php
  *   php local/imisbridge/cli/test_rest.php --imisid=jsmith
+ *   php local/imisbridge/cli/test_rest.php --imisid=jsmith --seqn=4444
  *
  * @package    local_imisbridge
  * @copyright  2024 Vernon Spain
@@ -36,7 +37,7 @@ require(__DIR__ . '/../../../config.php');
 require_once($CFG->libdir . '/clilib.php');
 
 [$options, $unrecognised] = cli_get_params(
-    ['imisid' => '', 'help' => false],
+    ['imisid' => '', 'seqn' => '', 'help' => false],
     ['h' => 'help']
 );
 
@@ -53,10 +54,12 @@ contact's activity rows. No data is written to iMIS or Moodle.
 
 Options:
   --imisid=ID   Also read the activity rows for this iMIS contact ID.
+  --seqn=N      With --imisid, print every field of that contact's activity N.
   -h, --help    Print this help.
 
 Example:
   php local/imisbridge/cli/test_rest.php --imisid=jsmith
+  php local/imisbridge/cli/test_rest.php --imisid=jsmith --seqn=4444
 ");
     exit(0);
 }
@@ -85,6 +88,15 @@ try {
                 (string)$uf3
             );
             cli_writeln($line);
+            if ($options['seqn'] !== '' && (string)$seqn === (string)$options['seqn']) {
+                foreach ($row->Properties->{'$values'} ?? [] as $prop) {
+                    $value = $prop->Value ?? '';
+                    if (is_object($value)) {
+                        $value = $value->{'$value'} ?? json_encode($value);
+                    }
+                    cli_writeln('      ' . $prop->Name . ' = ' . var_export($value, true));
+                }
+            }
         }
     } else {
         cli_writeln("\nFor a read check, re-run with --imisid=<valid iMIS ID> to list that "
