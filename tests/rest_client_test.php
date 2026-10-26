@@ -94,21 +94,39 @@ final class rest_client_test extends \advanced_testcase {
     }
 
     /**
-     * The activity type is honoured, so notes are written as MOODLENOTE.
+     * A note is laid out as the vendor's MOODLENOTE rows: course number in PRODUCT_CODE
+     * (never UF_1), activity name in DESCRIPTION, note text and category in NOTE/NOTE_2,
+     * the date in TRANSACTION_DATE and THRU_DATE, and extras such as UF_5 and SOURCE_CODE.
      *
      * @return void
      */
-    public function test_build_activity_body_note_type(): void {
-        $body = rest_client::build_activity_body(
-            rest_client::ACTIVITY_MOODLENOTE,
-            'jsmith',
-            '2150',
+    public function test_build_note_body_matches_vendor_layout(): void {
+        $body = rest_client::build_note_body(
+            '20022',
+            '2152',
             'PASS',
-            60.0,
-            '2026-10-19',
-            'd'
+            2.0,
+            '2026-10-26',
+            'Practice Exam',
+            'Module completed : Practice Exam',
+            'modulecompletion',
+            ['UF_5' => 1507, 'SOURCE_CODE' => 'quiz', 'UF_6' => '']
         );
+
         $this->assertSame('MOODLENOTE', $this->body_value($body, 'ACTIVITY_TYPE'));
+        $this->assertSame('20022', $this->body_value($body, 'PartyId'));
+        $this->assertSame('2152', $this->body_value($body, 'PRODUCT_CODE'));
+        $this->assertFalse($this->body_has($body, 'UF_1'));
+        $this->assertSame('PASS', $this->body_value($body, 'UF_3'));
+        $this->assertSame(2.0, $this->body_value($body, 'UF_4'));
+        $this->assertSame(1507, $this->body_value($body, 'UF_5'));
+        $this->assertSame('Practice Exam', $this->body_value($body, 'DESCRIPTION'));
+        $this->assertSame('Module completed : Practice Exam', $this->body_value($body, 'NOTE'));
+        $this->assertSame('modulecompletion', $this->body_value($body, 'NOTE_2'));
+        $this->assertSame('quiz', $this->body_value($body, 'SOURCE_CODE'));
+        $this->assertSame('2026-10-26', $this->body_value($body, 'TRANSACTION_DATE'));
+        $this->assertSame('2026-10-26', $this->body_value($body, 'THRU_DATE'));
+        $this->assertFalse($this->body_has($body, 'UF_6'));
     }
 
     /**

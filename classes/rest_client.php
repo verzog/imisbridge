@@ -284,7 +284,9 @@ class rest_client implements \local_imisbridge\provider\org_sync_provider {
             (float)($data->score ?? 0),
             (string)($data->completiondate ?? date('Y-m-d')),
             'Moodle course ' . $courseid . ' score',
-            self::extra_columns($data)
+            'Score : Moodle course ' . $courseid,
+            'score',
+            ['SOURCE_CODE' => 'quiz'] + self::extra_columns($data)
         );
     }
 
@@ -296,15 +298,18 @@ class rest_client implements \local_imisbridge\provider\org_sync_provider {
      * @return void
      */
     public function push_module_note(\stdClass $data): void {
-        $label = (($data->notekind ?? '') === 'score') ? 'Score: ' : 'Module completion: ';
+        $isscore = (($data->notekind ?? '') === 'score');
+        $cmname  = (string)($data->cmname ?? '');
         $this->add_note(
             (string)$data->imisid,
             (string)($data->coursenum ?? ''),
             (string)($data->status ?? ''),
             (float)($data->score ?? 0),
             (string)($data->date ?? date('Y-m-d')),
-            $label . (string)($data->cmname ?? ''),
-            ['UF_5' => (int)($data->cmid ?? 0)]
+            $cmname,
+            ($isscore ? 'Score : ' : 'Module completed : ') . $cmname,
+            $isscore ? 'score' : 'modulecompletion',
+            ['UF_5' => (int)($data->cmid ?? 0), 'SOURCE_CODE' => (string)($data->modname ?? '')]
         );
     }
 
@@ -716,11 +721,13 @@ class rest_client implements \local_imisbridge\provider\org_sync_provider {
      * canonical MOODLE row's completion status or final grade.
      *
      * @param string $partyid     The contact iMIS ID.
-     * @param string $courseid    The numeric Moodle course id (UF_1).
+     * @param string $courseid    The Moodle course number (PRODUCT_CODE on a note).
      * @param string $status      The status (UF_3), e.g. PASS/FAIL.
      * @param float  $score       The score (UF_4).
-     * @param string $date        Activity date (TRANSACTION_DATE), local Y-m-d.
-     * @param string $description Free-text description.
+     * @param string $date        Activity date (TRANSACTION_DATE and THRU_DATE), local Y-m-d.
+     * @param string $description The description, e.g. the activity name.
+     * @param string $note        The note text (NOTE), e.g. "Module completed : Exam".
+     * @param string $note2       The note category (NOTE_2), e.g. modulecompletion or score.
      * @param array  $extra       Optional extra column => value pairs to set.
      * @return object The request result.
      */
@@ -731,19 +738,65 @@ class rest_client implements \local_imisbridge\provider\org_sync_provider {
         float $score,
         string $date,
         string $description,
+        string $note,
+        string $note2,
         array $extra = []
     ): object {
-        $body = self::build_activity_body(
-            self::ACTIVITY_MOODLENOTE,
-            $partyid,
-            $courseid,
-            $status,
-            $score,
-            $date,
-            $description,
-            $extra
-        );
+        $body = self::build_note_body($partyid, $courseid, $status, $score, $date, $description, $note, $note2, $extra);
         return $this->request('POST', '/api/Activity', $body, $partyid);
+    }
+
+    /**
+     * Build a MOODLENOTE activity laid out as the vendor bridge writes them, which is
+     * what its Course Notes panel shows: the course number in PRODUCT_CODE with UF_1
+     * left empty, the activity name in DESCRIPTION, the note text in NOTE, its category
+     * in NOTE_2, and the date in both TRANSACTION_DATE and THRU_DATE. (Notes that set
+     * UF_1 instead and left these empty were rejected by iMIS with HTTP 500.)
+     *
+     * @param string $partyid     The contact iMIS ID.
+     * @param string $coursenum   The Moodle course number (PRODUCT_CODE).
+     * @param string $status      The status (UF_3).
+     * @param float  $score       The score (UF_4).
+     * @param string $date        The date, local Y-m-d.
+     * @param string $description The description (DESCRIPTION).
+     * @param string $note        The note text (NOTE).
+     * @param string $note2       The note category (NOTE_2).
+     * @param array  $extra       Extra column => value pairs (e.g. UF_5, SOURCE_CODE); empty values are skipped.
+     * @return array The entity ready for json_encode.
+     */
+    public static function build_note_body(
+        string $partyid,
+        string $coursenum,
+        string $status,
+        float $score,
+        string $date,
+        string $description,
+        string $note,
+        string $note2,
+        array $extra = []
+    ): array {
+        $props = [];
+        self::put($props, 'PartyId', $partyid);
+        self::put($props, 'ACTIVITY_TYPE', self::ACTIVITY_MOODLENOTE);
+        self::put($props, 'PRODUCT_CODE', $coursenum);
+        self::put($props, 'UF_3', $status);
+        self::put($props, 'UF_4', $score);
+        self::put($props, 'TRANSACTION_DATE', $date);
+        self::put($props, 'THRU_DATE', $date);
+        self::put($props, 'DESCRIPTION', \core_text::substr($description, 0, 255));
+        self::put($props, 'NOTE', $note);
+        self::put($props, 'NOTE_2', $note2);
+        foreach ($extra as $name => $value) {
+            if ($value !== null && $value !== '') {
+                self::put($props, (string)$name, $value);
+            }
+        }
+
+        return [
+            'PrimaryParentEntityTypeName' => 'Party',
+            'PrimaryParentIdentity'       => self::identity_block($partyid),
+            'Properties'                  => ['$values' => $props],
+        ];
     }
 
     /**

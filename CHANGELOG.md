@@ -4,6 +4,19 @@ All notable changes to the iMIS Bridge plugin (`local_imisbridge`) are documente
 in this file. The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.26.1] - 2026-10-26
+
+### Fixed
+- **Direct REST notes rejected by iMIS (HTTP 500).** Quiz-score, activity-score and
+  module-completion notes are now laid out as the vendor's `MOODLENOTE` rows, which
+  iMIS accepts and shows in the Course Notes panel: the course number in
+  `PRODUCT_CODE` (not `UF_1`), the activity name in `DESCRIPTION`, the note text in
+  `NOTE` (`Module completed : <activity>` / `Score : <activity>`), its category in
+  `NOTE_2`, the module type in `SOURCE_CODE`, and the date in `THRU_DATE` as well as
+  `TRANSACTION_DATE`. ATS SOAP notes use the same wording.
+- The REST test CLI (`cli/test_rest.php`) prints every field of one activity with
+  `--imisid=ID --seqn=N`.
+
 ## [1.26.0] - 2026-10-26
 
 ### Added
