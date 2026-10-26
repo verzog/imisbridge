@@ -622,11 +622,16 @@ run could write to **production iMIS**.
       'rest_base_url' => 'https://<imis-staging-host>',
       'rest_username' => '<staging service account>',
       'rest_password' => '<staging password>',
-      'wsdl_url'      => '<ATS staging WSDL URL>',
-      'auth_token'    => '<ATS staging token>',
+      'wsdl_url'         => '<ATS staging WSDL URL>',
+      'service_endpoint' => '<ATS staging endpoint URL>',
+      'auth_token'       => '<ATS staging token>',
   ];
   $CFG->noemailever = true;   // the copy holds real member emails
   ```
+  Force `service_endpoint` too, even if live leaves it blank: when set it overrides the
+  address in the WSDL, so a production value carried over on the copy would still send
+  ATS requests to production after the WSDL is changed. Use the staging bridge's
+  `.asmx` address (the WSDL URL without `?WSDL`).
 - [ ] The vendor plugin (`local_imis`) on the copy is disabled, or pointed at staging,
   for the same reason.
 - [ ] ATS staging's bridge settings point at the **staging** Moodle and iMIS staging
