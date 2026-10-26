@@ -4,6 +4,17 @@ All notable changes to the iMIS Bridge plugin (`local_imisbridge`) are documente
 in this file. The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.26.3] - 2026-10-26
+
+### Fixed
+- **Quiz score notes sent through the ATS bridge had no description.** They now carry
+  the same wording as the direct REST transport: Description "Moodle course N score",
+  Note "Score : Moodle course N", Note2 `score` and SourceCode `quiz`, so the
+  Description column in iMIS Course Notes is filled in.
+- **Course mapping overrides help text.** It now says the ATS bridge enrolment sync
+  ignores these mappings, and points to *Push course id overrides* for sending pushes
+  from an overridden course, instead of advising that pushes be left off.
+
 ## [1.26.2] - 2026-10-26
 
 ### Fixed

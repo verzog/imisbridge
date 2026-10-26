@@ -134,6 +134,31 @@ final class imis_client_test extends \advanced_testcase {
     }
 
     /**
+     * A quiz score note carries the same wording as the REST transport writes, so
+     * the Description column is filled in iMIS Course Notes.
+     *
+     * @return void
+     */
+    public function test_build_score_params_matches_rest_wording(): void {
+        $params = imis_client::build_score_params((object)[
+            'imisid'         => '20022',
+            'coursenum'      => '2152',
+            'status'         => 'fail',
+            'score'          => 1.0,
+            'completiondate' => '2026-10-26',
+        ]);
+
+        $this->assertSame('MOODLENOTE', $params['ActivityType']);
+        $this->assertSame('2152', $params['ProductCode']);
+        $this->assertSame('Moodle course 2152 score', $params['Description']);
+        $this->assertSame('Score : Moodle course 2152', $params['Note']);
+        $this->assertSame('score', $params['Note2']);
+        $this->assertSame('quiz', $params['SourceCode']);
+        $this->assertSame('FAIL', $params['UserField3']);
+        $this->assertSame('2026-10-26', $params['ThruDate']);
+    }
+
+    /**
      * A non-empty endpoint is passed through as the SOAP `location` override.
      *
      * @return void
