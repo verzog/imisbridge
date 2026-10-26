@@ -125,4 +125,26 @@ final class util_test extends \advanced_testcase {
         $text = "# comment\n\n19 = 2152\r\n7=abc\nX=5\n0=3\n9=0\nnoequals\n20=3001";
         $this->assertSame([19 => 2152, 20 => 3001], util::parse_push_course_overrides($text));
     }
+
+    /**
+     * With the Digits only format, a username or ID number that is not all digits is
+     * no iMIS ID; Any value (the default) accepts it; an email source is unaffected.
+     *
+     * @return void
+     */
+    public function test_imis_id_format(): void {
+        $this->resetAfterTest();
+        set_config('imis_id_source', 'idnumber', 'local_imisbridge');
+        $member = (object)['idnumber' => '20016', 'email' => 'm@example.com'];
+        $anon   = (object)['idnumber' => 'anon47', 'email' => 'a@example.com'];
+
+        $this->assertSame('anon47', util::get_imis_id($anon), 'any value by default');
+
+        set_config('imis_id_format', 'digits', 'local_imisbridge');
+        $this->assertSame('20016', util::get_imis_id($member));
+        $this->assertSame('', util::get_imis_id($anon));
+
+        set_config('imis_id_source', 'email', 'local_imisbridge');
+        $this->assertSame('a@example.com', util::get_imis_id($anon), 'digits rule does not apply to email');
+    }
 }

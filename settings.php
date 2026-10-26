@@ -106,6 +106,17 @@ if ($hassiteconfig) {
         ]
     ));
 
+    $settings->add(new admin_setting_configselect(
+        'local_imisbridge/imis_id_format',
+        get_string('imis_id_format', 'local_imisbridge'),
+        get_string('imis_id_format_desc', 'local_imisbridge'),
+        'any',
+        [
+            'any'    => get_string('imis_id_format_any', 'local_imisbridge'),
+            'digits' => get_string('imis_id_format_digits', 'local_imisbridge'),
+        ]
+    ));
+
     // Web service timeout (seconds) for calls to iMIS.
     $settings->add(new admin_setting_configtext(
         'local_imisbridge/ws_timeout',

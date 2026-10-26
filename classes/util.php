@@ -157,12 +157,34 @@ class util {
     /**
      * Resolve the iMIS contact ID for a user from the configured source field.
      *
+     * A value that does not match the *iMIS ID format* setting counts as no ID, so
+     * accounts such as admin or anonymised test users are never sent to iMIS.
+     *
      * @param \stdClass $user A user record carrying at least the configured field.
-     * @return string The iMIS contact ID, or '' when the field is empty or absent.
+     * @return string The iMIS contact ID, or '' when the field is empty, absent or not in the iMIS ID format.
      */
     public static function get_imis_id(\stdClass $user): string {
         $field = self::imis_id_source();
-        return isset($user->{$field}) ? trim((string)$user->{$field}) : '';
+        $value = isset($user->{$field}) ? trim((string)$user->{$field}) : '';
+        return self::is_valid_imis_id($value) ? $value : '';
+    }
+
+    /**
+     * Whether a value is in the iMIS ID format: any non-empty value, or digits only
+     * when the *iMIS ID format* setting says so. The digits rule applies to the
+     * username and ID-number sources only, as an email address is never digits.
+     *
+     * @param string $value The candidate iMIS ID.
+     * @return bool
+     */
+    public static function is_valid_imis_id(string $value): bool {
+        if ($value === '') {
+            return false;
+        }
+        if (get_config('local_imisbridge', 'imis_id_format') === 'digits' && self::imis_id_source() !== 'email') {
+            return ctype_digit($value);
+        }
+        return true;
     }
 
     /**
