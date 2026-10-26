@@ -11,7 +11,8 @@ writes at a time. Everything else supports those.
 
 **Rehearse on the Catalyst staging copy first (§S):** a recent copy of live Moodle
 with a refreshed iMIS staging lets every sync and push be tested on realistic,
-non-production data before the cutover.
+non-production data before the cutover, with ATS kept for pushes and syncs (REST for
+tutorial groups) or any other provider combination.
 
 **Tutorial group sync (§T) is a separate go-live.** It is new functionality the
 vendor never had (iMIS tutorial groups → Moodle course groups, over direct REST),
@@ -621,14 +622,15 @@ run could write to **production iMIS**.
       'rest_base_url' => 'https://<imis-staging-host>',
       'rest_username' => '<staging service account>',
       'rest_password' => '<staging password>',
-      'wsdl_url'      => '',  // or the ATS staging WSDL
-      'auth_token'    => '',  // or the ATS staging token
+      'wsdl_url'      => '<ATS staging WSDL URL>',
+      'auth_token'    => '<ATS staging token>',
   ];
   $CFG->noemailever = true;   // the copy holds real member emails
   ```
 - [ ] The vendor plugin (`local_imis`) on the copy is disabled, or pointed at staging,
   for the same reason.
-- [ ] If ATS staging is used, its bridge settings point at the **staging** Moodle (§D).
+- [ ] ATS staging's bridge settings point at the **staging** Moodle and iMIS staging
+  (§D), so its syncs and the plugin's ATS pushes stay inside staging.
 - [ ] iMIS staging has been refreshed, and the registrations IQA, `MoodleCourseLookup`
   and `MoodleTutorialGroup` exist there with *Available via REST API* and no required
   prompts (§R1, §T1).
@@ -642,8 +644,22 @@ run could write to **production iMIS**.
 - [ ] Push toggles **off** to start: *Push completions*, *Push quiz scores*, *Push
   module completions*, and no types ticked in *Push activity scores*.
 - [ ] Login syncs **off** (*Sync enrolments / cancellations / groups on login*).
-- [ ] *Connection provider* and *Sync provider*: Direct iMIS REST.
-- [ ] *Registrations IQA* set; *look-back* 7; *Registration sync: dry run* **on**.
+- [ ] Choose the provider combination. **Default, while ATS stays in use:**
+  *Connection provider* = **ATS SOAP bridge** (pushes via `MoodleUpdate` /
+  `CreateActivity`, as the vendor did) and *Sync provider* = **Same as connection
+  provider** (ATS enrolment, cancellation and group syncs). Direct REST is then used
+  only by the tutorial group sync. Other combinations, switchable later by settings:
+
+  | Combination | Connection provider | Sync provider | Registrations IQA |
+  |---|---|---|---|
+  | ATS for everything, REST for tutorial groups (**default**) | ATS SOAP bridge | Same as connection provider | blank |
+  | REST pushes, ATS syncs | Direct iMIS REST | ATS SOAP bridge | blank |
+  | Everything over REST (retire ATS) | Direct iMIS REST | Same as connection provider | set (§R) |
+
+  Only one system may enrol and suspend: with ATS syncs, leave the *Registrations
+  IQA* blank (the REST registration sync stays off).
+- [ ] Only for the all-REST combination: *Registrations IQA* set; *look-back* 7;
+  *Registration sync: dry run* **on**.
 - [ ] *iMIS ID format*: **Digits only**.
 - [ ] *Tutorial group sync*: enabled, *dry run* **on**.
 - [ ] *Course mapping overrides* and *Push course id overrides*: **empty**.
@@ -651,24 +667,34 @@ run could write to **production iMIS**.
 
 ### S3. Syncs: dry run, then live
 
-- [ ] Run *Sync enrolments* and *Sync cancellations* (scheduled tasks). Review the
-  report: would-create and would-enrol should be **small** (live already holds most
-  accounts and enrolments); no unexpected suspensions; unmapped events are only
-  non-Moodle events; no "status not recognised" lines.
+- [ ] **ATS syncs (default):** run *Sync enrolments*, *Sync cancellations* and *Sync
+  groups*, and a one-member manual sync, with ATS staging; check the audit log shows
+  `SendNewOrdersToMoodle` / `SendCancelledOrdersToMoodle` / `UpdateMoodleGroups`
+  succeeding and the resulting enrolments, suspensions and groups in Moodle.
+- [ ] **REST registration sync (all-REST only):** run *Sync enrolments* and *Sync
+  cancellations* in dry run. Review the report: would-create and would-enrol should be
+  **small** (live already holds most accounts and enrolments); no unexpected
+  suspensions; unmapped events are only non-Moodle events; no "status not recognised"
+  lines.
 - [ ] Run *Sync tutorial groups* in dry run; review the would-add / would-remove lines.
-- [ ] Turn both dry runs **off**, run again, and spot-check a few courses (enrolments,
-  new accounts' details and SAML2 sign-in, `imis:` groups and members).
+- [ ] Turn the dry run(s) **off**, run again, and spot-check a few courses
+  (enrolments, new accounts' details and SAML2 sign-in, `imis:` groups and members).
 
 ### S4. Pushes against real existing records
 
 - [ ] Turn *Push completions* on. *Push completion* (sync page) for a member who
-  already has a `MOODLE` row for that course: the audit log shows a `PUT` to that row's
-  `SEQN`; the row is updated in place, with **no duplicate**. A member without a row
-  gets a new one (`POST`). A repeat push still leaves one row.
+  already has a `MOODLE` row for that course, then for one without, then repeat:
+  - **ATS pushes (default):** the audit log shows `MoodleUpdate` succeeding; check in
+    iMIS that ATS updated the existing row rather than adding one (as for the vendor),
+    and created a row for the member without one.
+  - **REST pushes:** the audit log shows a `PUT` to the existing row's `SEQN` (updated
+    in place, **no duplicate**), a `POST` for the member without a row, and still one
+    row after the repeat.
 - [ ] Turn *Push module completions* and *Push quiz scores* on. *Push activity note*,
   a student quiz submission and a module completion each add a `MOODLENOTE` in the
   *Course Notes* panel, in the vendor's format ("Module completed : …" / "Score : …");
-  the `MOODLE` row is untouched.
+  the `MOODLE` row is untouched. Over ATS these are `CreateActivity` calls; over REST,
+  `POST /api/Activity`.
 - [ ] Optional: tick a type in *Push activity scores* (e.g. Assignment), grade one,
   then re-grade with the same mark: one "Score : …" note, nothing on the re-grade.
 - [ ] Back-fill one member, then one course (`cli/backfill.php --course=ID
