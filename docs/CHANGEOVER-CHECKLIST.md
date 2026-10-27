@@ -853,18 +853,44 @@ one's site over (`classes/migration.php`):
 - the cancel function on any hand-built service, such as the ATS inbound one.
 
 It then turns the old plugin's pushes and syncs **off**, so the two never both
-write. Do it in a maintenance window:
+write.
 
-- [ ] Pause cron.
-- [ ] Replace the code: remove the `local/imisbridge` folder and add
-  `local/membershipbridge` (the 2.0.0 release zip unpacks to that folder).
-- [ ] *Site administration → Notifications*: install `local_membershipbridge`. The
-  old plugin now shows as *missing from disk*.
+> **Never uninstall `local_imisbridge` while its folder is still on disk, or before
+> `local_membershipbridge` is installed with its settings.** Uninstalling deletes the
+> old settings, audit log, sent-score records, capability grants and service
+> functions. If the old code is still in `local/imisbridge`, Moodle then reinstalls
+> it with **default** settings at the next upgrade check. The carry-over has nothing
+> left to copy, and everything must be re-entered by hand. (This happened on the
+> staging sandbox, where the code swap had silently failed.)
+
+Do it in a maintenance window, checking each step before the next:
+
+- [ ] **Back up the database.** It is the only way back if a step goes wrong.
+- [ ] Pause cron and enable maintenance mode.
+- [ ] Unpack the 2.0.0 code to a folder named `membershipbridge`. The release zip
+  unpacks to that name; GitHub's *Download ZIP* unpacks to `membershipbridge-main`,
+  so rename it.
+  - **Check:** `membershipbridge/version.php` exists and contains
+    `$plugin->component = 'local_membershipbridge';`. It must not be one folder
+    deeper.
+- [ ] Copy it to `local/membershipbridge` (owned by the web server user), then move
+  `local/imisbridge` **out of** the Moodle tree. Keep it as a backup; don't delete it.
+  - **Check:** `local/membershipbridge/version.php` exists, and `local/imisbridge`
+    does not.
+- [ ] Install: *Site administration → Notifications*, or
+  `php admin/cli/upgrade.php --non-interactive` (in Moodle 5.1+ the CLI scripts are
+  in `admin/cli`, outside `public/`).
+  - **Check:** `php admin/cli/cfg.php --component=local_membershipbridge
+    --name=version` prints `2026102800` (not "No such configuration variable"),
+    and `local_imisbridge` shows as *missing from disk* in *Plugins overview*.
 - [ ] Check the settings carried over (*Plugins → Local plugins → Membership
-  Bridge*) and that *Push completions* and the other toggles are as they were.
-- [ ] Uninstall `local_imisbridge` (*Plugins overview → Uninstall*). This deletes its
-  old settings, tables, capabilities, its own *iMIS bridge* service and that
-  service's tokens.
+  Bridge*): connection, REST and ATS settings, the iMIS ID source, and *Push
+  completions* and the other toggles as they were. The audit log shows the old
+  entries.
+- [ ] **Only now** uninstall `local_imisbridge` (*Plugins overview → Uninstall*, or
+  `php admin/cli/uninstall_plugins.php --plugins=local_imisbridge --run`). This
+  deletes its old settings, tables, capabilities, its own *iMIS bridge* service and
+  that service's tokens.
 - [ ] **Tokens and services.**
   - The plugin's own service is now *Membership bridge*. Add its authorised users
     and create new tokens there if anything used the old *iMIS bridge* service
@@ -878,8 +904,9 @@ write. Do it in a maintenance window:
   `local/membershipbridge:cancelenrolment` (copied from the old grant; check it).
 - [ ] *Scheduled tasks*: the new tasks run at their default times. Re-apply any
   custom schedule.
-- [ ] Resume cron, then run a one-member manual sync and a test cancellation, and
-  check the audit log.
+- [ ] Purge caches, disable maintenance mode, resume cron. Then run *Test
+  connection*, a one-member manual sync and a test cancellation, and check the
+  audit log.
 
 ---
 
