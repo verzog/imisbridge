@@ -15,9 +15,9 @@
 // along with Moodle.  If not, see <http://www.gnu.org/licenses/>.
 
 /**
- * Event observer definitions for local_imisbridge.
+ * Event observer definitions for local_membershipbridge.
  *
- * @package    local_imisbridge
+ * @package    local_membershipbridge
  * @copyright  2024 Vernon Spain
  * @license    http://www.gnu.org/copyleft/gpl.html GNU GPL v3 or later
  */
@@ -29,7 +29,7 @@ $observers = [
     // Fire on every user login — syncs enrollments, cancellations, and groups.
     [
         'eventname' => '\core\event\user_loggedin',
-        'callback'  => '\local_imisbridge\observer::user_loggedin',
+        'callback'  => '\local_membershipbridge\observer::user_loggedin',
         'priority'  => 200,
         'internal'  => false,
     ],
@@ -37,7 +37,7 @@ $observers = [
     // Fire when a course is fully completed.
     [
         'eventname' => '\core\event\course_completed',
-        'callback'  => '\local_imisbridge\observer::course_completed',
+        'callback'  => '\local_membershipbridge\observer::course_completed',
         'priority'  => 200,
         'internal'  => false,
     ],
@@ -45,7 +45,7 @@ $observers = [
     // Fire when a quiz attempt is submitted.
     [
         'eventname' => '\mod_quiz\event\attempt_submitted',
-        'callback'  => '\local_imisbridge\observer::quiz_attempt_submitted',
+        'callback'  => '\local_membershipbridge\observer::quiz_attempt_submitted',
         'priority'  => 200,
         'internal'  => false,
     ],
@@ -53,13 +53,13 @@ $observers = [
     // Fire when a course-module completion state changes (opt-in; graded modules only).
     [
         'eventname' => '\core\event\course_module_completion_updated',
-        'callback'  => '\local_imisbridge\observer::course_module_completion_updated',
+        'callback'  => '\local_membershipbridge\observer::course_module_completion_updated',
         'priority'  => 200,
         'internal'  => false,
     ],
     [
         'eventname' => '\core\event\user_graded',
-        'callback'  => '\local_imisbridge\observer::user_graded',
+        'callback'  => '\local_membershipbridge\observer::user_graded',
         'priority'  => 200,
         'internal'  => false,
     ],

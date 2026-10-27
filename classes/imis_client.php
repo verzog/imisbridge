@@ -22,15 +22,15 @@
  * Updated 2025: ATS now requires an AuthToken parameter on the following methods:
  *   MoodleGetUserProfile, MoodleUpdate, createActivity,
  *   getActivityByIDAndType, getIQARows.
- * The AuthToken is stored in plugin settings (local_imisbridge/auth_token)
+ * The AuthToken is stored in plugin settings (local_membershipbridge/auth_token)
  * and injected automatically by get_api_auth_token().
  *
- * @package    local_imisbridge
+ * @package    local_membershipbridge
  * @copyright  2024 Vernon Spain
  * @license    http://www.gnu.org/copyleft/gpl.html GNU GPL v3 or later
  */
 
-namespace local_imisbridge;
+namespace local_membershipbridge;
 
 /**
  * iMIS SOAP client wrapper class.
@@ -62,11 +62,11 @@ namespace local_imisbridge;
  * the separate ATS SSO application, not on wsmoodle.asmx, so no wrappers for it
  * are provided here; add them against that endpoint if an SSO path is built.
  *
- * @package    local_imisbridge
+ * @package    local_membershipbridge
  * @copyright  2024 Vernon Spain
  * @license    http://www.gnu.org/copyleft/gpl.html GNU GPL v3 or later
  */
-class imis_client implements \local_imisbridge\provider\org_sync_provider {
+class imis_client implements \local_membershipbridge\provider\org_sync_provider {
     /** @var \SoapClient */
     private $soap;
 
@@ -79,7 +79,7 @@ class imis_client implements \local_imisbridge\provider\org_sync_provider {
      * @return string
      */
     public static function label(): string {
-        return get_string('transport_soap', 'local_imisbridge');
+        return get_string('transport_soap', 'local_membershipbridge');
     }
 
     /**
@@ -88,7 +88,7 @@ class imis_client implements \local_imisbridge\provider\org_sync_provider {
      * @return bool
      */
     public static function is_configured(): bool {
-        return !empty(get_config('local_imisbridge', 'wsdl_url'));
+        return !empty(get_config('local_membershipbridge', 'wsdl_url'));
     }
 
     /**
@@ -108,8 +108,8 @@ class imis_client implements \local_imisbridge\provider\org_sync_provider {
      */
     public static function supports(string $capability): bool {
         return in_array($capability, [
-            \local_imisbridge\provider\provider_interface::CAP_PUSH,
-            \local_imisbridge\provider\provider_interface::CAP_ORG_SYNC,
+            \local_membershipbridge\provider\provider_interface::CAP_PUSH,
+            \local_membershipbridge\provider\provider_interface::CAP_ORG_SYNC,
         ], true);
     }
 
@@ -267,21 +267,21 @@ class imis_client implements \local_imisbridge\provider\org_sync_provider {
         // WSDL that advertises the wrong environment is caught before writing.
         $override = self::get_effective_endpoint();
         if ($override !== null) {
-            $endpointline = get_string('endpoint_override_active', 'local_imisbridge', $override);
+            $endpointline = get_string('endpoint_override_active', 'local_membershipbridge', $override);
         } else {
             $wsdladdr     = self::read_wsdl_endpoint();
             $endpointline = ($wsdladdr !== null)
-                ? get_string('endpoint_from_wsdl', 'local_imisbridge', $wsdladdr)
-                : get_string('endpoint_from_wsdl_unknown', 'local_imisbridge');
+                ? get_string('endpoint_from_wsdl', 'local_membershipbridge', $wsdladdr)
+                : get_string('endpoint_from_wsdl_unknown', 'local_membershipbridge');
         }
         $out  = $endpointline . PHP_EOL . PHP_EOL;
         $out .= 'GetBridgeSettings:' . PHP_EOL . var_export($this->get_bridge_settings(), true);
         if (!empty($contactid)) {
             $out .= PHP_EOL . PHP_EOL . 'MoodleGetUserProfile(' . $contactid . '):' . PHP_EOL
                 . var_export($this->get_contact_by_id($contactid), true);
-            $out .= PHP_EOL . PHP_EOL . get_string('testcredentialsok', 'local_imisbridge');
+            $out .= PHP_EOL . PHP_EOL . get_string('testcredentialsok', 'local_membershipbridge');
         } else {
-            $out .= PHP_EOL . PHP_EOL . get_string('testcredentialsnote', 'local_imisbridge');
+            $out .= PHP_EOL . PHP_EOL . get_string('testcredentialsnote', 'local_membershipbridge');
         }
         return $out;
     }
@@ -292,15 +292,15 @@ class imis_client implements \local_imisbridge\provider\org_sync_provider {
      * @throws \moodle_exception If no WSDL URL is configured.
      */
     public function __construct() {
-        $wsdl = get_config('local_imisbridge', 'wsdl_url');
+        $wsdl = get_config('local_membershipbridge', 'wsdl_url');
 
         if (empty($wsdl)) {
-            throw new \moodle_exception('nowsdlconfigured', 'local_imisbridge');
+            throw new \moodle_exception('nowsdlconfigured', 'local_membershipbridge');
         }
 
         // Bound how long a request may block on iMIS so a slow or down endpoint
         // cannot hang a cron worker. Applies to both connect and read.
-        $timeout = (int)get_config('local_imisbridge', 'ws_timeout');
+        $timeout = (int)get_config('local_membershipbridge', 'ws_timeout');
         if ($timeout <= 0) {
             $timeout = 30;
         }
@@ -309,7 +309,7 @@ class imis_client implements \local_imisbridge\provider\org_sync_provider {
         // the service address embedded in the WSDL. This guards against a WSDL
         // that advertises a different environment than intended (for example a
         // test WSDL whose soap:address points at production).
-        $endpoint = get_config('local_imisbridge', 'service_endpoint');
+        $endpoint = get_config('local_membershipbridge', 'service_endpoint');
 
         $this->soap = new \SoapClient($wsdl, self::build_soap_options($timeout, $endpoint ?: null));
     }
@@ -352,7 +352,7 @@ class imis_client implements \local_imisbridge\provider\org_sync_provider {
      * @return string|null The endpoint override, or null if not set.
      */
     public static function get_effective_endpoint(): ?string {
-        $endpoint = get_config('local_imisbridge', 'service_endpoint');
+        $endpoint = get_config('local_membershipbridge', 'service_endpoint');
         return !empty($endpoint) ? $endpoint : null;
     }
 
@@ -370,11 +370,11 @@ class imis_client implements \local_imisbridge\provider\org_sync_provider {
      */
     public static function read_wsdl_endpoint(): ?string {
         global $CFG;
-        $wsdl = get_config('local_imisbridge', 'wsdl_url');
+        $wsdl = get_config('local_membershipbridge', 'wsdl_url');
         if (empty($wsdl)) {
             return null;
         }
-        $timeout = (int)get_config('local_imisbridge', 'ws_timeout');
+        $timeout = (int)get_config('local_membershipbridge', 'ws_timeout');
         if ($timeout <= 0) {
             $timeout = 30;
         }
@@ -420,9 +420,9 @@ class imis_client implements \local_imisbridge\provider\org_sync_provider {
      */
     private function get_api_auth_token(): string {
         if (empty($this->apiauthtoken)) {
-            $token = get_config('local_imisbridge', 'auth_token');
+            $token = get_config('local_membershipbridge', 'auth_token');
             if (empty($token)) {
-                throw new \moodle_exception('noauthtoken', 'local_imisbridge');
+                throw new \moodle_exception('noauthtoken', 'local_membershipbridge');
             }
             $this->apiauthtoken = $token;
         }
@@ -457,7 +457,7 @@ class imis_client implements \local_imisbridge\provider\org_sync_provider {
         $apperror = self::result_error($result);
         if ($apperror !== null) {
             logger::record($operation, $imisid, $productcode, logger::STATUS_ERROR, $this->soap, $apperror);
-            throw new \moodle_exception('soapresulterror', 'local_imisbridge', '', $operation . ': ' . $apperror);
+            throw new \moodle_exception('soapresulterror', 'local_membershipbridge', '', $operation . ': ' . $apperror);
         }
 
         logger::record($operation, $imisid, $productcode, logger::STATUS_SUCCESS, $this->soap, null);
@@ -569,7 +569,7 @@ class imis_client implements \local_imisbridge\provider\org_sync_provider {
      * @return string[] The configured success codes (trimmed, empty when unset).
      */
     public static function success_result_codes(): array {
-        $raw = (string)get_config('local_imisbridge', 'soap_success_result_codes');
+        $raw = (string)get_config('local_membershipbridge', 'soap_success_result_codes');
         if (trim($raw) === '') {
             return [];
         }
@@ -830,7 +830,7 @@ class imis_client implements \local_imisbridge\provider\org_sync_provider {
     public function get_bridge_settings(): mixed {
         // Operation name is case-sensitive: the service advertises GetBridgeSettings.
         $params = [];
-        $token  = get_config('local_imisbridge', 'auth_token');
+        $token  = get_config('local_membershipbridge', 'auth_token');
         if (!empty($token)) {
             $params['AuthToken'] = $token;
         }

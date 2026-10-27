@@ -1,6 +1,6 @@
 # Testing iMIS Bridge
 
-This guide covers configuring and testing `local_imisbridge` against an iMIS
+This guide covers configuring and testing `local_membershipbridge` against an iMIS
 environment, including how to test as safely as possible against a **production**
 iMIS when no staging iMIS is available.
 
@@ -34,7 +34,7 @@ sync and a single user login triggers a **production** sync scoped to that one
 user. On an **upgrade**, the existing WSDL is kept, so the same applies immediately.
 
 1. On the test Moodle, **pause Moodle cron** and avoid user logins during setup.
-2. Install the plugin (`git clone` into `local/imisbridge`, then _Site
+2. Install the plugin (`git clone` into `local/membershipbridge`, then _Site
    administration > Notifications_).
 3. Immediately go to _Site administration > Plugins > Local plugins > iMIS
    Bridge_ and **disable every automatic toggle** (the three login toggles, the
@@ -91,10 +91,10 @@ against production as a first check.
 
 ```bash
 # Connectivity + WSDL only (does not exercise the AuthToken):
-php local/imisbridge/cli/test_connection.php
+php local/membershipbridge/cli/test_connection.php
 
 # Also verify credentials via an authenticated MoodleGetUserProfile call:
-php local/imisbridge/cli/test_connection.php --imisid=12345
+php local/membershipbridge/cli/test_connection.php --imisid=12345
 ```
 
 Admin page: _Open sync admin_ from the plugin settings, then use the **Test

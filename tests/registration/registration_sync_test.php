@@ -17,15 +17,15 @@
 /**
  * Tests for the registration sync engine.
  *
- * @package    local_imisbridge
+ * @package    local_membershipbridge
  * @copyright  2024 Vernon Spain
  * @license    http://www.gnu.org/copyleft/gpl.html GNU GPL v3 or later
  */
 
-namespace local_imisbridge\registration;
+namespace local_membershipbridge\registration;
 
-use local_imisbridge\enrolment;
-use local_imisbridge\tutorial\course_resolver;
+use local_membershipbridge\enrolment;
+use local_membershipbridge\tutorial\course_resolver;
 
 /**
  * Unit tests for {@see registration_sync} and {@see rest_reader::to_row()}.
@@ -33,10 +33,10 @@ use local_imisbridge\tutorial\course_resolver;
  * A fake reader and course resolver feed fixed rows, so the tests assert only the
  * engine's decisions and the Moodle changes it makes.
  *
- * @package    local_imisbridge
+ * @package    local_membershipbridge
  * @copyright  2024 Vernon Spain
  * @license    http://www.gnu.org/copyleft/gpl.html GNU GPL v3 or later
- * @covers     \local_imisbridge\registration\registration_sync
+ * @covers     \local_membershipbridge\registration\registration_sync
  */
 final class registration_sync_test extends \advanced_testcase {
     /** @var \stdClass The course the test event maps to. */
@@ -51,7 +51,7 @@ final class registration_sync_test extends \advanced_testcase {
     protected function setUp(): void {
         parent::setUp();
         $this->resetAfterTest();
-        set_config('imis_id_source', 'idnumber', 'local_imisbridge');
+        set_config('imis_id_source', 'idnumber', 'local_membershipbridge');
         $this->course = $this->getDataGenerator()->create_course();
     }
 
@@ -472,25 +472,25 @@ final class registration_sync_test extends \advanced_testcase {
      * With the iMIS ID source set to username, a remote MNet account with that username
      * is not taken for the member.
      *
-     * @covers \local_imisbridge\util::find_user_by_imis_id
+     * @covers \local_membershipbridge\util::find_user_by_imis_id
      * @return void
      */
     public function test_username_lookup_ignores_remote_mnet_accounts(): void {
         global $CFG;
-        set_config('imis_id_source', 'username', 'local_imisbridge');
+        set_config('imis_id_source', 'username', 'local_membershipbridge');
         $this->getDataGenerator()->create_user(['username' => '20050', 'mnethostid' => $CFG->mnet_localhost_id + 1]);
 
-        $this->assertNull(\local_imisbridge\util::find_user_by_imis_id('20050'));
+        $this->assertNull(\local_membershipbridge\util::find_user_by_imis_id('20050'));
 
         $local = $this->getDataGenerator()->create_user(['username' => '20050']);
-        $this->assertSame((int)$local->id, (int)\local_imisbridge\util::find_user_by_imis_id('20050')->id);
+        $this->assertSame((int)$local->id, (int)\local_membershipbridge\util::find_user_by_imis_id('20050')->id);
     }
 
     /**
      * The REST reader maps columns by alias or caption, ignoring case, spaces and
      * underscores, and reads the active flag and end date.
      *
-     * @covers \local_imisbridge\registration\rest_reader::to_row
+     * @covers \local_membershipbridge\registration\rest_reader::to_row
      * @return void
      */
     public function test_rest_reader_maps_columns_by_alias_or_caption(): void {

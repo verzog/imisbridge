@@ -15,19 +15,19 @@
 // along with Moodle.  If not, see <http://www.gnu.org/licenses/>.
 
 /**
- * Shared helpers for local_imisbridge.
+ * Shared helpers for local_membershipbridge.
  *
- * @package    local_imisbridge
+ * @package    local_membershipbridge
  * @copyright  2024 Vernon Spain
  * @license    http://www.gnu.org/copyleft/gpl.html GNU GPL v3 or later
  */
 
-namespace local_imisbridge;
+namespace local_membershipbridge;
 
 /**
  * Small utility helpers.
  *
- * @package    local_imisbridge
+ * @package    local_membershipbridge
  * @copyright  2024 Vernon Spain
  * @license    http://www.gnu.org/copyleft/gpl.html GNU GPL v3 or later
  */
@@ -43,7 +43,7 @@ class util {
      * @return bool
      */
     public static function is_enabled(string $name): bool {
-        $value = get_config('local_imisbridge', $name);
+        $value = get_config('local_membershipbridge', $name);
         return ($value === false) ? true : (bool)$value;
     }
 
@@ -58,7 +58,7 @@ class util {
      * @return bool
      */
     public static function is_enabled_optin(string $name): bool {
-        return (bool)get_config('local_imisbridge', $name);
+        return (bool)get_config('local_membershipbridge', $name);
     }
 
     /**
@@ -71,7 +71,7 @@ class util {
      * @return string[] Module names, e.g. ['assign', 'casestudy'].
      */
     public static function score_push_modules(): array {
-        $value = (string)get_config('local_imisbridge', 'push_score_modules');
+        $value = (string)get_config('local_membershipbridge', 'push_score_modules');
         $modules = array_filter(array_map('trim', explode(',', $value)), static fn($m) => $m !== '');
         return array_values(array_diff($modules, ['quiz']));
     }
@@ -112,7 +112,7 @@ class util {
      * @return string The course number to send.
      */
     public static function push_course_number(int $courseid): string {
-        $overrides = self::parse_push_course_overrides((string)get_config('local_imisbridge', 'push_course_overrides'));
+        $overrides = self::parse_push_course_overrides((string)get_config('local_membershipbridge', 'push_course_overrides'));
         return (string)($overrides[$courseid] ?? $courseid);
     }
 
@@ -149,7 +149,7 @@ class util {
      * @return string One of 'username', 'idnumber' or 'email'.
      */
     public static function imis_id_source(): string {
-        $source = get_config('local_imisbridge', 'imis_id_source');
+        $source = get_config('local_membershipbridge', 'imis_id_source');
         $allowed = ['username', 'idnumber', 'email'];
         return in_array($source, $allowed, true) ? $source : 'username';
     }
@@ -181,7 +181,7 @@ class util {
         if ($value === '') {
             return false;
         }
-        if (get_config('local_imisbridge', 'imis_id_format') === 'digits' && self::imis_id_source() !== 'email') {
+        if (get_config('local_membershipbridge', 'imis_id_format') === 'digits' && self::imis_id_source() !== 'email') {
             return ctype_digit($value);
         }
         return true;

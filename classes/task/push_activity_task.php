@@ -20,17 +20,17 @@
  * Queued on course completion and quiz submission so the external call does not
  * block the learner's request. The active provider performs the actual write.
  *
- * @package    local_imisbridge
+ * @package    local_membershipbridge
  * @copyright  2024 Vernon Spain
  * @license    http://www.gnu.org/copyleft/gpl.html GNU GPL v3 or later
  */
 
-namespace local_imisbridge\task;
+namespace local_membershipbridge\task;
 
 /**
  * Pushes one completion/assessment record to the external system via the active provider.
  *
- * @package    local_imisbridge
+ * @package    local_membershipbridge
  * @copyright  2024 Vernon Spain
  * @license    http://www.gnu.org/copyleft/gpl.html GNU GPL v3 or later
  */
@@ -41,7 +41,7 @@ class push_activity_task extends \core\task\adhoc_task {
      * @return string
      */
     public function get_name(): string {
-        return get_string('task_push_activity', 'local_imisbridge');
+        return get_string('task_push_activity', 'local_membershipbridge');
     }
 
     /**
@@ -56,19 +56,19 @@ class push_activity_task extends \core\task\adhoc_task {
             return;
         }
         // Re-check the iMIS ID format: it may have been set to Digits only after queueing.
-        if (!\local_imisbridge\util::is_valid_imis_id((string)$data->imisid)) {
+        if (!\local_membershipbridge\util::is_valid_imis_id((string)$data->imisid)) {
             mtrace('Membership Bridge: ' . $data->imisid . ' is not in the iMIS ID format; skipping.');
             return;
         }
 
         // Re-check the governing write toggle: an admin may have disabled it after
         // this task was queued but before cron reached it.
-        if (!empty($data->toggle) && !\local_imisbridge\util::is_enabled($data->toggle)) {
+        if (!empty($data->toggle) && !\local_membershipbridge\util::is_enabled($data->toggle)) {
             mtrace('Membership Bridge: activity push disabled in plugin settings; skipping ' . $data->imisid . '.');
             return;
         }
 
-        if (!\local_imisbridge\util::is_configured()) {
+        if (!\local_membershipbridge\util::is_configured()) {
             mtrace('Membership Bridge: external system not configured; skipping ' . $data->imisid . '.');
             return;
         }
@@ -77,7 +77,7 @@ class push_activity_task extends \core\task\adhoc_task {
 
         // The active provider performs the write. A completion and a per-attempt
         // score are distinct operations so a score never overwrites a completion.
-        $provider = \local_imisbridge\provider\manager::instance();
+        $provider = \local_membershipbridge\provider\manager::instance();
         if (($data->toggle ?? '') === 'push_completions') {
             $provider->push_completion($data);
         } else {

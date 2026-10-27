@@ -21,17 +21,17 @@
  * runs in cron rather than blocking the learner's request. Always a supplementary
  * MOODLENOTE activity — never the canonical course-completion record.
  *
- * @package    local_imisbridge
+ * @package    local_membershipbridge
  * @copyright  2024 Vernon Spain
  * @license    http://www.gnu.org/copyleft/gpl.html GNU GPL v3 or later
  */
 
-namespace local_imisbridge\task;
+namespace local_membershipbridge\task;
 
 /**
  * Pushes one course-module completion to iMIS as a MOODLENOTE activity.
  *
- * @package    local_imisbridge
+ * @package    local_membershipbridge
  * @copyright  2024 Vernon Spain
  * @license    http://www.gnu.org/copyleft/gpl.html GNU GPL v3 or later
  */
@@ -42,7 +42,7 @@ class push_module_note_task extends \core\task\adhoc_task {
      * @return string
      */
     public function get_name(): string {
-        return get_string('task_push_module_note', 'local_imisbridge');
+        return get_string('task_push_module_note', 'local_membershipbridge');
     }
 
     /**
@@ -57,18 +57,18 @@ class push_module_note_task extends \core\task\adhoc_task {
             return;
         }
         // Re-check the iMIS ID format: it may have been set to Digits only after queueing.
-        if (!\local_imisbridge\util::is_valid_imis_id((string)$data->imisid)) {
+        if (!\local_membershipbridge\util::is_valid_imis_id((string)$data->imisid)) {
             mtrace('Membership Bridge: ' . $data->imisid . ' is not in the iMIS ID format; skipping.');
             return;
         }
 
         // Re-check the opt-in toggle: an admin may have disabled it after queueing.
-        if (!\local_imisbridge\util::is_enabled_optin('push_module_completions')) {
+        if (!\local_membershipbridge\util::is_enabled_optin('push_module_completions')) {
             mtrace('Membership Bridge: module-completion push disabled; skipping ' . $data->imisid . '.');
             return;
         }
 
-        if (!\local_imisbridge\util::is_configured()) {
+        if (!\local_membershipbridge\util::is_configured()) {
             mtrace('Membership Bridge: external system not configured; skipping ' . $data->imisid . '.');
             return;
         }
@@ -78,7 +78,7 @@ class push_module_note_task extends \core\task\adhoc_task {
 
         // The active provider records the supplementary note (never the canonical
         // course-completion record).
-        \local_imisbridge\provider\manager::instance()->push_module_note($data);
+        \local_membershipbridge\provider\manager::instance()->push_module_note($data);
 
         mtrace('Membership Bridge: module note pushed for ' . $data->imisid . '.');
     }

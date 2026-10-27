@@ -17,14 +17,14 @@
 /**
  * Reads tutorial-group membership rows from the iMIS MoodleTutorialGroup panel.
  *
- * @package    local_imisbridge
+ * @package    local_membershipbridge
  * @copyright  2024 Vernon Spain
  * @license    http://www.gnu.org/copyleft/gpl.html GNU GPL v3 or later
  */
 
-namespace local_imisbridge\tutorial;
+namespace local_membershipbridge\tutorial;
 
-use local_imisbridge\rest_client;
+use local_membershipbridge\rest_client;
 
 /**
  * Direct-REST {@see reader}: reads the iMIS MoodleTutorialGroup business object.
@@ -35,7 +35,7 @@ use local_imisbridge\rest_client;
  * Moodlegroupname. One unfiltered paged GET returns every instance across all
  * contacts, which is exactly the authoritative set the sync needs.
  *
- * @package    local_imisbridge
+ * @package    local_membershipbridge
  * @copyright  2024 Vernon Spain
  * @license    http://www.gnu.org/copyleft/gpl.html GNU GPL v3 or later
  */

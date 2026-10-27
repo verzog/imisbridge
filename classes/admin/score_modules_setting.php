@@ -17,12 +17,12 @@
 /**
  * Admin setting: the checklist of activity types whose grades are pushed to iMIS.
  *
- * @package    local_imisbridge
+ * @package    local_membershipbridge
  * @copyright  2024 Vernon Spain
  * @license    http://www.gnu.org/copyleft/gpl.html GNU GPL v3 or later
  */
 
-namespace local_imisbridge\admin;
+namespace local_membershipbridge\admin;
 
 defined('MOODLE_INTERNAL') || die();
 
@@ -31,11 +31,11 @@ require_once($CFG->libdir . '/adminlib.php');
 /**
  * A multi-checkbox of the site's gradable activity types, loaded lazily.
  *
- * The choices come from {@see \local_imisbridge\util::gradable_activity_choices()},
+ * The choices come from {@see \local_membershipbridge\util::gradable_activity_choices()},
  * which asks each installed activity whether it is gradable. Loading them only when
  * the setting is rendered or saved keeps that work off every other admin page.
  *
- * @package    local_imisbridge
+ * @package    local_membershipbridge
  * @copyright  2024 Vernon Spain
  * @license    http://www.gnu.org/copyleft/gpl.html GNU GPL v3 or later
  */
@@ -64,7 +64,7 @@ class score_modules_setting extends \admin_setting_configmulticheckbox {
         if (is_array($this->choices)) {
             return true;
         }
-        $this->choices = \local_imisbridge\util::gradable_activity_choices();
+        $this->choices = \local_membershipbridge\util::gradable_activity_choices();
         return true;
     }
 }

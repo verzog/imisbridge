@@ -17,12 +17,12 @@
 /**
  * One tutorial-group membership row read from the external system.
  *
- * @package    local_imisbridge
+ * @package    local_membershipbridge
  * @copyright  2024 Vernon Spain
  * @license    http://www.gnu.org/copyleft/gpl.html GNU GPL v3 or later
  */
 
-namespace local_imisbridge\tutorial;
+namespace local_membershipbridge\tutorial;
 
 /**
  * A single "this person is in this group for this course" assignment.
@@ -32,7 +32,7 @@ namespace local_imisbridge\tutorial;
  * agnostic unit a {@see reader} returns and {@see group_sync} consumes, so the sync
  * engine never sees iMIS REST (or any other source) shapes directly.
  *
- * @package    local_imisbridge
+ * @package    local_membershipbridge
  * @copyright  2024 Vernon Spain
  * @license    http://www.gnu.org/copyleft/gpl.html GNU GPL v3 or later
  */

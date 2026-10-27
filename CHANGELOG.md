@@ -4,6 +4,33 @@ All notable changes to the iMIS Bridge plugin (`local_imisbridge`) are documente
 in this file. The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [2.0.0] - 2026-10-28
+
+### Changed
+- **Renamed to `local_membershipbridge`** (folder `local/membershipbridge`), so no
+  part of the plugin is named after a third party's trademark. Everything that
+  carried the old name follows:
+  - namespaces;
+  - settings (`local_membershipbridge/…`);
+  - tables (`local_membershipbridge_log`, `local_membershipbridge_scorepush`);
+  - capabilities (`local/membershipbridge:cancelenrolment`, `:readcompletions`);
+  - web-service functions (`local_membershipbridge_cancel_enrolment`,
+    `local_membershipbridge_get_completions_since`);
+  - the external service, now *Membership bridge*.
+
+### Added
+- **Carry-over from `local_imisbridge` on install** (`classes/migration.php`). It
+  copies:
+  - settings;
+  - the audit log and sent-score records, keeping their ids;
+  - role grants of the old capabilities;
+  - the tutorial-group memberships the plugin manages;
+  - queued pushes;
+  - the cancel function on hand-built web services.
+  
+  It then switches the old plugin's writes off. The steps (tokens, the ATS unenrol
+  mapping, uninstalling the old plugin) are in `docs/CHANGEOVER-CHECKLIST.md` §M.
+
 ## [1.26.5] - 2026-10-27
 
 ### Changed

@@ -17,12 +17,12 @@
 /**
  * Contract for an external records-system provider.
  *
- * @package    local_imisbridge
+ * @package    local_membershipbridge
  * @copyright  2024 Vernon Spain
  * @license    http://www.gnu.org/copyleft/gpl.html GNU GPL v3 or later
  */
 
-namespace local_imisbridge\provider;
+namespace local_membershipbridge\provider;
 
 /**
  * A backend the plugin can push Moodle learning records to.
@@ -38,7 +38,7 @@ namespace local_imisbridge\provider;
  * constructing a client (constructing one requires — and may fail on — live
  * connection settings).
  *
- * @package    local_imisbridge
+ * @package    local_membershipbridge
  * @copyright  2024 Vernon Spain
  * @license    http://www.gnu.org/copyleft/gpl.html GNU GPL v3 or later
  */

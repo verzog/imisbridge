@@ -17,12 +17,12 @@
 /**
  * Source of registration rows for the registration sync.
  *
- * @package    local_imisbridge
+ * @package    local_membershipbridge
  * @copyright  2024 Vernon Spain
  * @license    http://www.gnu.org/copyleft/gpl.html GNU GPL v3 or later
  */
 
-namespace local_imisbridge\registration;
+namespace local_membershipbridge\registration;
 
 /**
  * Reads registration rows from the external system.
@@ -30,7 +30,7 @@ namespace local_imisbridge\registration;
  * An interface so {@see registration_sync} can be tested with a fake source and
  * stays independent of how the rows are fetched.
  *
- * @package    local_imisbridge
+ * @package    local_membershipbridge
  * @copyright  2024 Vernon Spain
  * @license    http://www.gnu.org/copyleft/gpl.html GNU GPL v3 or later
  */

@@ -17,12 +17,12 @@
 /**
  * External web service: bulk course completions and grades for iMIS.
  *
- * @package    local_imisbridge
+ * @package    local_membershipbridge
  * @copyright  2024 Vernon Spain
  * @license    http://www.gnu.org/copyleft/gpl.html GNU GPL v3 or later
  */
 
-namespace local_imisbridge\external;
+namespace local_membershipbridge\external;
 
 use context_system;
 use core_external\external_api;
@@ -50,7 +50,7 @@ use core_external\external_warnings;
  * grade that changes during a drain (even on an already-paged, lower id) is
  * returned on the next poll rather than being skipped.
  *
- * @package    local_imisbridge
+ * @package    local_membershipbridge
  * @copyright  2024 Vernon Spain
  * @license    http://www.gnu.org/copyleft/gpl.html GNU GPL v3 or later
  */
@@ -116,7 +116,7 @@ class get_completions_since extends external_api {
         // Security: system-level, token user must hold the read capability.
         $context = context_system::instance();
         self::validate_context($context);
-        require_capability('local/imisbridge:readcompletions', $context);
+        require_capability('local/membershipbridge:readcompletions', $context);
 
         // Completions are the spine; the course-total grade (itemtype = 'course')
         // is joined in. A record qualifies when the completion OR the course
@@ -197,7 +197,7 @@ class get_completions_since extends external_api {
             // Resolve the iMIS contact ID from the configured source field so an
             // email-based (or ID-number-based) deployment gets a usable match,
             // consistent with the observers and tasks.
-            $imisid = \local_imisbridge\util::get_imis_id((object)[
+            $imisid = \local_membershipbridge\util::get_imis_id((object)[
                 'username' => $row->username,
                 'idnumber' => $row->useridnumber,
                 'email'    => $row->email,

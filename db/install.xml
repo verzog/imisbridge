@@ -1,10 +1,10 @@
 <?xml version="1.0" encoding="UTF-8" ?>
-<XMLDB PATH="local/imisbridge/db" VERSION="20261014" COMMENT="XMLDB file for local_imisbridge"
+<XMLDB PATH="local/membershipbridge/db" VERSION="20261014" COMMENT="XMLDB file for local_membershipbridge"
     xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
     xsi:noNamespaceSchemaLocation="../../../lib/xmldb/xmldb.xsd"
 >
   <TABLES>
-    <TABLE NAME="local_imisbridge_log" COMMENT="Audit log of SOAP calls made to the iMIS bridge.">
+    <TABLE NAME="local_membershipbridge_log" COMMENT="Audit log of SOAP calls made to the iMIS bridge.">
       <FIELDS>
         <FIELD NAME="id" TYPE="int" LENGTH="10" NOTNULL="true" SEQUENCE="true"/>
         <FIELD NAME="userid" TYPE="int" LENGTH="10" NOTNULL="true" DEFAULT="0" SEQUENCE="false" COMMENT="Moodle user id the call relates to, or 0 when unknown or all-user."/>
@@ -26,7 +26,7 @@
         <INDEX NAME="operation" UNIQUE="false" FIELDS="operation"/>
       </INDEXES>
     </TABLE>
-    <TABLE NAME="local_imisbridge_scorepush" COMMENT="The last activity grade queued to the membership system per learner and grade item, so a regrade that does not change the grade is not sent again.">
+    <TABLE NAME="local_membershipbridge_scorepush" COMMENT="The last activity grade queued to the membership system per learner and grade item, so a regrade that does not change the grade is not sent again.">
       <FIELDS>
         <FIELD NAME="id" TYPE="int" LENGTH="10" NOTNULL="true" SEQUENCE="true"/>
         <FIELD NAME="userid" TYPE="int" LENGTH="10" NOTNULL="true" SEQUENCE="false" COMMENT="The learner whose grade was queued."/>

@@ -29,21 +29,21 @@
  * column settings (default: not sent). The POST entity shape and the PUT update
  * contract should be confirmed against the target iMIS before production use.
  *
- * @package    local_imisbridge
+ * @package    local_membershipbridge
  * @copyright  2024 Vernon Spain
  * @license    http://www.gnu.org/copyleft/gpl.html GNU GPL v3 or later
  */
 
-namespace local_imisbridge;
+namespace local_membershipbridge;
 
 /**
  * iMIS REST client wrapper class.
  *
- * @package    local_imisbridge
+ * @package    local_membershipbridge
  * @copyright  2024 Vernon Spain
  * @license    http://www.gnu.org/copyleft/gpl.html GNU GPL v3 or later
  */
-class rest_client implements \local_imisbridge\provider\org_sync_provider {
+class rest_client implements \local_membershipbridge\provider\org_sync_provider {
     /** @var string Canonical activity type for the per-course completion record. */
     public const ACTIVITY_MOODLE = 'MOODLE';
 
@@ -80,15 +80,15 @@ class rest_client implements \local_imisbridge\provider\org_sync_provider {
      * @throws \moodle_exception If no REST base URL is configured.
      */
     public function __construct() {
-        $base = (string)get_config('local_imisbridge', 'rest_base_url');
+        $base = (string)get_config('local_membershipbridge', 'rest_base_url');
         if ($base === '') {
-            throw new \moodle_exception('norestbaseurl', 'local_imisbridge');
+            throw new \moodle_exception('norestbaseurl', 'local_membershipbridge');
         }
         $this->baseurl  = rtrim($base, '/');
-        $this->username = (string)get_config('local_imisbridge', 'rest_username');
-        $this->password = (string)get_config('local_imisbridge', 'rest_password');
+        $this->username = (string)get_config('local_membershipbridge', 'rest_username');
+        $this->password = (string)get_config('local_membershipbridge', 'rest_password');
 
-        $timeout = (int)get_config('local_imisbridge', 'ws_timeout');
+        $timeout = (int)get_config('local_membershipbridge', 'ws_timeout');
         $this->timeout = ($timeout > 0) ? $timeout : 30;
     }
 
@@ -98,7 +98,7 @@ class rest_client implements \local_imisbridge\provider\org_sync_provider {
      * @return string
      */
     public static function label(): string {
-        return get_string('transport_rest', 'local_imisbridge');
+        return get_string('transport_rest', 'local_membershipbridge');
     }
 
     /**
@@ -107,7 +107,7 @@ class rest_client implements \local_imisbridge\provider\org_sync_provider {
      * @return bool
      */
     public static function is_configured(): bool {
-        return !empty(get_config('local_imisbridge', 'rest_base_url'));
+        return !empty(get_config('local_membershipbridge', 'rest_base_url'));
     }
 
     /**
@@ -119,8 +119,8 @@ class rest_client implements \local_imisbridge\provider\org_sync_provider {
      */
     public static function supports(string $capability): bool {
         return in_array($capability, [
-            \local_imisbridge\provider\provider_interface::CAP_PUSH,
-            \local_imisbridge\provider\provider_interface::CAP_ORG_SYNC,
+            \local_membershipbridge\provider\provider_interface::CAP_PUSH,
+            \local_membershipbridge\provider\provider_interface::CAP_ORG_SYNC,
         ], true);
     }
 
@@ -131,7 +131,7 @@ class rest_client implements \local_imisbridge\provider\org_sync_provider {
      * @return bool
      */
     public static function is_sync_configured(): bool {
-        return self::is_configured() && trim((string)get_config('local_imisbridge', 'reg_iqa')) !== '';
+        return self::is_configured() && trim((string)get_config('local_membershipbridge', 'reg_iqa')) !== '';
     }
 
     /**
@@ -177,7 +177,7 @@ class rest_client implements \local_imisbridge\provider\org_sync_provider {
      * @return string A note saying where groups are synced.
      */
     public function update_groups(?string $contactid = null, ?string $courseid = null, ?string $lastupdated = null): mixed {
-        return get_string('regsync_groupsnote', 'local_imisbridge');
+        return get_string('regsync_groupsnote', 'local_membershipbridge');
     }
 
     /**
@@ -188,7 +188,7 @@ class rest_client implements \local_imisbridge\provider\org_sync_provider {
      * @return string The diagnostic report.
      */
     public function diagnostics(?string $contactid): string {
-        $query = trim((string)get_config('local_imisbridge', 'reg_iqa'));
+        $query = trim((string)get_config('local_membershipbridge', 'reg_iqa'));
         $out   = 'REST base URL: ' . $this->baseurl . PHP_EOL;
         $this->get_token();
         $out  .= 'Token: OK' . PHP_EOL;
@@ -221,7 +221,7 @@ class rest_client implements \local_imisbridge\provider\org_sync_provider {
      * @return int
      */
     private static function int_setting(string $name, int $default): int {
-        $value = get_config('local_imisbridge', $name);
+        $value = get_config('local_membershipbridge', $name);
         return ($value === false || trim((string)$value) === '') ? $default : (int)$value;
     }
 
@@ -236,9 +236,9 @@ class rest_client implements \local_imisbridge\provider\org_sync_provider {
         if ($this->regsync !== null) {
             return $this->regsync;
         }
-        $codes = array_filter(array_map('trim', explode(',', (string)get_config('local_imisbridge', 'reg_cancelled_codes'))));
+        $codes = array_filter(array_map('trim', explode(',', (string)get_config('local_membershipbridge', 'reg_cancelled_codes'))));
         return $this->regsync = new registration\registration_sync(
-            new registration\rest_reader($this, trim((string)get_config('local_imisbridge', 'reg_iqa'))),
+            new registration\rest_reader($this, trim((string)get_config('local_membershipbridge', 'reg_iqa'))),
             new tutorial\rest_course_resolver($this),
             [
                 'dryrun'         => util::is_enabled('reg_dry_run'),
@@ -333,7 +333,7 @@ class rest_client implements \local_imisbridge\provider\org_sync_provider {
 
         $extra = [];
         foreach ($map as $setting => $value) {
-            $column = trim((string)get_config('local_imisbridge', $setting));
+            $column = trim((string)get_config('local_membershipbridge', $setting));
             if ($column !== '') {
                 $extra[$column] = $value;
             }
@@ -373,7 +373,7 @@ class rest_client implements \local_imisbridge\provider\org_sync_provider {
             $reason = self::error_reason((string)$response);
             $error  = 'HTTP ' . $code . ($reason !== '' ? ': ' . $reason : '');
             logger::record_call('token', null, null, logger::STATUS_ERROR, $error);
-            throw new \moodle_exception('resttokenfailed', 'local_imisbridge', '', $code);
+            throw new \moodle_exception('resttokenfailed', 'local_membershipbridge', '', $code);
         }
 
         $this->token = (string)$decoded->access_token;
@@ -432,7 +432,7 @@ class rest_client implements \local_imisbridge\provider\org_sync_provider {
             // Throw so the adhoc task retries with backoff, and so a failed read is
             // never mistaken for "no activity" (which would cause a duplicate POST).
             $detail = $method . ' ' . $path . ' returned ' . $error;
-            throw new \moodle_exception('restrequestfailed', 'local_imisbridge', '', $detail);
+            throw new \moodle_exception('restrequestfailed', 'local_membershipbridge', '', $detail);
         }
 
         return $result;
@@ -583,7 +583,7 @@ class rest_client implements \local_imisbridge\provider\org_sync_provider {
                 // rather than return a partial set: callers treat the result as the
                 // complete, authoritative state, so a short read could drive removals.
                 $detail = 'GET ' . $pagepath . ' returned an unreadable body';
-                throw new \moodle_exception('restrequestfailed', 'local_imisbridge', '', $detail);
+                throw new \moodle_exception('restrequestfailed', 'local_membershipbridge', '', $detail);
             }
             $page = self::items($result->body);
             foreach ($page as $row) {
@@ -622,7 +622,7 @@ class rest_client implements \local_imisbridge\provider\org_sync_provider {
             $result = $this->request('GET', $path, null, null, false);
             if (!is_object($result->body)) {
                 $detail = 'GET ' . $path . ' returned an unreadable body';
-                throw new \moodle_exception('restrequestfailed', 'local_imisbridge', '', $detail);
+                throw new \moodle_exception('restrequestfailed', 'local_membershipbridge', '', $detail);
             }
             $page = self::items($result->body);
             foreach ($page as $row) {
@@ -683,11 +683,11 @@ class rest_client implements \local_imisbridge\provider\org_sync_provider {
         string $description,
         array $extra = []
     ): object {
-        $factory = \core\lock\lock_config::get_lock_factory('local_imisbridge_rest');
+        $factory = \core\lock\lock_config::get_lock_factory('local_membershipbridge_rest');
         $lock = $factory->get_lock('completion_' . $partyid . '_' . $courseid, $this->timeout);
         if (!$lock) {
             // Another worker holds this contact/course; let the adhoc task retry.
-            throw new \moodle_exception('restlockfailed', 'local_imisbridge');
+            throw new \moodle_exception('restlockfailed', 'local_membershipbridge');
         }
 
         try {

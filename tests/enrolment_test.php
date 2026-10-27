@@ -17,20 +17,20 @@
 /**
  * Tests for the shared enrolment helper.
  *
- * @package    local_imisbridge
+ * @package    local_membershipbridge
  * @copyright  2024 Vernon Spain
  * @license    http://www.gnu.org/copyleft/gpl.html GNU GPL v3 or later
  */
 
-namespace local_imisbridge;
+namespace local_membershipbridge;
 
 /**
  * Unit tests for {@see enrolment}.
  *
- * @package    local_imisbridge
+ * @package    local_membershipbridge
  * @copyright  2024 Vernon Spain
  * @license    http://www.gnu.org/copyleft/gpl.html GNU GPL v3 or later
- * @covers     \local_imisbridge\enrolment
+ * @covers     \local_membershipbridge\enrolment
  */
 final class enrolment_test extends \advanced_testcase {
     /** @var \stdClass The course, whose manual enrolments send a welcome message. */

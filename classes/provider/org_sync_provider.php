@@ -17,12 +17,12 @@
 /**
  * Contract for a provider that also offers inbound order/group sync.
  *
- * @package    local_imisbridge
+ * @package    local_membershipbridge
  * @copyright  2024 Vernon Spain
  * @license    http://www.gnu.org/copyleft/gpl.html GNU GPL v3 or later
  */
 
-namespace local_imisbridge\provider;
+namespace local_membershipbridge\provider;
 
 /**
  * A provider that can also pull orders/cancellations/groups into Moodle.
@@ -35,7 +35,7 @@ namespace local_imisbridge\provider;
  * {@see provider_interface} alone, and {@see provider_interface::supports()}
  * returns false for CAP_ORG_SYNC.
  *
- * @package    local_imisbridge
+ * @package    local_membershipbridge
  * @copyright  2024 Vernon Spain
  * @license    http://www.gnu.org/copyleft/gpl.html GNU GPL v3 or later
  */

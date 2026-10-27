@@ -15,23 +15,23 @@
 // along with Moodle.  If not, see <http://www.gnu.org/licenses/>.
 
 /**
- * Audit logger for local_imisbridge.
+ * Audit logger for local_membershipbridge.
  *
  * Records each SOAP call (operation, scope, status and the full request/response
- * XML with the AuthToken redacted) to the local_imisbridge_log table. Logging is
+ * XML with the AuthToken redacted) to the local_membershipbridge_log table. Logging is
  * best-effort: a logging failure never interrupts the sync it is recording.
  *
- * @package    local_imisbridge
+ * @package    local_membershipbridge
  * @copyright  2024 Vernon Spain
  * @license    http://www.gnu.org/copyleft/gpl.html GNU GPL v3 or later
  */
 
-namespace local_imisbridge;
+namespace local_membershipbridge;
 
 /**
  * Writes and prunes Membership Bridge audit-log records.
  *
- * @package    local_imisbridge
+ * @package    local_membershipbridge
  * @copyright  2024 Vernon Spain
  * @license    http://www.gnu.org/copyleft/gpl.html GNU GPL v3 or later
  */
@@ -125,9 +125,9 @@ class logger {
             $record->error       = ($error === null) ? null : self::redact($error);
             $record->timecreated = time();
 
-            $DB->insert_record('local_imisbridge_log', $record);
+            $DB->insert_record('local_membershipbridge_log', $record);
         } catch (\Throwable $e) {
-            debugging('local_imisbridge: failed to write audit log: ' . $e->getMessage(), DEBUG_DEVELOPER);
+            debugging('local_membershipbridge: failed to write audit log: ' . $e->getMessage(), DEBUG_DEVELOPER);
         }
     }
 
@@ -149,7 +149,7 @@ class logger {
      * @return bool
      */
     public static function is_capturing(): bool {
-        return (bool)get_config('local_imisbridge', 'capture_payloads');
+        return (bool)get_config('local_membershipbridge', 'capture_payloads');
     }
 
     /**
@@ -218,8 +218,8 @@ class logger {
         }
 
         $cutoff = time() - ($days * DAYSECS);
-        $count  = $DB->count_records_select('local_imisbridge_log', 'timecreated < ?', [$cutoff]);
-        $DB->delete_records_select('local_imisbridge_log', 'timecreated < ?', [$cutoff]);
+        $count  = $DB->count_records_select('local_membershipbridge_log', 'timecreated < ?', [$cutoff]);
+        $DB->delete_records_select('local_membershipbridge_log', 'timecreated < ?', [$cutoff]);
 
         return $count;
     }

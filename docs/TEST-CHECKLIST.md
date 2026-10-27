@@ -36,9 +36,9 @@ Take a **DB + `moodledata` backup** before you begin.
 
 ## 1. Install / upgrade
 
-- [ ] Fresh install: place the plugin in `local/imisbridge`, run the upgrade — **no errors**; it appears under *Site admin → Plugins → Local plugins*.
-- [ ] Upgrade path: install an older version first, then upgrade — no errors, and the plugin version afterwards matches `version.php`. The upgrade steps: `2026101400` creates **`local_imisbridge_log`**; `2026101901` drops stale queued push tasks; `2026102204` widens the log's `operation` column to 255 characters (dropping and re-adding its index — the 1.19.3 attempt without that failed with `ddldependencyerror`).
-- [ ] Verify the `local_imisbridge_log` table exists in the database.
+- [ ] Fresh install: place the plugin in `local/membershipbridge`, run the upgrade — **no errors**; it appears under *Site admin → Plugins → Local plugins*.
+- [ ] Upgrade path: install an older version first, then upgrade — no errors, and the plugin version afterwards matches `version.php`. The upgrade steps: `2026101400` creates **`local_membershipbridge_log`**; `2026101901` drops stale queued push tasks; `2026102204` widens the log's `operation` column to 255 characters (dropping and re-adding its index — the 1.19.3 attempt without that failed with `ddldependencyerror`).
+- [ ] Verify the `local_membershipbridge_log` table exists in the database.
 
 ## 2. Configuration
 
@@ -119,7 +119,7 @@ production-backed bridge, keep these tasks disabled and skip that check.
 
 ## 8. Privacy
 
-- [ ] *Site admin → Privacy → Plugin privacy registry* shows `local_imisbridge` with the log-table fields **and** the external iMIS link described.
+- [ ] *Site admin → Privacy → Plugin privacy registry* shows `local_membershipbridge` with the log-table fields **and** the external iMIS link described.
 - [ ] Run an **export** for the test user → audit rows come out.
 - [ ] Run a **delete** for the test user → their rows go; others remain.
 

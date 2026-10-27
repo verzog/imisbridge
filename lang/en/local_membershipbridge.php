@@ -15,9 +15,9 @@
 // along with Moodle.  If not, see <http://www.gnu.org/licenses/>.
 
 /**
- * Language strings for local_imisbridge.
+ * Language strings for local_membershipbridge.
  *
- * @package    local_imisbridge
+ * @package    local_membershipbridge
  * @copyright  2024 Vernon Spain
  * @license    http://www.gnu.org/copyleft/gpl.html GNU GPL v3 or later
  */
@@ -56,8 +56,8 @@ $string['imis_id_source_idnumber'] = 'ID number';
 $string['imis_id_source_username'] = 'Username';
 $string['imis_wsdl_url'] = 'ATS SOAP bridge WSDL URL';
 $string['imis_wsdl_url_desc'] = 'The WSDL endpoint for the ATS Moodle web service (for example, https://your-ats-host/wsmoodle.asmx?WSDL). Ask ATS for the correct URL for your environment. Used only by the ATS SOAP bridge provider; no sync or connection test runs until this is set.';
-$string['imisbridge:cancelenrolment'] = 'Cancel an enrolment (suspend and remove role, without unenrolling) through the membership bridge web service';
-$string['imisbridge:readcompletions'] = 'Read course completions and grades through the membership bridge web service';
+$string['membershipbridge:cancelenrolment'] = 'Cancel an enrolment (suspend and remove role, without unenrolling) through the membership bridge web service';
+$string['membershipbridge:readcompletions'] = 'Read course completions and grades through the membership bridge web service';
 $string['last_sync'] = 'Last sync time';
 $string['log_count'] = '{$a} log entries match.';
 $string['log_detail'] = 'Detail';
@@ -90,21 +90,21 @@ $string['privacy:metadata:imis:courseid'] = 'The identifier of the course an act
 $string['privacy:metadata:imis:score'] = 'Your assessment score is sent to the membership system.';
 $string['privacy:metadata:imis:status'] = 'Your completion status (pass or fail) is sent to the membership system.';
 $string['privacy:metadata:imis:userid'] = 'Your member ID (taken from your Moodle username, ID number or email address, as configured) is sent to identify your record in the membership system.';
-$string['privacy:metadata:local_imisbridge_log'] = 'A log of the calls the plugin made to the membership system, kept for auditing and troubleshooting.';
-$string['privacy:metadata:local_imisbridge_log:error'] = 'Any fault message returned by the membership system for the call.';
-$string['privacy:metadata:local_imisbridge_log:imisid'] = 'The member ID sent in the call.';
-$string['privacy:metadata:local_imisbridge_log:operation'] = 'The operation that was called.';
-$string['privacy:metadata:local_imisbridge_log:productcode'] = 'The product code sent in the call.';
-$string['privacy:metadata:local_imisbridge_log:request'] = 'The request sent to the membership system (stored only when payload capture is enabled; credentials are redacted).';
-$string['privacy:metadata:local_imisbridge_log:response'] = 'The response received from the membership system (stored only when payload capture is enabled).';
-$string['privacy:metadata:local_imisbridge_log:status'] = 'Whether the call to the membership system succeeded or failed.';
-$string['privacy:metadata:local_imisbridge_log:timecreated'] = 'The time the call was made.';
-$string['privacy:metadata:local_imisbridge_log:userid'] = 'The Moodle user the call related to.';
-$string['privacy:metadata:local_imisbridge_scorepush'] = 'The last activity grade queued to the membership system for each learner and graded activity, kept so that a regrade which does not change the grade is not sent again.';
-$string['privacy:metadata:local_imisbridge_scorepush:finalgrade'] = 'The grade last queued to the membership system.';
-$string['privacy:metadata:local_imisbridge_scorepush:itemid'] = 'The graded activity\'s grade item.';
-$string['privacy:metadata:local_imisbridge_scorepush:timequeued'] = 'When that grade was queued.';
-$string['privacy:metadata:local_imisbridge_scorepush:userid'] = 'The learner whose grade was queued.';
+$string['privacy:metadata:local_membershipbridge_log'] = 'A log of the calls the plugin made to the membership system, kept for auditing and troubleshooting.';
+$string['privacy:metadata:local_membershipbridge_log:error'] = 'Any fault message returned by the membership system for the call.';
+$string['privacy:metadata:local_membershipbridge_log:imisid'] = 'The member ID sent in the call.';
+$string['privacy:metadata:local_membershipbridge_log:operation'] = 'The operation that was called.';
+$string['privacy:metadata:local_membershipbridge_log:productcode'] = 'The product code sent in the call.';
+$string['privacy:metadata:local_membershipbridge_log:request'] = 'The request sent to the membership system (stored only when payload capture is enabled; credentials are redacted).';
+$string['privacy:metadata:local_membershipbridge_log:response'] = 'The response received from the membership system (stored only when payload capture is enabled).';
+$string['privacy:metadata:local_membershipbridge_log:status'] = 'Whether the call to the membership system succeeded or failed.';
+$string['privacy:metadata:local_membershipbridge_log:timecreated'] = 'The time the call was made.';
+$string['privacy:metadata:local_membershipbridge_log:userid'] = 'The Moodle user the call related to.';
+$string['privacy:metadata:local_membershipbridge_scorepush'] = 'The last activity grade queued to the membership system for each learner and graded activity, kept so that a regrade which does not change the grade is not sent again.';
+$string['privacy:metadata:local_membershipbridge_scorepush:finalgrade'] = 'The grade last queued to the membership system.';
+$string['privacy:metadata:local_membershipbridge_scorepush:itemid'] = 'The graded activity\'s grade item.';
+$string['privacy:metadata:local_membershipbridge_scorepush:timequeued'] = 'When that grade was queued.';
+$string['privacy:metadata:local_membershipbridge_scorepush:userid'] = 'The learner whose grade was queued.';
 $string['providernotsupported'] = 'No sync provider is ready. The sync provider ({$a}) either cannot run the enrolment, cancellation and group syncs or is missing its sync settings: the ATS SOAP bridge needs the WSDL URL; Direct iMIS REST needs the REST connection and a Registrations IQA. Choose and configure it under Sync provider in the plugin settings.';
 $string['push_completions'] = 'Push course completions';
 $string['push_completions_desc'] = 'When enabled, completing a course sends the learner\'s result to the membership system. Turn off to stop all completion writes.';

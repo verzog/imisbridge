@@ -17,14 +17,14 @@
 /**
  * Resolves a code to a Moodle course via the iMIS moodle_products lookup IQA.
  *
- * @package    local_imisbridge
+ * @package    local_membershipbridge
  * @copyright  2024 Vernon Spain
  * @license    http://www.gnu.org/copyleft/gpl.html GNU GPL v3 or later
  */
 
-namespace local_imisbridge\tutorial;
+namespace local_membershipbridge\tutorial;
 
-use local_imisbridge\rest_client;
+use local_membershipbridge\rest_client;
 
 /**
  * Direct-REST {@see course_resolver}: reads the MOODLE_PRODUCTS lookup IQA.
@@ -47,7 +47,7 @@ use local_imisbridge\rest_client;
  * listed code resolves to its course without reading iMIS, so a staging site can point
  * an event at a test course without editing MOODLE_PRODUCTS.
  *
- * @package    local_imisbridge
+ * @package    local_membershipbridge
  * @copyright  2024 Vernon Spain
  * @license    http://www.gnu.org/copyleft/gpl.html GNU GPL v3 or later
  */
@@ -87,14 +87,14 @@ class rest_course_resolver implements course_resolver {
     public function __construct(?rest_client $client = null) {
         $this->client = $client ?? new rest_client();
 
-        $query = (string)get_config('local_imisbridge', 'tutorial_course_iqa');
+        $query = (string)get_config('local_membershipbridge', 'tutorial_course_iqa');
         $this->queryname = $query !== '' ? $query : self::DEFAULT_QUERY;
         $this->column    = self::DEFAULT_COLUMN;
 
-        $suffix = get_config('local_imisbridge', 'tutorial_course_code_suffix');
+        $suffix = get_config('local_membershipbridge', 'tutorial_course_code_suffix');
         $this->suffix = ($suffix === false) ? self::DEFAULT_SUFFIX : (string)$suffix;
 
-        $this->overrides = self::parse_overrides((string)get_config('local_imisbridge', 'course_map_overrides'));
+        $this->overrides = self::parse_overrides((string)get_config('local_membershipbridge', 'course_map_overrides'));
     }
 
     /**

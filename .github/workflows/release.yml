@@ -31,10 +31,10 @@ jobs:
       - name: Build the plugin zip
         run: |
           TAG="${GITHUB_REF_NAME}"
-          ZIP="local_imisbridge-${TAG}.zip"
-          # Root folder must be the plugin's install directory name (local/imisbridge),
+          ZIP="local_membershipbridge-${TAG}.zip"
+          # Root folder must be the plugin's install directory name (local/membershipbridge),
           # not the repository name, or Moodle's installer rejects the zip.
-          git archive --format=zip --prefix=imisbridge/ -o "${ZIP}" HEAD
+          git archive --format=zip --prefix=membershipbridge/ -o "${ZIP}" HEAD
           echo "ZIP=${ZIP}" >> "${GITHUB_ENV}"
 
       - name: Attach the zip to the release

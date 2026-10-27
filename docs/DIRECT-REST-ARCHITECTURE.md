@@ -2,7 +2,7 @@
 
 Design reference for talking to iMIS **directly through its own REST API**, with
 no ATS `wsmoodle.asmx` middleware in the path. This is the strategic end state
-for `local_imisbridge`: it removes the annual ATS subscription, takes a third
+for `local_membershipbridge`: it removes the annual ATS subscription, takes a third
 party out of the critical path, and ends the WSDL/endpoint/sandbox ambiguity that
 the SOAP transport forces on us.
 
@@ -41,7 +41,7 @@ against that API. Doing so:
 ## 2. Topology (direct — no middleware)
 
 ```
-  Moodle (local_imisbridge)                 iMIS (ATS cloud AMS)
+  Moodle (local_membershipbridge)                 iMIS (ATS cloud AMS)
   ─────────────────────────                 ────────────────────
   OUTBOUND  writeback                       REST API
   completion / grade event  ── HTTPS ─────► POST/PUT /api/Activity

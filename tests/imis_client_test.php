@@ -15,22 +15,22 @@
 // along with Moodle.  If not, see <http://www.gnu.org/licenses/>.
 
 /**
- * Tests for the local_imisbridge SOAP client.
+ * Tests for the local_membershipbridge SOAP client.
  *
- * @package    local_imisbridge
+ * @package    local_membershipbridge
  * @copyright  2024 Vernon Spain
  * @license    http://www.gnu.org/copyleft/gpl.html GNU GPL v3 or later
  */
 
-namespace local_imisbridge;
+namespace local_membershipbridge;
 
 /**
  * Unit tests for {@see imis_client}.
  *
- * @package    local_imisbridge
+ * @package    local_membershipbridge
  * @copyright  2024 Vernon Spain
  * @license    http://www.gnu.org/copyleft/gpl.html GNU GPL v3 or later
- * @covers     \local_imisbridge\imis_client
+ * @covers     \local_membershipbridge\imis_client
  */
 final class imis_client_test extends \advanced_testcase {
     /**
@@ -188,7 +188,7 @@ final class imis_client_test extends \advanced_testcase {
      */
     public function test_effective_endpoint_returns_override(): void {
         $endpoint = 'https://ats-sandbox.example.test/wsmoodle.asmx';
-        set_config('service_endpoint', $endpoint, 'local_imisbridge');
+        set_config('service_endpoint', $endpoint, 'local_membershipbridge');
 
         $this->assertSame($endpoint, imis_client::get_effective_endpoint());
     }
@@ -288,7 +288,7 @@ final class imis_client_test extends \advanced_testcase {
      * @return void
      */
     public function test_result_error_resultcode_strict(): void {
-        set_config('soap_success_result_codes', '0', 'local_imisbridge');
+        set_config('soap_success_result_codes', '0', 'local_membershipbridge');
 
         $ok = json_decode(json_encode(['ResultsBase' => ['ResultCode' => '0', 'Exception' => '']]));
         $this->assertNull(imis_client::result_error($ok));
@@ -351,7 +351,7 @@ final class imis_client_test extends \advanced_testcase {
     public function test_success_result_codes(): void {
         $this->assertSame([], imis_client::success_result_codes());
 
-        set_config('soap_success_result_codes', '0, 1 ,2', 'local_imisbridge');
+        set_config('soap_success_result_codes', '0, 1 ,2', 'local_membershipbridge');
         $this->assertSame(['0', '1', '2'], imis_client::success_result_codes());
     }
 }

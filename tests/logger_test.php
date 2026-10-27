@@ -15,22 +15,22 @@
 // along with Moodle.  If not, see <http://www.gnu.org/licenses/>.
 
 /**
- * Tests for the local_imisbridge audit logger.
+ * Tests for the local_membershipbridge audit logger.
  *
- * @package    local_imisbridge
+ * @package    local_membershipbridge
  * @copyright  2024 Vernon Spain
  * @license    http://www.gnu.org/copyleft/gpl.html GNU GPL v3 or later
  */
 
-namespace local_imisbridge;
+namespace local_membershipbridge;
 
 /**
  * Unit tests for {@see logger}.
  *
- * @package    local_imisbridge
+ * @package    local_membershipbridge
  * @copyright  2024 Vernon Spain
  * @license    http://www.gnu.org/copyleft/gpl.html GNU GPL v3 or later
- * @covers     \local_imisbridge\logger
+ * @covers     \local_membershipbridge\logger
  */
 final class logger_test extends \advanced_testcase {
     /**
@@ -81,7 +81,7 @@ final class logger_test extends \advanced_testcase {
 
         logger::record('MoodleUpdate', 'member123', 'PROD1', logger::STATUS_SUCCESS, $soap, null);
 
-        $row = $DB->get_record('local_imisbridge_log', ['operation' => 'MoodleUpdate'], '*', MUST_EXIST);
+        $row = $DB->get_record('local_membershipbridge_log', ['operation' => 'MoodleUpdate'], '*', MUST_EXIST);
         $this->assertSame((int)$user->id, (int)$row->userid);
         $this->assertSame('member123', $row->imisid);
         $this->assertSame('PROD1', $row->productcode);
@@ -99,12 +99,12 @@ final class logger_test extends \advanced_testcase {
         global $DB;
         $this->resetAfterTest();
 
-        set_config('capture_payloads', 1, 'local_imisbridge');
+        set_config('capture_payloads', 1, 'local_membershipbridge');
 
         $soap = $this->soap_stub('<req><AuthToken>MO-secret</AuthToken></req>', '<res>ok</res>');
         logger::record('MoodleUpdate', '12345', null, logger::STATUS_SUCCESS, $soap, null);
 
-        $row = $DB->get_record('local_imisbridge_log', ['operation' => 'MoodleUpdate'], '*', MUST_EXIST);
+        $row = $DB->get_record('local_membershipbridge_log', ['operation' => 'MoodleUpdate'], '*', MUST_EXIST);
         $this->assertStringContainsString('[redacted]', $row->request);
         $this->assertStringNotContainsString('MO-secret', $row->request);
         $this->assertSame('<res>ok</res>', $row->response);
@@ -119,10 +119,10 @@ final class logger_test extends \advanced_testcase {
         global $DB;
         $this->resetAfterTest();
 
-        set_config('log_enabled', '0', 'local_imisbridge');
+        set_config('log_enabled', '0', 'local_membershipbridge');
         logger::record('MoodleUpdate', '12345', null, logger::STATUS_SUCCESS, null, null);
 
-        $this->assertEquals(0, $DB->count_records('local_imisbridge_log'));
+        $this->assertEquals(0, $DB->count_records('local_membershipbridge_log'));
     }
 
     /**
@@ -137,15 +137,15 @@ final class logger_test extends \advanced_testcase {
         $old = (object)['userid' => 0, 'operation' => 'old', 'status' => 'success',
             'timecreated' => time() - (100 * DAYSECS)];
         $new = (object)['userid' => 0, 'operation' => 'new', 'status' => 'success', 'timecreated' => time()];
-        $DB->insert_record('local_imisbridge_log', $old);
-        $DB->insert_record('local_imisbridge_log', $new);
+        $DB->insert_record('local_membershipbridge_log', $old);
+        $DB->insert_record('local_membershipbridge_log', $new);
 
         $this->assertSame(0, logger::purge(0));
-        $this->assertEquals(2, $DB->count_records('local_imisbridge_log'));
+        $this->assertEquals(2, $DB->count_records('local_membershipbridge_log'));
 
         $this->assertSame(1, logger::purge(90));
-        $this->assertEquals(1, $DB->count_records('local_imisbridge_log'));
-        $this->assertTrue($DB->record_exists('local_imisbridge_log', ['operation' => 'new']));
+        $this->assertEquals(1, $DB->count_records('local_membershipbridge_log'));
+        $this->assertTrue($DB->record_exists('local_membershipbridge_log', ['operation' => 'new']));
     }
 
     /**
@@ -159,7 +159,7 @@ final class logger_test extends \advanced_testcase {
 
         logger::record('MoodleUpdate', '12345', null, logger::STATUS_ERROR, null, 'Auth failed for MO-badtoken');
 
-        $row = $DB->get_record('local_imisbridge_log', ['operation' => 'MoodleUpdate'], '*', MUST_EXIST);
+        $row = $DB->get_record('local_membershipbridge_log', ['operation' => 'MoodleUpdate'], '*', MUST_EXIST);
         $this->assertStringNotContainsString('MO-badtoken', $row->error);
         $this->assertStringContainsString('MO-[redacted]', $row->error);
     }
@@ -173,13 +173,13 @@ final class logger_test extends \advanced_testcase {
         global $DB;
         $this->resetAfterTest();
 
-        set_config('imis_id_source', 'idnumber', 'local_imisbridge');
+        set_config('imis_id_source', 'idnumber', 'local_membershipbridge');
         $this->getDataGenerator()->create_user(['idnumber' => 'DUP1']);
         $this->getDataGenerator()->create_user(['idnumber' => 'DUP1']);
 
         logger::record('MoodleUpdate', 'DUP1', null, logger::STATUS_SUCCESS, null, null);
 
-        $row = $DB->get_record('local_imisbridge_log', ['operation' => 'MoodleUpdate'], '*', MUST_EXIST);
+        $row = $DB->get_record('local_membershipbridge_log', ['operation' => 'MoodleUpdate'], '*', MUST_EXIST);
         $this->assertSame(0, (int)$row->userid);
     }
 }

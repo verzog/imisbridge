@@ -15,24 +15,24 @@
 // along with Moodle.  If not, see <http://www.gnu.org/licenses/>.
 
 /**
- * Tests for the local_imisbridge cancel-enrolment web service.
+ * Tests for the local_membershipbridge cancel-enrolment web service.
  *
- * @package    local_imisbridge
+ * @package    local_membershipbridge
  * @copyright  2024 Vernon Spain
  * @license    http://www.gnu.org/copyleft/gpl.html GNU GPL v3 or later
  */
 
-namespace local_imisbridge\external;
+namespace local_membershipbridge\external;
 
 use core_external\external_api;
 
 /**
  * Unit tests for {@see cancel_enrolment}.
  *
- * @package    local_imisbridge
+ * @package    local_membershipbridge
  * @copyright  2024 Vernon Spain
  * @license    http://www.gnu.org/copyleft/gpl.html GNU GPL v3 or later
- * @covers     \local_imisbridge\external\cancel_enrolment
+ * @covers     \local_membershipbridge\external\cancel_enrolment
  */
 final class cancel_enrolment_test extends \advanced_testcase {
     /**

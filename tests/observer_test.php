@@ -15,27 +15,27 @@
 // along with Moodle.  If not, see <http://www.gnu.org/licenses/>.
 
 /**
- * Tests for the local_imisbridge event observer.
+ * Tests for the local_membershipbridge event observer.
  *
- * @package    local_imisbridge
+ * @package    local_membershipbridge
  * @copyright  2024 Vernon Spain
  * @license    http://www.gnu.org/copyleft/gpl.html GNU GPL v3 or later
  */
 
-namespace local_imisbridge;
+namespace local_membershipbridge;
 
-use local_imisbridge\task\sync_user_task;
-use local_imisbridge\task\push_activity_task;
-use local_imisbridge\task\push_module_note_task;
-use local_imisbridge\task\push_score_note_task;
+use local_membershipbridge\task\sync_user_task;
+use local_membershipbridge\task\push_activity_task;
+use local_membershipbridge\task\push_module_note_task;
+use local_membershipbridge\task\push_score_note_task;
 
 /**
  * Unit tests for {@see observer}.
  *
- * @package    local_imisbridge
+ * @package    local_membershipbridge
  * @copyright  2024 Vernon Spain
  * @license    http://www.gnu.org/copyleft/gpl.html GNU GPL v3 or later
- * @covers     \local_imisbridge\observer
+ * @covers     \local_membershipbridge\observer
  */
 final class observer_test extends \advanced_testcase {
     /**
@@ -92,7 +92,7 @@ final class observer_test extends \advanced_testcase {
     public function test_user_loggedin_queues_sync_task(): void {
         $this->resetAfterTest();
 
-        set_config('wsdl_url', 'https://example.invalid/wsmoodle.asmx?WSDL', 'local_imisbridge');
+        set_config('wsdl_url', 'https://example.invalid/wsmoodle.asmx?WSDL', 'local_membershipbridge');
 
         // Moodle stores usernames in lower case; the iMIS ID mirrors the username.
         $user = $this->getDataGenerator()->create_user(['username' => 'member123']);
@@ -120,8 +120,8 @@ final class observer_test extends \advanced_testcase {
     public function test_user_loggedin_uses_configured_id_source(): void {
         $this->resetAfterTest();
 
-        set_config('wsdl_url', 'https://example.invalid/wsmoodle.asmx?WSDL', 'local_imisbridge');
-        set_config('imis_id_source', 'idnumber', 'local_imisbridge');
+        set_config('wsdl_url', 'https://example.invalid/wsmoodle.asmx?WSDL', 'local_membershipbridge');
+        set_config('imis_id_source', 'idnumber', 'local_membershipbridge');
 
         $user = $this->getDataGenerator()->create_user([
             'username' => 'member123',
@@ -148,9 +148,9 @@ final class observer_test extends \advanced_testcase {
     public function test_user_loggedin_skips_when_id_field_empty(): void {
         $this->resetAfterTest();
 
-        set_config('wsdl_url', 'https://example.invalid/wsmoodle.asmx?WSDL', 'local_imisbridge');
+        set_config('wsdl_url', 'https://example.invalid/wsmoodle.asmx?WSDL', 'local_membershipbridge');
         // Generated users have an empty idnumber by default.
-        set_config('imis_id_source', 'idnumber', 'local_imisbridge');
+        set_config('imis_id_source', 'idnumber', 'local_membershipbridge');
 
         $user = $this->getDataGenerator()->create_user(['username' => 'member123']);
 
@@ -195,7 +195,7 @@ final class observer_test extends \advanced_testcase {
         global $DB;
         $this->resetAfterTest();
 
-        set_config('wsdl_url', 'https://example.invalid/wsmoodle.asmx?WSDL', 'local_imisbridge');
+        set_config('wsdl_url', 'https://example.invalid/wsmoodle.asmx?WSDL', 'local_membershipbridge');
 
         $user   = $this->getDataGenerator()->create_user(['username' => 'member123']);
         // An idnumber/shortname that must NOT be used as the productID.
@@ -252,14 +252,14 @@ final class observer_test extends \advanced_testcase {
      *
      * @param string $modname       The module to create ('assign' graded, 'label' not).
      * @param bool   $enabletoggle  Whether to enable push_module_completions.
-     * @return \local_imisbridge\task\push_module_note_task[]
+     * @return \local_membershipbridge\task\push_module_note_task[]
      */
     private function run_module_completion(string $modname, bool $enabletoggle): array {
         global $DB;
 
-        set_config('wsdl_url', 'https://example.invalid/wsmoodle.asmx?WSDL', 'local_imisbridge');
+        set_config('wsdl_url', 'https://example.invalid/wsmoodle.asmx?WSDL', 'local_membershipbridge');
         if ($enabletoggle) {
-            set_config('push_module_completions', '1', 'local_imisbridge');
+            set_config('push_module_completions', '1', 'local_membershipbridge');
         }
 
         $user   = $this->getDataGenerator()->create_user(['username' => 'member123']);
@@ -342,10 +342,10 @@ final class observer_test extends \advanced_testcase {
     public function test_user_loggedin_respects_disabled_toggles(): void {
         $this->resetAfterTest();
 
-        set_config('wsdl_url', 'https://example.invalid/wsmoodle.asmx?WSDL', 'local_imisbridge');
-        set_config('sync_enrolments_on_login', '0', 'local_imisbridge');
-        set_config('sync_cancellations_on_login', '0', 'local_imisbridge');
-        set_config('sync_groups_on_login', '0', 'local_imisbridge');
+        set_config('wsdl_url', 'https://example.invalid/wsmoodle.asmx?WSDL', 'local_membershipbridge');
+        set_config('sync_enrolments_on_login', '0', 'local_membershipbridge');
+        set_config('sync_cancellations_on_login', '0', 'local_membershipbridge');
+        set_config('sync_groups_on_login', '0', 'local_membershipbridge');
 
         $user = $this->getDataGenerator()->create_user(['username' => 'member123']);
 
@@ -385,7 +385,7 @@ final class observer_test extends \advanced_testcase {
      * A *Push course id overrides* entry replaces the course number in completion and
      * module-note pushes; other courses keep their own id.
      *
-     * @covers \local_imisbridge\util::push_course_number
+     * @covers \local_membershipbridge\util::push_course_number
      * @return void
      */
     public function test_push_course_id_override(): void {
@@ -394,7 +394,7 @@ final class observer_test extends \advanced_testcase {
         $course = $this->getDataGenerator()->create_course();
         $other  = $this->getDataGenerator()->create_course();
         $assign = $this->getDataGenerator()->create_module('assign', ['course' => $course->id]);
-        set_config('push_course_overrides', "# Staging\n{$course->id}=2152\n", 'local_imisbridge');
+        set_config('push_course_overrides', "# Staging\n{$course->id}=2152\n", 'local_membershipbridge');
 
         $this->assertSame('2152', observer::completion_push_data('20018', $course, 0)->coursenum);
         $this->assertSame('2152', observer::module_note_data('20018', get_coursemodule_from_id('', $assign->cmid), 0)->coursenum);
@@ -405,7 +405,7 @@ final class observer_test extends \advanced_testcase {
      * module_note_data() builds a supplementary note (never a completion): it
      * targets the push_module_completions toggle and carries the course module.
      *
-     * @covers \local_imisbridge\observer::module_note_data
+     * @covers \local_membershipbridge\observer::module_note_data
      * @return void
      */
     public function test_module_note_data(): void {
@@ -433,7 +433,7 @@ final class observer_test extends \advanced_testcase {
      * percentage — matching the vendor's module notes, which carry the raw item
      * grade. A 15/20 grade is sent as 15, not 75(%).
      *
-     * @covers \local_imisbridge\observer::module_note_data
+     * @covers \local_membershipbridge\observer::module_note_data
      * @return void
      */
     public function test_module_note_data_sends_raw_grade(): void {
@@ -471,7 +471,7 @@ final class observer_test extends \advanced_testcase {
      * path rejects it: ungraded activities are never sent (the same invariant the
      * automatic observer enforces).
      *
-     * @covers \local_imisbridge\observer::module_note_data
+     * @covers \local_membershipbridge\observer::module_note_data
      * @return void
      */
     public function test_module_note_data_ungraded_returns_null(): void {
@@ -491,7 +491,7 @@ final class observer_test extends \advanced_testcase {
      * recorded gradebook grade it is still "graded" but score 0 and hasgrade false
      * (the exact shape behind a note that carries score 0 for a graded activity).
      *
-     * @covers \local_imisbridge\observer::module_grade_detail
+     * @covers \local_membershipbridge\observer::module_grade_detail
      * @return void
      */
     public function test_module_grade_detail_reads_gradebook(): void {
@@ -537,7 +537,7 @@ final class observer_test extends \advanced_testcase {
      * module_grade_detail() reports an ungraded module (no grade item) as not
      * graded, so the manual test can say "ungraded" rather than a misleading 0.
      *
-     * @covers \local_imisbridge\observer::module_grade_detail
+     * @covers \local_membershipbridge\observer::module_grade_detail
      * @return void
      */
     public function test_module_grade_detail_ungraded(): void {
@@ -558,7 +558,7 @@ final class observer_test extends \advanced_testcase {
      * gradebook grade: no recorded grade reads as score 0 / hasgrade false, a
      * recorded course total reads as its percentage.
      *
-     * @covers \local_imisbridge\observer::course_score_detail
+     * @covers \local_membershipbridge\observer::course_score_detail
      * @return void
      */
     public function test_course_score_detail_reads_course_total(): void {
@@ -650,8 +650,8 @@ final class observer_test extends \advanced_testcase {
      * @return array [user, assignment instance]
      */
     private function score_push_fixture(string $ticked): array {
-        set_config('wsdl_url', 'https://example.invalid/wsmoodle.asmx?WSDL', 'local_imisbridge');
-        set_config('push_score_modules', $ticked, 'local_imisbridge');
+        set_config('wsdl_url', 'https://example.invalid/wsmoodle.asmx?WSDL', 'local_membershipbridge');
+        set_config('push_score_modules', $ticked, 'local_membershipbridge');
 
         $user   = $this->getDataGenerator()->create_user(['username' => 'member123']);
         $course = $this->getDataGenerator()->create_course();
@@ -697,7 +697,7 @@ final class observer_test extends \advanced_testcase {
      * Grading an activity of a ticked type queues one score note naming the
      * activity, with the raw grade.
      *
-     * @covers \local_imisbridge\observer::user_graded
+     * @covers \local_membershipbridge\observer::user_graded
      * @return void
      */
     public function test_user_graded_ticked_type_queues_score_note(): void {
@@ -720,7 +720,7 @@ final class observer_test extends \advanced_testcase {
      * Grading an activity whose type is not ticked queues nothing; neither does
      * an empty checklist (the default).
      *
-     * @covers \local_imisbridge\observer::user_graded
+     * @covers \local_membershipbridge\observer::user_graded
      * @return void
      */
     public function test_user_graded_unticked_type_ignored(): void {
@@ -729,15 +729,15 @@ final class observer_test extends \advanced_testcase {
 
         $this->assertCount(0, $this->observe_grade('assign', $assign, $user, 80.0));
 
-        set_config('push_score_modules', '', 'local_imisbridge');
+        set_config('push_score_modules', '', 'local_membershipbridge');
         $this->assertCount(0, $this->observe_grade('assign', $assign, $user, 85.0));
     }
 
     /**
      * A regrade to the same value is not sent again; a changed grade is.
      *
-     * @covers \local_imisbridge\observer::user_graded
-     * @covers \local_imisbridge\observer::claim_score_push
+     * @covers \local_membershipbridge\observer::user_graded
+     * @covers \local_membershipbridge\observer::claim_score_push
      * @return void
      */
     public function test_user_graded_sends_only_changed_grades(): void {
@@ -752,7 +752,7 @@ final class observer_test extends \advanced_testcase {
     /**
      * The score note's status is PASS or FAIL against the activity's pass mark.
      *
-     * @covers \local_imisbridge\observer::score_note_data
+     * @covers \local_membershipbridge\observer::score_note_data
      * @return void
      */
     public function test_score_note_data_uses_pass_mark(): void {
@@ -781,14 +781,14 @@ final class observer_test extends \advanced_testcase {
      * Quiz is never pushed by the checklist (it has its own push on submission),
      * and the checklist offers gradable activities only.
      *
-     * @covers \local_imisbridge\util::score_push_modules
-     * @covers \local_imisbridge\util::gradable_activity_choices
+     * @covers \local_membershipbridge\util::score_push_modules
+     * @covers \local_membershipbridge\util::gradable_activity_choices
      * @return void
      */
     public function test_score_push_modules_excludes_quiz(): void {
         $this->resetAfterTest();
 
-        set_config('push_score_modules', 'quiz,assign', 'local_imisbridge');
+        set_config('push_score_modules', 'quiz,assign', 'local_membershipbridge');
         $this->assertSame(['assign'], util::score_push_modules());
 
         $choices = util::gradable_activity_choices();
@@ -800,7 +800,7 @@ final class observer_test extends \advanced_testcase {
     /**
      * A queued score superseded by a later grade is skipped, not sent.
      *
-     * @covers \local_imisbridge\task\push_score_note_task
+     * @covers \local_membershipbridge\task\push_score_note_task
      * @return void
      */
     public function test_score_note_task_skips_superseded_grade(): void {
@@ -823,8 +823,8 @@ final class observer_test extends \advanced_testcase {
      * Clearing a grade cancels the push still queued for it, and re-entering the
      * same grade afterwards is sent again.
      *
-     * @covers \local_imisbridge\observer::claim_score_push
-     * @covers \local_imisbridge\task\push_score_note_task
+     * @covers \local_membershipbridge\observer::claim_score_push
+     * @covers \local_membershipbridge\task\push_score_note_task
      * @return void
      */
     public function test_cleared_grade_cancels_queued_push(): void {
@@ -851,8 +851,8 @@ final class observer_test extends \advanced_testcase {
      * In a burst of regrades (A, B, A) only the latest push is current, so the
      * earlier A is not sent twice.
      *
-     * @covers \local_imisbridge\observer::claim_score_push
-     * @covers \local_imisbridge\task\push_score_note_task
+     * @covers \local_membershipbridge\observer::claim_score_push
+     * @covers \local_membershipbridge\task\push_score_note_task
      * @return void
      */
     public function test_burst_sends_only_latest_push(): void {
@@ -865,7 +865,7 @@ final class observer_test extends \advanced_testcase {
         $tasks = $this->observe_grade('assign', $assign, $user, 80.0);
         $this->assertCount(3, $tasks);
 
-        $claim = $DB->get_record('local_imisbridge_scorepush', ['userid' => $user->id]);
+        $claim = $DB->get_record('local_membershipbridge_scorepush', ['userid' => $user->id]);
         $this->assertSame(3, (int)$claim->generation);
 
         foreach ([1, 2] as $stale) {
@@ -878,7 +878,7 @@ final class observer_test extends \advanced_testcase {
     /**
      * A queued push whose tracking row is gone (erased for privacy) is not sent.
      *
-     * @covers \local_imisbridge\task\push_score_note_task
+     * @covers \local_membershipbridge\task\push_score_note_task
      * @return void
      */
     public function test_score_note_task_skips_when_claim_missing(): void {
@@ -887,7 +887,7 @@ final class observer_test extends \advanced_testcase {
         [$user, $assign] = $this->score_push_fixture('assign');
 
         $tasks = $this->observe_grade('assign', $assign, $user, 80.0);
-        $DB->delete_records('local_imisbridge_scorepush');
+        $DB->delete_records('local_membershipbridge_scorepush');
 
         $this->expectOutputRegex('/superseded by a later grade, cleared or erased/');
         reset($tasks)->execute();

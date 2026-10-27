@@ -17,17 +17,17 @@
 /**
  * Scheduled task: sync iMIS enrollments for all users.
  *
- * @package    local_imisbridge
+ * @package    local_membershipbridge
  * @copyright  2024 Vernon Spain
  * @license    http://www.gnu.org/copyleft/gpl.html GNU GPL v3 or later
  */
 
-namespace local_imisbridge\task;
+namespace local_membershipbridge\task;
 
 /**
  * Syncs iMIS enrollments for all Moodle users.
  *
- * @package    local_imisbridge
+ * @package    local_membershipbridge
  * @copyright  2024 Vernon Spain
  * @license    http://www.gnu.org/copyleft/gpl.html GNU GPL v3 or later
  */
@@ -38,7 +38,7 @@ class sync_enrollments_task extends \core\task\scheduled_task {
      * @return string
      */
     public function get_name(): string {
-        return get_string('task_sync_enrollments', 'local_imisbridge');
+        return get_string('task_sync_enrollments', 'local_membershipbridge');
     }
 
     /**
@@ -47,12 +47,12 @@ class sync_enrollments_task extends \core\task\scheduled_task {
      * @return void
      */
     public function execute(): void {
-        if (!\local_imisbridge\util::is_enabled('task_enrolments_enabled')) {
+        if (!\local_membershipbridge\util::is_enabled('task_enrolments_enabled')) {
             mtrace('Membership Bridge: Enrolment sync task disabled in plugin settings; skipping.');
             return;
         }
 
-        $provider = \local_imisbridge\provider\manager::org_sync_instance();
+        $provider = \local_membershipbridge\provider\manager::org_sync_instance();
         if ($provider === null) {
             mtrace('Membership Bridge: no configured sync provider (see the Sync provider setting); skipping enrolment sync.');
             return;

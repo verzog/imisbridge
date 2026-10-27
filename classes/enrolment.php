@@ -17,12 +17,12 @@
 /**
  * Enrolment changes shared by the cancellation web service and the registration sync.
  *
- * @package    local_imisbridge
+ * @package    local_membershipbridge
  * @copyright  2024 Vernon Spain
  * @license    http://www.gnu.org/copyleft/gpl.html GNU GPL v3 or later
  */
 
-namespace local_imisbridge;
+namespace local_membershipbridge;
 
 use context_course;
 
@@ -32,7 +32,7 @@ use context_course;
  * Suspending keeps the enrolment row, grades and completion; it only removes
  * access, and a later {@see ensure_active()} restores it. Nothing here unenrols.
  *
- * @package    local_imisbridge
+ * @package    local_membershipbridge
  * @copyright  2024 Vernon Spain
  * @license    http://www.gnu.org/copyleft/gpl.html GNU GPL v3 or later
  */

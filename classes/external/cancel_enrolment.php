@@ -17,12 +17,12 @@
 /**
  * External web service: cancel a Moodle enrolment without destroying data.
  *
- * @package    local_imisbridge
+ * @package    local_membershipbridge
  * @copyright  2024 Vernon Spain
  * @license    http://www.gnu.org/copyleft/gpl.html GNU GPL v3 or later
  */
 
-namespace local_imisbridge\external;
+namespace local_membershipbridge\external;
 
 use context_course;
 use core_external\external_api;
@@ -46,10 +46,10 @@ use core_external\external_warnings;
  * warning rather than aborting the batch or removing anything.
  *
  * Point the ATS `FN_ENROL_MANUAL_UNENROL_USERS` function mapping at
- * `local_imisbridge_cancel_enrolment` and send `userid`+`courseid` (which the ATS
+ * `local_membershipbridge_cancel_enrolment` and send `userid`+`courseid` (which the ATS
  * already resolves) instead of core unenrol's manual-only `ueid`.
  *
- * @package    local_imisbridge
+ * @package    local_membershipbridge
  * @copyright  2024 Vernon Spain
  * @license    http://www.gnu.org/copyleft/gpl.html GNU GPL v3 or later
  */
@@ -109,7 +109,7 @@ class cancel_enrolment extends external_api {
             // system-context service role satisfies it for every course.
             $context = context_course::instance($courseid);
             self::validate_context($context);
-            require_capability('local/imisbridge:cancelenrolment', $context);
+            require_capability('local/membershipbridge:cancelenrolment', $context);
 
             if (!$DB->record_exists('user', ['id' => $userid, 'deleted' => 0])) {
                 $warnings[] = self::warn($index, $courseid, 'usernotfound', 'No active user with that id.');
@@ -124,7 +124,7 @@ class cancel_enrolment extends external_api {
             try {
                 // Suspend every enrolment the user holds in the course (the shared helper
                 // keeps grades and completion and removes only the enrolment's role).
-                $suspended = \local_imisbridge\enrolment::suspend($userid, $courseid, $roleid);
+                $suspended = \local_membershipbridge\enrolment::suspend($userid, $courseid, $roleid);
 
                 $transaction->allow_commit();
 

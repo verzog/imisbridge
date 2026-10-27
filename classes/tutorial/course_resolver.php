@@ -17,12 +17,12 @@
 /**
  * Contract for turning an event/product code into a Moodle course id.
  *
- * @package    local_imisbridge
+ * @package    local_membershipbridge
  * @copyright  2024 Vernon Spain
  * @license    http://www.gnu.org/copyleft/gpl.html GNU GPL v3 or later
  */
 
-namespace local_imisbridge\tutorial;
+namespace local_membershipbridge\tutorial;
 
 /**
  * Resolves an event/product code to the Moodle course it maps to.
@@ -33,7 +33,7 @@ namespace local_imisbridge\tutorial;
  * program-to-course links live, only a new implementation is needed, not changes
  * to {@see group_sync}.
  *
- * @package    local_imisbridge
+ * @package    local_membershipbridge
  * @copyright  2024 Vernon Spain
  * @license    http://www.gnu.org/copyleft/gpl.html GNU GPL v3 or later
  */

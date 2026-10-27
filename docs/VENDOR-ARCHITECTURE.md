@@ -1,7 +1,7 @@
 # iMIS ↔ Moodle vendor bridge — architecture (as discovered, 14–15 Oct 2026)
 
 Reference for the SCCA vendor bridge (ATS `local_imis`), reconstructed by
-diagnosis. Kept as the reference model for our own `local_imisbridge` build.
+diagnosis. Kept as the reference model for our own `local_membershipbridge` build.
 
 > Provenance note: sanitised internal notes. Individual names and the production
 > hostname are generalised because this repository is intended for public

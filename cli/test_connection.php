@@ -15,7 +15,7 @@
 // along with Moodle.  If not, see <http://www.gnu.org/licenses/>.
 
 /**
- * Read-only connection test for local_imisbridge.
+ * Read-only connection test for local_membershipbridge.
  *
  * Calls only non-mutating operations (GetBridgeSettings, and optionally
  * MoodleGetUserProfile for a supplied iMIS ID) so connectivity, credentials
@@ -23,10 +23,10 @@
  * without writing any data.
  *
  * Usage:
- *   php local/imisbridge/cli/test_connection.php
- *   php local/imisbridge/cli/test_connection.php --imisid=12345
+ *   php local/membershipbridge/cli/test_connection.php
+ *   php local/membershipbridge/cli/test_connection.php --imisid=12345
  *
- * @package    local_imisbridge
+ * @package    local_membershipbridge
  * @copyright  2024 Vernon Spain
  * @license    http://www.gnu.org/copyleft/gpl.html GNU GPL v3 or later
  */
@@ -57,25 +57,25 @@ Options:
   -h, --help    Print this help.
 
 Example:
-  php local/imisbridge/cli/test_connection.php --imisid=12345
+  php local/membershipbridge/cli/test_connection.php --imisid=12345
 ");
     exit(0);
 }
 
 try {
-    $client = new \local_imisbridge\imis_client();
+    $client = new \local_membershipbridge\imis_client();
 
     // Show where requests will actually be sent before making any call, so a
     // WSDL that advertises the wrong environment is caught before testing.
-    $override = \local_imisbridge\imis_client::get_effective_endpoint();
+    $override = \local_membershipbridge\imis_client::get_effective_endpoint();
     if ($override !== null) {
-        cli_writeln(get_string('endpoint_override_active', 'local_imisbridge', $override));
+        cli_writeln(get_string('endpoint_override_active', 'local_membershipbridge', $override));
     } else {
-        $wsdladdr = \local_imisbridge\imis_client::read_wsdl_endpoint();
+        $wsdladdr = \local_membershipbridge\imis_client::read_wsdl_endpoint();
         if ($wsdladdr !== null) {
-            cli_writeln(get_string('endpoint_from_wsdl', 'local_imisbridge', $wsdladdr));
+            cli_writeln(get_string('endpoint_from_wsdl', 'local_membershipbridge', $wsdladdr));
         } else {
-            cli_writeln(get_string('endpoint_from_wsdl_unknown', 'local_imisbridge'));
+            cli_writeln(get_string('endpoint_from_wsdl_unknown', 'local_membershipbridge'));
         }
     }
     cli_writeln('');

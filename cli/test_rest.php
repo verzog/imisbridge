@@ -22,11 +22,11 @@
  * nothing to iMIS, so it is safe to run as a first check against any instance.
  *
  * Usage:
- *   php local/imisbridge/cli/test_rest.php
- *   php local/imisbridge/cli/test_rest.php --imisid=jsmith
- *   php local/imisbridge/cli/test_rest.php --imisid=jsmith --seqn=4444
+ *   php local/membershipbridge/cli/test_rest.php
+ *   php local/membershipbridge/cli/test_rest.php --imisid=jsmith
+ *   php local/membershipbridge/cli/test_rest.php --imisid=jsmith --seqn=4444
  *
- * @package    local_imisbridge
+ * @package    local_membershipbridge
  * @copyright  2024 Vernon Spain
  * @license    http://www.gnu.org/copyleft/gpl.html GNU GPL v3 or later
  */
@@ -58,14 +58,14 @@ Options:
   -h, --help    Print this help.
 
 Example:
-  php local/imisbridge/cli/test_rest.php --imisid=jsmith
-  php local/imisbridge/cli/test_rest.php --imisid=jsmith --seqn=4444
+  php local/membershipbridge/cli/test_rest.php --imisid=jsmith
+  php local/membershipbridge/cli/test_rest.php --imisid=jsmith --seqn=4444
 ");
     exit(0);
 }
 
 try {
-    $client = new \local_imisbridge\rest_client();
+    $client = new \local_membershipbridge\rest_client();
 
     cli_heading('Authentication (OAuth password grant)');
     $client->get_token();
@@ -76,10 +76,10 @@ try {
         $rows = $client->get_activities($options['imisid']);
         cli_writeln(count($rows) . ' activity row(s) returned.');
         foreach ($rows as $row) {
-            $type = \local_imisbridge\rest_client::property($row, 'ACTIVITY_TYPE');
-            $uf1  = \local_imisbridge\rest_client::property($row, 'UF_1');
-            $uf3  = \local_imisbridge\rest_client::property($row, 'UF_3');
-            $seqn = \local_imisbridge\rest_client::property($row, 'SEQN');
+            $type = \local_membershipbridge\rest_client::property($row, 'ACTIVITY_TYPE');
+            $uf1  = \local_membershipbridge\rest_client::property($row, 'UF_1');
+            $uf3  = \local_membershipbridge\rest_client::property($row, 'UF_3');
+            $seqn = \local_membershipbridge\rest_client::property($row, 'SEQN');
             $line = sprintf(
                 '  SEQN=%s  type=%s  UF_1(course)=%s  UF_3(status)=%s',
                 (string)$seqn,

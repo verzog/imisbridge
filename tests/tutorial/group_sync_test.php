@@ -17,12 +17,12 @@
 /**
  * Tests for the tutorial-group sync engine.
  *
- * @package    local_imisbridge
+ * @package    local_membershipbridge
  * @copyright  2024 Vernon Spain
  * @license    http://www.gnu.org/copyleft/gpl.html GNU GPL v3 or later
  */
 
-namespace local_imisbridge\tutorial;
+namespace local_membershipbridge\tutorial;
 
 /**
  * Unit tests for {@see group_sync}.
@@ -30,10 +30,10 @@ namespace local_imisbridge\tutorial;
  * The engine is exercised with in-memory fakes for the two injected interfaces, so
  * no iMIS connection is involved and the tests assert only Moodle-side behaviour.
  *
- * @package    local_imisbridge
+ * @package    local_membershipbridge
  * @copyright  2024 Vernon Spain
  * @license    http://www.gnu.org/copyleft/gpl.html GNU GPL v3 or later
- * @covers     \local_imisbridge\tutorial\group_sync
+ * @covers     \local_membershipbridge\tutorial\group_sync
  */
 final class group_sync_test extends \advanced_testcase {
     /**
@@ -193,7 +193,7 @@ final class group_sync_test extends \advanced_testcase {
         $idnumber = group_sync::make_idnumber('ISC_26', 'Tutorial A');
         $group = $DB->get_record('groups', ['courseid' => $course->id, 'idnumber' => $idnumber]);
         $member = $DB->get_record('groups_members', ['groupid' => $group->id, 'userid' => $user->id]);
-        $this->assertSame('local_imisbridge', $member->component);
+        $this->assertSame('local_membershipbridge', $member->component);
     }
 
     /**
@@ -217,8 +217,8 @@ final class group_sync_test extends \advanced_testcase {
             'name'     => 'Tutorial A',
             'idnumber' => group_sync::make_idnumber('ISC_26', 'Tutorial A'),
         ]);
-        groups_add_member($group->id, $keep->id, 'local_imisbridge');
-        groups_add_member($group->id, $stale->id, 'local_imisbridge');
+        groups_add_member($group->id, $keep->id, 'local_membershipbridge');
+        groups_add_member($group->id, $stale->id, 'local_membershipbridge');
         groups_add_member($group->id, $manual->id);
 
         // The current rows list only "keep".
@@ -278,7 +278,7 @@ final class group_sync_test extends \advanced_testcase {
             'name'     => 'Tutorial A',
             'idnumber' => group_sync::make_idnumber('ISC_26', 'Tutorial A'),
         ]);
-        groups_add_member($group->id, $user->id, 'local_imisbridge');
+        groups_add_member($group->id, $user->id, 'local_membershipbridge');
 
         $report = $this->engine([], ['ISC_26' => $course->id])->run();
 
@@ -307,7 +307,7 @@ final class group_sync_test extends \advanced_testcase {
             'idnumber' => group_sync::make_idnumber('ISC_26', 'Tutorial A'),
         ]);
         foreach ($users as $user) {
-            groups_add_member($group->id, $user->id, 'local_imisbridge');
+            groups_add_member($group->id, $user->id, 'local_membershipbridge');
         }
 
         // Rows keep only one of four; removing three is 75% > the 50% guard.
@@ -343,7 +343,7 @@ final class group_sync_test extends \advanced_testcase {
             'name'     => 'Tutorial A',
             'idnumber' => group_sync::make_idnumber('ISC_26', 'Tutorial A'),
         ]);
-        groups_add_member($groupa->id, $gone->id, 'local_imisbridge');
+        groups_add_member($groupa->id, $gone->id, 'local_membershipbridge');
 
         // This run only mentions Tutorial B; Tutorial A has vanished from the rows.
         $this->engine(
@@ -507,7 +507,7 @@ final class group_sync_test extends \advanced_testcase {
             'name'     => 'Old Tutorial',
             'idnumber' => group_sync::make_idnumber('OLD_1', 'Old Tutorial'),
         ]);
-        groups_add_member($oldgroup->id, $gone->id, 'local_imisbridge');
+        groups_add_member($oldgroup->id, $gone->id, 'local_membershipbridge');
 
         // The current read has only NEW_1 rows; OLD_1 is absent entirely.
         $this->engine(

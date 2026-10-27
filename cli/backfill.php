@@ -23,10 +23,10 @@
  * cron then sends (or run admin/cli/adhoc_task.php --execute to send them now).
  *
  * Usage:
- *   php local/imisbridge/cli/backfill.php --course=19
- *   php local/imisbridge/cli/backfill.php --course=19 --type=all --execute
+ *   php local/membershipbridge/cli/backfill.php --course=19
+ *   php local/membershipbridge/cli/backfill.php --course=19 --type=all --execute
  *
- * @package    local_imisbridge
+ * @package    local_membershipbridge
  * @copyright  2024 Vernon Spain
  * @license    http://www.gnu.org/copyleft/gpl.html GNU GPL v3 or later
  */
@@ -67,13 +67,13 @@ Options:
   -h, --help         Print this help.
 
 Example:
-  php local/imisbridge/cli/backfill.php --course=19
-  php local/imisbridge/cli/backfill.php --course=19 --type=all --execute
+  php local/membershipbridge/cli/backfill.php --course=19
+  php local/membershipbridge/cli/backfill.php --course=19 --type=all --execute
 ");
     exit(0);
 }
 
-$backfill = new \local_imisbridge\backfill(
+$backfill = new \local_membershipbridge\backfill(
     (int)$options['course'],
     (bool)$options['execute'],
     $options['member'] !== '' ? (string)$options['member'] : null,

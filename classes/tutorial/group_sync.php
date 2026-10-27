@@ -17,15 +17,15 @@
 /**
  * Transport-agnostic engine that makes Moodle course groups match the source rows.
  *
- * @package    local_imisbridge
+ * @package    local_membershipbridge
  * @copyright  2024 Vernon Spain
  * @license    http://www.gnu.org/copyleft/gpl.html GNU GPL v3 or later
  */
 
-namespace local_imisbridge\tutorial;
+namespace local_membershipbridge\tutorial;
 
 use context_course;
-use local_imisbridge\util;
+use local_membershipbridge\util;
 
 /**
  * Reconciles Moodle course groups against the external tutorial-group rows.
@@ -53,13 +53,13 @@ use local_imisbridge\util;
  * engine depends only on the two injected interfaces and Moodle's group API, so it is
  * fully unit-testable with no network.
  *
- * @package    local_imisbridge
+ * @package    local_membershipbridge
  * @copyright  2024 Vernon Spain
  * @license    http://www.gnu.org/copyleft/gpl.html GNU GPL v3 or later
  */
 class group_sync {
     /** @var string The component recorded on memberships this plugin owns. */
-    public const COMPONENT = 'local_imisbridge';
+    public const COMPONENT = 'local_membershipbridge';
 
     /** @var string idnumber of the per-course grouping the plugin's groups live in. */
     public const GROUPING_IDNUMBER = 'imis:tutorials';
@@ -368,7 +368,7 @@ class group_sync {
     }
 
     /**
-     * The user ids of a group's members that this plugin owns (component = local_imisbridge).
+     * The user ids of a group's members that this plugin owns (component = local_membershipbridge).
      *
      * @param int $groupid The group id.
      * @return int[] The owned member user ids.
@@ -420,7 +420,7 @@ class group_sync {
 
         $grouping = (object)[
             'courseid' => $courseid,
-            'name'     => get_string('tutorial_grouping_name', 'local_imisbridge'),
+            'name'     => get_string('tutorial_grouping_name', 'local_membershipbridge'),
             'idnumber' => self::GROUPING_IDNUMBER,
         ];
         return (int)groups_create_grouping($grouping);
