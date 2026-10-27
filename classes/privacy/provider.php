@@ -15,21 +15,21 @@
 // along with Moodle.  If not, see <http://www.gnu.org/licenses/>.
 
 /**
- * Privacy Subsystem implementation for local_imisbridge.
+ * Privacy Subsystem implementation for local_membershipbridge.
  *
  * The plugin keeps an audit log of the calls it makes to iMIS (the
- * local_imisbridge_log table), the last activity grade it queued per learner and
- * grade item (local_imisbridge_scorepush), and transmits personal data to the
+ * local_membershipbridge_log table), the last activity grade it queued per learner and
+ * grade item (local_membershipbridge_scorepush), and transmits personal data to the
  * external iMIS association management system. All are declared here, and the
  * stored data is exportable and erasable, in line with the Australian Privacy
  * Principles.
  *
- * @package    local_imisbridge
+ * @package    local_membershipbridge
  * @copyright  2024 Vernon Spain
  * @license    http://www.gnu.org/copyleft/gpl.html GNU GPL v3 or later
  */
 
-namespace local_imisbridge\privacy;
+namespace local_membershipbridge\privacy;
 
 use context;
 use core_privacy\local\metadata\collection;
@@ -43,7 +43,7 @@ use core_privacy\local\request\writer;
 /**
  * Privacy provider for the audit log and the external iMIS data flow.
  *
- * @package    local_imisbridge
+ * @package    local_membershipbridge
  * @copyright  2024 Vernon Spain
  * @license    http://www.gnu.org/copyleft/gpl.html GNU GPL v3 or later
  */
@@ -59,30 +59,30 @@ class provider implements
      */
     public static function get_metadata(collection $collection): collection {
         $collection->add_database_table(
-            'local_imisbridge_log',
+            'local_membershipbridge_log',
             [
-                'userid'      => 'privacy:metadata:local_imisbridge_log:userid',
-                'operation'   => 'privacy:metadata:local_imisbridge_log:operation',
-                'imisid'      => 'privacy:metadata:local_imisbridge_log:imisid',
-                'productcode' => 'privacy:metadata:local_imisbridge_log:productcode',
-                'status'      => 'privacy:metadata:local_imisbridge_log:status',
-                'request'     => 'privacy:metadata:local_imisbridge_log:request',
-                'response'    => 'privacy:metadata:local_imisbridge_log:response',
-                'error'       => 'privacy:metadata:local_imisbridge_log:error',
-                'timecreated' => 'privacy:metadata:local_imisbridge_log:timecreated',
+                'userid'      => 'privacy:metadata:local_membershipbridge_log:userid',
+                'operation'   => 'privacy:metadata:local_membershipbridge_log:operation',
+                'imisid'      => 'privacy:metadata:local_membershipbridge_log:imisid',
+                'productcode' => 'privacy:metadata:local_membershipbridge_log:productcode',
+                'status'      => 'privacy:metadata:local_membershipbridge_log:status',
+                'request'     => 'privacy:metadata:local_membershipbridge_log:request',
+                'response'    => 'privacy:metadata:local_membershipbridge_log:response',
+                'error'       => 'privacy:metadata:local_membershipbridge_log:error',
+                'timecreated' => 'privacy:metadata:local_membershipbridge_log:timecreated',
             ],
-            'privacy:metadata:local_imisbridge_log'
+            'privacy:metadata:local_membershipbridge_log'
         );
 
         $collection->add_database_table(
-            'local_imisbridge_scorepush',
+            'local_membershipbridge_scorepush',
             [
-                'userid'     => 'privacy:metadata:local_imisbridge_scorepush:userid',
-                'itemid'     => 'privacy:metadata:local_imisbridge_scorepush:itemid',
-                'finalgrade' => 'privacy:metadata:local_imisbridge_scorepush:finalgrade',
-                'timequeued' => 'privacy:metadata:local_imisbridge_scorepush:timequeued',
+                'userid'     => 'privacy:metadata:local_membershipbridge_scorepush:userid',
+                'itemid'     => 'privacy:metadata:local_membershipbridge_scorepush:itemid',
+                'finalgrade' => 'privacy:metadata:local_membershipbridge_scorepush:finalgrade',
+                'timequeued' => 'privacy:metadata:local_membershipbridge_scorepush:timequeued',
             ],
-            'privacy:metadata:local_imisbridge_scorepush'
+            'privacy:metadata:local_membershipbridge_scorepush'
         );
 
         $collection->add_external_location_link(
@@ -111,8 +111,8 @@ class provider implements
 
         $contextlist = new contextlist();
         if (
-            $DB->record_exists('local_imisbridge_log', ['userid' => $userid])
-                || $DB->record_exists('local_imisbridge_scorepush', ['userid' => $userid])
+            $DB->record_exists('local_membershipbridge_log', ['userid' => $userid])
+                || $DB->record_exists('local_membershipbridge_scorepush', ['userid' => $userid])
         ) {
             $contextlist->add_from_sql(
                 'SELECT id FROM {context} WHERE contextlevel = :level',
@@ -135,8 +135,8 @@ class provider implements
             return;
         }
 
-        $userlist->add_from_sql('userid', 'SELECT userid FROM {local_imisbridge_log} WHERE userid <> 0', []);
-        $userlist->add_from_sql('userid', 'SELECT userid FROM {local_imisbridge_scorepush}', []);
+        $userlist->add_from_sql('userid', 'SELECT userid FROM {local_membershipbridge_log} WHERE userid <> 0', []);
+        $userlist->add_from_sql('userid', 'SELECT userid FROM {local_membershipbridge_scorepush}', []);
     }
 
     /**
@@ -157,7 +157,7 @@ class provider implements
 
             self::export_score_pushes($context, (int)$user->id);
 
-            $records = $DB->get_records('local_imisbridge_log', ['userid' => $user->id], 'timecreated ASC');
+            $records = $DB->get_records('local_membershipbridge_log', ['userid' => $user->id], 'timecreated ASC');
             if (!$records) {
                 continue;
             }
@@ -177,7 +177,7 @@ class provider implements
             }
 
             writer::with_context($context)->export_data(
-                [get_string('auditlog', 'local_imisbridge')],
+                [get_string('auditlog', 'local_membershipbridge')],
                 (object)['logs' => $logs]
             );
         }
@@ -194,7 +194,7 @@ class provider implements
     protected static function export_score_pushes(context $context, int $userid): void {
         global $DB;
 
-        $records = $DB->get_records('local_imisbridge_scorepush', ['userid' => $userid], 'timequeued ASC');
+        $records = $DB->get_records('local_membershipbridge_scorepush', ['userid' => $userid], 'timequeued ASC');
         if (!$records) {
             return;
         }
@@ -209,7 +209,7 @@ class provider implements
         }
 
         writer::with_context($context)->export_data(
-            [get_string('scorepushes', 'local_imisbridge')],
+            [get_string('scorepushes', 'local_membershipbridge')],
             (object)['scorepushes' => $pushes]
         );
     }
@@ -224,8 +224,8 @@ class provider implements
         global $DB;
 
         if ($context->contextlevel == CONTEXT_SYSTEM) {
-            $DB->delete_records('local_imisbridge_log');
-            $DB->delete_records('local_imisbridge_scorepush');
+            $DB->delete_records('local_membershipbridge_log');
+            $DB->delete_records('local_membershipbridge_scorepush');
             self::delete_queued_score_pushes(null);
         }
     }
@@ -243,8 +243,8 @@ class provider implements
 
         foreach ($contextlist->get_contexts() as $context) {
             if ($context->contextlevel == CONTEXT_SYSTEM) {
-                $DB->delete_records('local_imisbridge_log', ['userid' => $userid]);
-                $DB->delete_records('local_imisbridge_scorepush', ['userid' => $userid]);
+                $DB->delete_records('local_membershipbridge_log', ['userid' => $userid]);
+                $DB->delete_records('local_membershipbridge_scorepush', ['userid' => $userid]);
                 self::delete_queued_score_pushes([(int)$userid]);
             }
         }
@@ -270,8 +270,8 @@ class provider implements
         }
 
         [$insql, $inparams] = $DB->get_in_or_equal($userids, SQL_PARAMS_NAMED);
-        $DB->delete_records_select('local_imisbridge_log', "userid {$insql}", $inparams);
-        $DB->delete_records_select('local_imisbridge_scorepush', "userid {$insql}", $inparams);
+        $DB->delete_records_select('local_membershipbridge_log', "userid {$insql}", $inparams);
+        $DB->delete_records_select('local_membershipbridge_scorepush', "userid {$insql}", $inparams);
         self::delete_queued_score_pushes(array_map('intval', $userids));
     }
 
@@ -285,7 +285,7 @@ class provider implements
     protected static function delete_queued_score_pushes(?array $userids): void {
         global $DB;
 
-        $classname = '\\' . \local_imisbridge\task\push_score_note_task::class;
+        $classname = '\\' . \local_membershipbridge\task\push_score_note_task::class;
         $tasks = $DB->get_records('task_adhoc', ['classname' => $classname], '', 'id, customdata');
         foreach ($tasks as $task) {
             $data = json_decode((string)$task->customdata);

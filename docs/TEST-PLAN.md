@@ -1,6 +1,6 @@
 # iMIS Bridge — test plan (living document)
 
-The master, continuously-updated test plan for `local_imisbridge`. Every change
+The master, continuously-updated test plan for `local_membershipbridge`. Every change
 is validated on a **test/staging environment before production**. This file is
 updated on each PR that adds or changes behaviour — see the revision log at the
 bottom.
@@ -153,7 +153,7 @@ bridge are configured on their side. On a freshly provisioned or packaged Moodle
 > provisioning functions*. Until cutover the bridge's callback lands on the
 > **vendor's** `local_imis_*` functions; after cutover it lands on the **core
 > functions service** built in `CHANGEOVER-CHECKLIST.md` §C (core create/enrol +
-> our `local_imisbridge_cancel_enrolment`). So every order/enrolment/cancellation/
+> our `local_membershipbridge_cancel_enrolment`). So every order/enrolment/cancellation/
 > group **sync** row below (C3–C5, D1, E3, F2) is an **updated-version-phase**
 > test that needs that inbound service in place — **not** part of the Phase-1
 > baseline. (On this install inbound is driven by the iDMS push, so these pull
@@ -174,10 +174,10 @@ bridge are configured on their side. On a freshly provisioned or packaged Moodle
 
 | ID | Test | Expected | Status | Notes |
 |----|------|----------|--------|-------|
-| A1 | Fresh install into `local/imisbridge` | Installs with no errors; appears under Local plugins | ☐ | Folder must be `imisbridge`, not `imis_bridge` |
-| A2 | Upgrade from a prior version | `local_imisbridge_log` table created; version advances; stored settings retained | ☐ | |
-| A3 | Install from the release zip | Correct `imisbridge/` root folder; installs cleanly | ☐ | |
-| A4 | Uninstall | Plugin removed; `local_imisbridge_log` dropped | ☐ | |
+| A1 | Fresh install into `local/membershipbridge` | Installs with no errors; appears under Local plugins | ☐ | Folder must be `membershipbridge`, not the repository name |
+| A2 | Upgrade from a prior version | `local_membershipbridge_log` table created; version advances; stored settings retained | ☐ | |
+| A3 | Install from the release zip | Correct `membershipbridge/` root folder; installs cleanly | ☐ | |
+| A4 | Uninstall | Plugin removed; `local_membershipbridge_log` dropped | ☐ | |
 
 ## B. Configuration & connectivity (read-only — safe against production *after lockdown*)
 
@@ -317,7 +317,7 @@ change groups on the Moodle it runs on. Go-live steps and prerequisites are in
 | L10 | Hand-made group / hand-added member in a course | Left untouched by the sync | ☐ | It owns only `imis:`-idnumber groups and its own memberships |
 | L11 | Audit log after a run | `GET /api/MoodleTutorialGroup` and `GET /api/iqa?…` rows, success; no "value too long" | ☐ | Needs ≥1.19.4. A successful token request is **not** logged; a `token` row appears only when authentication fails |
 
-## M. Cancellation function (`local_imisbridge_cancel_enrolment`)
+## M. Cancellation function (`local_membershipbridge_cancel_enrolment`)
 
 Called by the ATS bridge in place of `enrol_manual_unenrol_users`
 (`CHANGEOVER-CHECKLIST.md` §C/§D). Staging Moodle only.
@@ -326,7 +326,7 @@ Called by the ATS bridge in place of `enrol_manual_unenrol_users`
 |----|------|----------|--------|-------|
 | M1 | Call for an enrolled user + course | Every enrolment the user has in the course is **suspended**; grades and completion kept; the enrolment's default role unassigned | ☐ | |
 | M2 | Call with an explicit `roleid` | Only that role is unassigned; other roles (e.g. a manual teacher role) stay | ☐ | |
-| M3 | Token user lacks `local/imisbridge:cancelenrolment` | Rejected (`nopermissions`) | ☐ | |
+| M3 | Token user lacks `local/membershipbridge:cancelenrolment` | Rejected (`nopermissions`) | ☐ | |
 | M4 | Function not in the token's service | `accessexception` before the function runs | ☐ | See the §C troubleshooting entry |
 | M5 | Hidden course | Works when the service account has `moodle/course:view` + `viewhiddencourses` | ☐ | `validate_context()` still runs `require_login()` |
 
@@ -385,7 +385,7 @@ in `CHANGEOVER-CHECKLIST.md` §R.
 | 2026-10-19 | Codex #21: correct the SOAP framing — Moodle external functions aren't transport-specific, so describe the Moodle SOAP protocol as an unused/unsupported transport, not a nonexistent surface. If it's enabled for another integration, `get_completions_since` (a bulk personal-data export) is reachable over SOAP too; added security caveat in §P and test J4. |
 | 2026-10-19 | Add the three-layer topology note to §P (Moodle / ATS middleware / iMIS as distinct sites): the ATS test middleware sandbox is ATS's own, not our dev iMIS, so contract tests run against the sandbox but data-matching (C6) can only be validated against our own iMIS. Added prerequisite P0 and annotated C6. |
 | 2026-10-19 | Codex #24: harden the §P topology for safety — keep C6 read-only on production (no throwaway writes); add three write gates (verify the effective SOAP address, use a sandbox-scoped AuthToken + fixtures, and confirm the bridge's Moodle callback targets staging before C3–C5); add a raw-SOAP (Bruno) read-only pre-flight; and genericise the real hostnames to role placeholders (real values live in the internal runbook; this repo is public). |
-| 2026-10-22 | Documentation consistency review (1.19.6): D3 corrected to `CreateActivity`/MOODLENOTE (the quiz-score path since 1.16.0); added D6 (module notes); E4 now expects a blank Member ID to be refused (1.19.1); F1 lists all five tasks; new §L (tutorial group sync) and §M (`local_imisbridge_cancel_enrolment`); §P inbound framing updated to the core-functions service; "Not yet built" marks in-plugin provisioning as superseded. |
+| 2026-10-22 | Documentation consistency review (1.19.6): D3 corrected to `CreateActivity`/MOODLENOTE (the quiz-score path since 1.16.0); added D6 (module notes); E4 now expects a blank Member ID to be refused (1.19.1); F1 lists all five tasks; new §L (tutorial group sync) and §M (`local_membershipbridge_cancel_enrolment`); §P inbound framing updated to the core-functions service; "Not yet built" marks in-plugin provisioning as superseded. |
 | 2026-10-22 | 1.19.7: L3 now expects per-member `would add` / `would remove` dry-run lines for new and existing groups. |
 | 2026-10-22 | 1.20.0: add D7–D9 for the activity score push (`Push activity scores` checklist, sent on grading, unchanged regrades not re-sent). |
 | 2026-10-23 | 1.21.0: add §N for the Sync provider setting and the REST registration sync. |

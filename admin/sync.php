@@ -15,9 +15,9 @@
 // along with Moodle.  If not, see <http://www.gnu.org/licenses/>.
 
 /**
- * Manual sync admin page for local_imisbridge.
+ * Manual sync admin page for local_membershipbridge.
  *
- * @package    local_imisbridge
+ * @package    local_membershipbridge
  * @copyright  2024 Vernon Spain
  * @license    http://www.gnu.org/copyleft/gpl.html GNU GPL v3 or later
  */
@@ -27,7 +27,7 @@ require_once($CFG->libdir . '/adminlib.php');
 
 // Registered admin page: handles login, the moodle/site:config capability, the
 // page URL/context/title/heading, and makes the page bookmarkable from the admin.
-admin_externalpage_setup('local_imisbridge_sync');
+admin_externalpage_setup('local_membershipbridge_sync');
 
 // Use POST to avoid action/contactid appearing in browser history and server logs.
 $action    = optional_param('action', '', PARAM_ALPHANUMEXT);
@@ -47,7 +47,7 @@ $noteoutput = '';
 // non-unique one.
 $nosingleusernotice = function (string $field, string $member, int $matchcount): string {
     $a = (object)['field' => $field, 'member' => s($member)];
-    return get_string($matchcount > 1 ? 'pushnomatchmany' : 'pushnomatchnone', 'local_imisbridge', $a);
+    return get_string($matchcount > 1 ? 'pushnomatchmany' : 'pushnomatchnone', 'local_membershipbridge', $a);
 };
 // Build a plain-text "how the score was resolved" trace for the push test output, so a
 // score of 0 can be traced to the member->user match or the gradebook grade (never the
@@ -99,30 +99,30 @@ $notecourse    = 0;
 // Manual order/group sync and the connection test are offered by providers that
 // support inbound sync (the ATS SOAP bridge). A provider that only receives pushed
 // records (direct REST) does not, so these controls are gated on that capability.
-$providerclass = \local_imisbridge\provider\manager::active_provider_class();
+$providerclass = \local_membershipbridge\provider\manager::active_provider_class();
 // The sync buttons and the connection test run on the sync provider, which can
 // differ from the push provider (the Sync provider setting).
-$syncclass     = \local_imisbridge\provider\manager::sync_provider_class();
-$cansync       = is_a($syncclass, \local_imisbridge\provider\org_sync_provider::class, true);
+$syncclass     = \local_membershipbridge\provider\manager::sync_provider_class();
+$cansync       = is_a($syncclass, \local_membershipbridge\provider\org_sync_provider::class, true);
 // Only the REST registration sync has a look-back window to override.
-$canoverride   = is_a($syncclass, \local_imisbridge\rest_client::class, true);
+$canoverride   = is_a($syncclass, \local_membershipbridge\rest_client::class, true);
 $ignorelookback = $ignorelookback && $canoverride;
 // Every provider can push records, so the manual "push completion" test applies to all.
-$canpush       = $providerclass::supports(\local_imisbridge\provider\provider_interface::CAP_PUSH);
+$canpush       = $providerclass::supports(\local_membershipbridge\provider\provider_interface::CAP_PUSH);
 
 if ($action === 'testconnection' && confirm_sesskey()) {
     // Read-only: verify connectivity without writing any data. The provider's
     // diagnostics send the AuthToken when configured; a profile lookup (contact ID)
     // always exercises it.
     try {
-        $provider = \local_imisbridge\provider\manager::org_sync_instance();
+        $provider = \local_membershipbridge\provider\manager::org_sync_instance();
         if ($provider === null) {
-            $error = get_string('providernotsupported', 'local_imisbridge', $syncclass::label());
+            $error = get_string('providernotsupported', 'local_membershipbridge', $syncclass::label());
         } else {
             $testoutput = $provider->diagnostics(!empty($contactid) ? $contactid : null);
         }
     } catch (\Throwable $e) {
-        $error = get_string('syncfailed', 'local_imisbridge', $e->getMessage());
+        $error = get_string('syncfailed', 'local_membershipbridge', $e->getMessage());
     }
 } else if ($action === 'pushcompletion' && confirm_sesskey()) {
     // Manual test: push one completion record (MoodleUpdate) for a member and course
@@ -133,24 +133,24 @@ if ($action === 'testconnection' && confirm_sesskey()) {
     $pushcourse = optional_param('pushcourseid', 0, PARAM_INT);
     try {
         if (!$canpush) {
-            $error = get_string('pushnotsupported', 'local_imisbridge');
-        } else if (!\local_imisbridge\util::is_enabled('push_completions')) {
+            $error = get_string('pushnotsupported', 'local_membershipbridge');
+        } else if (!\local_membershipbridge\util::is_enabled('push_completions')) {
             // Honour the same kill switch the observer and push task obey.
-            $error = get_string('pushdisabled', 'local_imisbridge');
+            $error = get_string('pushdisabled', 'local_membershipbridge');
         } else if ($pushmember === '' || $pushcourse <= 0) {
-            $error = get_string('pushmissingfields', 'local_imisbridge');
-        } else if (!\local_imisbridge\util::is_configured()) {
-            $error = get_string('notconfigured', 'local_imisbridge', $providerclass::label());
+            $error = get_string('pushmissingfields', 'local_membershipbridge');
+        } else if (!\local_membershipbridge\util::is_configured()) {
+            $error = get_string('notconfigured', 'local_membershipbridge', $providerclass::label());
         } else {
             $course = $DB->get_record('course', ['id' => $pushcourse], 'id');
             if (!$course) {
-                $error = get_string('pushnocourse', 'local_imisbridge', $pushcourse);
+                $error = get_string('pushnocourse', 'local_membershipbridge', $pushcourse);
             } else {
                 // Derive the score from the matching Moodle user's grade, but only when
                 // the member ID maps to exactly one user: the id field can be non-unique
                 // (idnumber, email, or usernames across MNet hosts), and an arbitrary
                 // match could attach the wrong grade. No/ambiguous match sends score 0.
-                $field   = \local_imisbridge\util::imis_id_source();
+                $field   = \local_membershipbridge\util::imis_id_source();
                 $matches = $DB->get_records('user', [$field => $pushmember], '', 'id', 0, 2);
                 $userid  = (count($matches) === 1) ? (int)reset($matches)->id : 0;
                 if ($userid === 0) {
@@ -158,12 +158,12 @@ if ($action === 'testconnection' && confirm_sesskey()) {
                     $notice = $nosingleusernotice($field, $pushmember, count($matches));
                 }
 
-                $data = \local_imisbridge\observer::completion_push_data($pushmember, $course, $userid);
-                \local_imisbridge\provider\manager::instance()->push_completion($data);
+                $data = \local_membershipbridge\observer::completion_push_data($pushmember, $course, $userid);
+                \local_membershipbridge\provider\manager::instance()->push_completion($data);
 
-                $message    = get_string('pushdone', 'local_imisbridge', s($pushmember));
+                $message    = get_string('pushdone', 'local_membershipbridge', s($pushmember));
                 $coursedetail = ($userid > 0)
-                    ? \local_imisbridge\observer::course_score_detail((int)$course->id, $userid)
+                    ? \local_membershipbridge\observer::course_score_detail((int)$course->id, $userid)
                     : null;
                 $trace = $scoretrace(
                     $field,
@@ -177,11 +177,11 @@ if ($action === 'testconnection' && confirm_sesskey()) {
                 );
                 $syncoutput = $trace . PHP_EOL
                     . 'push_completion:' . PHP_EOL . var_export($data, true) . PHP_EOL . PHP_EOL
-                    . get_string('pushaudithint', 'local_imisbridge');
+                    . get_string('pushaudithint', 'local_membershipbridge');
             }
         }
     } catch (\Throwable $e) {
-        $error = get_string('syncfailed', 'local_imisbridge', $e->getMessage());
+        $error = get_string('syncfailed', 'local_membershipbridge', $e->getMessage());
     }
 } else if ($action === 'listmodules' && confirm_sesskey()) {
     // Read-only: list the course's graded activities so the operator can pick one
@@ -191,11 +191,11 @@ if ($action === 'testconnection' && confirm_sesskey()) {
     $notemember = trim(optional_param('pushmemberid', '', PARAM_TEXT));
     $notecourse = optional_param('pushcourseid', 0, PARAM_INT);
     if ($notemember === '' || $notecourse <= 0) {
-        $error = get_string('pushmissingfields', 'local_imisbridge');
+        $error = get_string('pushmissingfields', 'local_membershipbridge');
     } else {
         $course = $DB->get_record('course', ['id' => $notecourse]);
         if (!$course) {
-            $error = get_string('pushnocourse', 'local_imisbridge', $notecourse);
+            $error = get_string('pushnocourse', 'local_membershipbridge', $notecourse);
         } else {
             $modulechoices = [];
             foreach (get_fast_modinfo($course)->get_cms() as $cm) {
@@ -209,7 +209,7 @@ if ($action === 'testconnection' && confirm_sesskey()) {
                 }
             }
             if (empty($modulechoices)) {
-                $error = get_string('pushnotenoactivities', 'local_imisbridge');
+                $error = get_string('pushnotenoactivities', 'local_membershipbridge');
                 $modulechoices = null;
             }
         }
@@ -222,22 +222,22 @@ if ($action === 'testconnection' && confirm_sesskey()) {
     $pushcmid   = optional_param('pushcmid', 0, PARAM_INT);
     try {
         if (!$canpush) {
-            $error = get_string('pushnotsupported', 'local_imisbridge');
-        } else if (!\local_imisbridge\util::is_enabled_optin('push_module_completions')) {
+            $error = get_string('pushnotsupported', 'local_membershipbridge');
+        } else if (!\local_membershipbridge\util::is_enabled_optin('push_module_completions')) {
             // Honour the same opt-in toggle the module-completion observer obeys.
-            $error = get_string('pushnotedisabled', 'local_imisbridge');
+            $error = get_string('pushnotedisabled', 'local_membershipbridge');
         } else if ($pushmember === '' || $pushcmid <= 0) {
-            $error = get_string('pushmissingfields', 'local_imisbridge');
-        } else if (!\local_imisbridge\util::is_configured()) {
-            $error = get_string('notconfigured', 'local_imisbridge', $providerclass::label());
+            $error = get_string('pushmissingfields', 'local_membershipbridge');
+        } else if (!\local_membershipbridge\util::is_configured()) {
+            $error = get_string('notconfigured', 'local_membershipbridge', $providerclass::label());
         } else {
             $cm = get_coursemodule_from_id('', $pushcmid);
             if (!$cm) {
-                $error = get_string('pushnotenomodule', 'local_imisbridge', $pushcmid);
+                $error = get_string('pushnotenomodule', 'local_membershipbridge', $pushcmid);
             } else {
                 // Resolve the member to a single Moodle user for the real status/score,
                 // the same way the completion test does; no/ambiguous match sends 0.
-                $field   = \local_imisbridge\util::imis_id_source();
+                $field   = \local_membershipbridge\util::imis_id_source();
                 $matches = $DB->get_records('user', [$field => $pushmember], '', 'id', 0, 2);
                 $userid  = (count($matches) === 1) ? (int)reset($matches)->id : 0;
                 if ($userid === 0) {
@@ -245,16 +245,16 @@ if ($action === 'testconnection' && confirm_sesskey()) {
                     $notice = $nosingleusernotice($field, $pushmember, count($matches));
                 }
 
-                $data = \local_imisbridge\observer::module_note_data($pushmember, $cm, $userid);
+                $data = \local_membershipbridge\observer::module_note_data($pushmember, $cm, $userid);
                 if ($data === null) {
                     // The module lost its grade item since it was listed (or pushcmid
                     // was posted directly): ungraded activities are never sent.
-                    $error = get_string('pushnotenotgraded', 'local_imisbridge');
+                    $error = get_string('pushnotenotgraded', 'local_membershipbridge');
                 } else {
-                    \local_imisbridge\provider\manager::instance()->push_module_note($data);
+                    \local_membershipbridge\provider\manager::instance()->push_module_note($data);
 
-                    $message    = get_string('pushnotedone', 'local_imisbridge', s($pushmember));
-                    $notedetail = ($userid > 0) ? \local_imisbridge\observer::module_grade_detail($cm, $userid) : null;
+                    $message    = get_string('pushnotedone', 'local_membershipbridge', s($pushmember));
+                    $notedetail = ($userid > 0) ? \local_membershipbridge\observer::module_grade_detail($cm, $userid) : null;
                     $trace = $scoretrace(
                         $field,
                         $pushmember,
@@ -267,12 +267,12 @@ if ($action === 'testconnection' && confirm_sesskey()) {
                     );
                     $noteoutput = $trace . PHP_EOL
                         . 'push_module_note:' . PHP_EOL . var_export($data, true) . PHP_EOL . PHP_EOL
-                        . get_string('pushaudithint', 'local_imisbridge');
+                        . get_string('pushaudithint', 'local_membershipbridge');
                 }
             }
         }
     } catch (\Throwable $e) {
-        $error = get_string('syncfailed', 'local_imisbridge', $e->getMessage());
+        $error = get_string('syncfailed', 'local_membershipbridge', $e->getMessage());
     }
 } else if ($action && confirm_sesskey()) {
     $cid = !empty($contactid) ? $contactid : null;
@@ -281,29 +281,29 @@ if ($action === 'testconnection' && confirm_sesskey()) {
         // Require a member ID. A blank manual sync would run an all-user batch, which
         // is slow enough to hit the web timeout and is never the intent of an on-demand
         // run; the nightly scheduled tasks are the place for all-user syncs.
-        $error = get_string('contactidrequired', 'local_imisbridge');
+        $error = get_string('contactidrequired', 'local_membershipbridge');
     } else {
         $confirmed = optional_param('confirm', 0, PARAM_BOOL);
 
         if (!$confirmed) {
             // Confirm before any write.
-            $continueurl = new moodle_url('/local/imisbridge/admin/sync.php', [
+            $continueurl = new moodle_url('/local/membershipbridge/admin/sync.php', [
                 'action'    => $action,
                 'contactid' => $contactid,
                 'confirm'   => 1,
                 'sesskey'   => sesskey(),
             ]);
-            $confirmtext = get_string('confirmsync', 'local_imisbridge', s($contactid));
+            $confirmtext = get_string('confirmsync', 'local_membershipbridge', s($contactid));
             if ($ignorelookback) {
                 $continueurl->param('ignorelookback', 1);
-                $confirmtext .= ' ' . get_string('reg_ignore_lookback_confirm', 'local_imisbridge');
+                $confirmtext .= ' ' . get_string('reg_ignore_lookback_confirm', 'local_membershipbridge');
             }
 
             echo $OUTPUT->header();
             echo $OUTPUT->confirm(
                 $confirmtext,
                 new single_button($continueurl, get_string('continue'), 'post'),
-                new moodle_url('/local/imisbridge/admin/sync.php')
+                new moodle_url('/local/membershipbridge/admin/sync.php')
             );
             echo $OUTPUT->footer();
             exit;
@@ -313,14 +313,14 @@ if ($action === 'testconnection' && confirm_sesskey()) {
         \core_php_time_limit::raise(300);
 
         try {
-            $provider = \local_imisbridge\provider\manager::org_sync_instance();
+            $provider = \local_membershipbridge\provider\manager::org_sync_instance();
             if ($provider === null) {
-                $error = get_string('providernotsupported', 'local_imisbridge', $syncclass::label());
+                $error = get_string('providernotsupported', 'local_membershipbridge', $syncclass::label());
             } else {
-                if ($ignorelookback && $provider instanceof \local_imisbridge\rest_client) {
+                if ($ignorelookback && $provider instanceof \local_membershipbridge\rest_client) {
                     $provider->ignore_lookback();
                 }
-                $scope = get_string('forcontact', 'local_imisbridge', s($contactid));
+                $scope = get_string('forcontact', 'local_membershipbridge', s($contactid));
 
                 // Collect each call's raw result so a manual sync of a few records can be
                 // eyeballed on this page without opening the audit log.
@@ -345,7 +345,7 @@ if ($action === 'testconnection' && confirm_sesskey()) {
                         break;
                 }
 
-                $message = get_string('syncdone', 'local_imisbridge', $scope);
+                $message = get_string('syncdone', 'local_membershipbridge', $scope);
 
                 $out = '';
                 foreach ($results as $op => $res) {
@@ -354,7 +354,7 @@ if ($action === 'testconnection' && confirm_sesskey()) {
                 $syncoutput = trim($out);
             }
         } catch (\Exception $e) {
-            $error = get_string('syncfailed', 'local_imisbridge', $e->getMessage());
+            $error = get_string('syncfailed', 'local_membershipbridge', $e->getMessage());
         }
     }
 }
@@ -372,8 +372,8 @@ if ($error) {
     echo $OUTPUT->notification($error, 'notifyproblem');
 }
 
-$syncurl  = new moodle_url('/local/imisbridge/admin/sync.php');
-$auditurl = new moodle_url('/local/imisbridge/admin/log.php');
+$syncurl  = new moodle_url('/local/membershipbridge/admin/sync.php');
+$auditurl = new moodle_url('/local/membershipbridge/admin/log.php');
 $logsurl  = new moodle_url('/admin/tasklogs.php');
 $sesskey  = sesskey();
 $cidvalue = s($contactid);
@@ -384,41 +384,45 @@ $pushmembervalue = s(optional_param('pushmemberid', '', PARAM_TEXT));
 if ($cansync) {
     echo html_writer::start_div('card mb-4');
     echo html_writer::start_div('card-body');
-    echo html_writer::tag('h5', get_string('filtercontactid', 'local_imisbridge'), ['class' => 'card-title']);
+    echo html_writer::tag('h5', get_string('filtercontactid', 'local_membershipbridge'), ['class' => 'card-title']);
     echo '<form method="post" action="">';
     echo '<input type="hidden" name="sesskey" value="' . $sesskey . '">';
     echo html_writer::start_div('form-group');
-    echo html_writer::tag('label', get_string('contactid', 'local_imisbridge'), ['for' => 'contactid']);
+    echo html_writer::tag('label', get_string('contactid', 'local_membershipbridge'), ['for' => 'contactid']);
     echo '<input type="text" id="contactid" name="contactid" class="form-control"'
-        . ' value="' . $cidvalue . '" placeholder="' . s(get_string('contactidplaceholder', 'local_imisbridge')) . '">';
-    echo html_writer::tag('small', get_string('contactidhelp', 'local_imisbridge'), ['class' => 'form-text text-muted']);
+        . ' value="' . $cidvalue . '" placeholder="' . s(get_string('contactidplaceholder', 'local_membershipbridge')) . '">';
+    echo html_writer::tag('small', get_string('contactidhelp', 'local_membershipbridge'), ['class' => 'form-text text-muted']);
     echo html_writer::end_div();
     if ($canoverride) {
         echo html_writer::start_div('form-check mt-2');
         // Always shown unticked, so an override never carries over to the next sync.
         echo '<input type="checkbox" id="ignorelookback" name="ignorelookback" value="1" class="form-check-input">';
-        echo html_writer::tag('label', get_string('reg_ignore_lookback', 'local_imisbridge'), [
+        echo html_writer::tag('label', get_string('reg_ignore_lookback', 'local_membershipbridge'), [
             'for'   => 'ignorelookback',
             'class' => 'form-check-label',
         ]);
-        echo html_writer::tag('small', get_string('reg_ignore_lookback_help', 'local_imisbridge'), [
+        echo html_writer::tag('small', get_string('reg_ignore_lookback_help', 'local_membershipbridge'), [
             'class' => 'form-text text-muted d-block',
         ]);
         echo html_writer::end_div();
     }
     echo html_writer::start_div('mt-3 d-flex gap-2 flex-wrap');
     echo '<button type="submit" name="action" value="enrollments" class="btn btn-primary">'
-        . s(get_string('sync_enrollments', 'local_imisbridge')) . '</button>';
+        . s(get_string('sync_enrollments', 'local_membershipbridge')) . '</button>';
     echo '<button type="submit" name="action" value="cancellations" class="btn btn-warning">'
-        . s(get_string('sync_cancellations', 'local_imisbridge')) . '</button>';
+        . s(get_string('sync_cancellations', 'local_membershipbridge')) . '</button>';
     echo '<button type="submit" name="action" value="groups" class="btn btn-info">'
-        . s(get_string('sync_groups', 'local_imisbridge')) . '</button>';
+        . s(get_string('sync_groups', 'local_membershipbridge')) . '</button>';
     echo '<button type="submit" name="action" value="all" class="btn btn-success">'
-        . s(get_string('sync_all', 'local_imisbridge')) . '</button>';
+        . s(get_string('sync_all', 'local_membershipbridge')) . '</button>';
     echo '<button type="submit" name="action" value="testconnection" class="btn btn-outline-secondary">'
-        . s(get_string('testconnection', 'local_imisbridge')) . '</button>';
+        . s(get_string('testconnection', 'local_membershipbridge')) . '</button>';
     echo html_writer::end_div();
-    echo html_writer::tag('small', get_string('testconnection_help', 'local_imisbridge'), ['class' => 'form-text text-muted mt-2']);
+    echo html_writer::tag(
+        'small',
+        get_string('testconnection_help', 'local_membershipbridge'),
+        ['class' => 'form-text text-muted mt-2']
+    );
     echo '</form>';
     echo html_writer::end_div();
     echo html_writer::end_div();
@@ -426,7 +430,7 @@ if ($cansync) {
     // The active provider receives pushed records but has no manual order/group
     // sync or connection test; say so instead of showing controls that would fail.
     echo $OUTPUT->notification(
-        get_string('providernotsupported', 'local_imisbridge', $syncclass::label()),
+        get_string('providernotsupported', 'local_membershipbridge', $syncclass::label()),
         'notifymessage'
     );
 }
@@ -436,23 +440,24 @@ if ($canpush) {
     // write path can be exercised without completing a course and waiting for cron.
     echo html_writer::start_div('card mb-4');
     echo html_writer::start_div('card-body');
-    echo html_writer::tag('h5', get_string('pushtest', 'local_imisbridge'), ['class' => 'card-title']);
-    echo html_writer::tag('p', get_string('pushcompletion_help', 'local_imisbridge'), ['class' => 'text-muted']);
+    echo html_writer::tag('h5', get_string('pushtest', 'local_membershipbridge'), ['class' => 'card-title']);
+    echo html_writer::tag('p', get_string('pushcompletion_help', 'local_membershipbridge'), ['class' => 'text-muted']);
     echo '<form method="post" action="">';
     echo '<input type="hidden" name="sesskey" value="' . $sesskey . '">';
     echo html_writer::start_div('form-group');
-    echo html_writer::tag('label', get_string('pushmemberid', 'local_imisbridge'), ['for' => 'pushmemberid']);
+    echo html_writer::tag('label', get_string('pushmemberid', 'local_membershipbridge'), ['for' => 'pushmemberid']);
     echo '<input type="text" id="pushmemberid" name="pushmemberid" class="form-control"'
-        . ' value="' . $pushmembervalue . '" placeholder="' . s(get_string('contactidplaceholder', 'local_imisbridge')) . '">';
+        . ' value="' . $pushmembervalue . '"'
+        . ' placeholder="' . s(get_string('contactidplaceholder', 'local_membershipbridge')) . '">';
     echo html_writer::end_div();
     echo html_writer::start_div('form-group');
-    echo html_writer::tag('label', get_string('pushcourseid', 'local_imisbridge'), ['for' => 'pushcourseid']);
+    echo html_writer::tag('label', get_string('pushcourseid', 'local_membershipbridge'), ['for' => 'pushcourseid']);
     echo '<input type="number" id="pushcourseid" name="pushcourseid" class="form-control" min="1">';
-    echo html_writer::tag('small', get_string('pushcourseidhelp', 'local_imisbridge'), ['class' => 'form-text text-muted']);
+    echo html_writer::tag('small', get_string('pushcourseidhelp', 'local_membershipbridge'), ['class' => 'form-text text-muted']);
     echo html_writer::end_div();
     echo html_writer::start_div('mt-3');
     echo '<button type="submit" name="action" value="pushcompletion" class="btn btn-primary">'
-        . s(get_string('pushcompletion', 'local_imisbridge')) . '</button>';
+        . s(get_string('pushcompletion', 'local_membershipbridge')) . '</button>';
     echo html_writer::end_div();
     echo '</form>';
     echo html_writer::end_div();
@@ -465,26 +470,26 @@ if ($canpush) {
     // without a live quiz submission and completion event.
     echo html_writer::start_div('card mb-4');
     echo html_writer::start_div('card-body');
-    echo html_writer::tag('h5', get_string('pushnotetest', 'local_imisbridge'), ['class' => 'card-title']);
-    echo html_writer::tag('p', get_string('pushnotetest_help', 'local_imisbridge'), ['class' => 'text-muted']);
+    echo html_writer::tag('h5', get_string('pushnotetest', 'local_membershipbridge'), ['class' => 'card-title']);
+    echo html_writer::tag('p', get_string('pushnotetest_help', 'local_membershipbridge'), ['class' => 'text-muted']);
 
     // Step 1: member + course, then list the course's graded activities.
     echo '<form method="post" action="">';
     echo '<input type="hidden" name="sesskey" value="' . $sesskey . '">';
     echo html_writer::start_div('form-group');
-    echo html_writer::tag('label', get_string('pushmemberid', 'local_imisbridge'), ['for' => 'notememberid']);
+    echo html_writer::tag('label', get_string('pushmemberid', 'local_membershipbridge'), ['for' => 'notememberid']);
     echo '<input type="text" id="notememberid" name="pushmemberid" class="form-control"'
-        . ' value="' . s($notemember) . '" placeholder="' . s(get_string('contactidplaceholder', 'local_imisbridge')) . '">';
+        . ' value="' . s($notemember) . '" placeholder="' . s(get_string('contactidplaceholder', 'local_membershipbridge')) . '">';
     echo html_writer::end_div();
     echo html_writer::start_div('form-group');
-    echo html_writer::tag('label', get_string('pushcourseid', 'local_imisbridge'), ['for' => 'notecourseid']);
+    echo html_writer::tag('label', get_string('pushcourseid', 'local_membershipbridge'), ['for' => 'notecourseid']);
     echo '<input type="number" id="notecourseid" name="pushcourseid" class="form-control" min="1"'
         . ' value="' . ($notecourse > 0 ? (int)$notecourse : '') . '">';
-    echo html_writer::tag('small', get_string('pushcourseidhelp', 'local_imisbridge'), ['class' => 'form-text text-muted']);
+    echo html_writer::tag('small', get_string('pushcourseidhelp', 'local_membershipbridge'), ['class' => 'form-text text-muted']);
     echo html_writer::end_div();
     echo html_writer::start_div('mt-3');
     echo '<button type="submit" name="action" value="listmodules" class="btn btn-outline-primary">'
-        . s(get_string('pushnotelist', 'local_imisbridge')) . '</button>';
+        . s(get_string('pushnotelist', 'local_membershipbridge')) . '</button>';
     echo html_writer::end_div();
     echo '</form>';
 
@@ -495,7 +500,7 @@ if ($canpush) {
         echo '<input type="hidden" name="sesskey" value="' . $sesskey . '">';
         echo '<input type="hidden" name="pushmemberid" value="' . s($notemember) . '">';
         echo html_writer::start_div('form-group');
-        echo html_writer::tag('label', get_string('pushnoteactivity', 'local_imisbridge'), ['for' => 'pushcmid']);
+        echo html_writer::tag('label', get_string('pushnoteactivity', 'local_membershipbridge'), ['for' => 'pushcmid']);
         echo html_writer::select(
             $modulechoices,
             'pushcmid',
@@ -506,7 +511,7 @@ if ($canpush) {
         echo html_writer::end_div();
         echo html_writer::start_div('mt-3');
         echo '<button type="submit" name="action" value="pushnote" class="btn btn-primary">'
-            . s(get_string('pushnote', 'local_imisbridge')) . '</button>';
+            . s(get_string('pushnote', 'local_membershipbridge')) . '</button>';
         echo html_writer::end_div();
         echo '</form>';
     }
@@ -518,7 +523,7 @@ if ($canpush) {
 if ($testoutput !== '') {
     echo html_writer::start_div('card mb-4');
     echo html_writer::start_div('card-body');
-    echo html_writer::tag('h5', get_string('testconnection', 'local_imisbridge'), ['class' => 'card-title']);
+    echo html_writer::tag('h5', get_string('testconnection', 'local_membershipbridge'), ['class' => 'card-title']);
     echo html_writer::tag('pre', s($testoutput), ['class' => 'bg-light p-3']);
     echo html_writer::end_div();
     echo html_writer::end_div();
@@ -527,8 +532,8 @@ if ($testoutput !== '') {
 if ($syncoutput !== '') {
     echo html_writer::start_div('card mb-4');
     echo html_writer::start_div('card-body');
-    echo html_writer::tag('h5', get_string('syncresult', 'local_imisbridge'), ['class' => 'card-title']);
-    echo html_writer::tag('p', get_string('syncresulthelp', 'local_imisbridge'), ['class' => 'text-muted']);
+    echo html_writer::tag('h5', get_string('syncresult', 'local_membershipbridge'), ['class' => 'card-title']);
+    echo html_writer::tag('p', get_string('syncresulthelp', 'local_membershipbridge'), ['class' => 'text-muted']);
     echo html_writer::tag('pre', s($syncoutput), ['class' => 'bg-light p-3']);
     echo html_writer::end_div();
     echo html_writer::end_div();
@@ -537,8 +542,8 @@ if ($syncoutput !== '') {
 if ($noteoutput !== '') {
     echo html_writer::start_div('card mb-4');
     echo html_writer::start_div('card-body');
-    echo html_writer::tag('h5', get_string('pushnotetest', 'local_imisbridge'), ['class' => 'card-title']);
-    echo html_writer::tag('p', get_string('syncresulthelp', 'local_imisbridge'), ['class' => 'text-muted']);
+    echo html_writer::tag('h5', get_string('pushnotetest', 'local_membershipbridge'), ['class' => 'card-title']);
+    echo html_writer::tag('p', get_string('syncresulthelp', 'local_membershipbridge'), ['class' => 'text-muted']);
     echo html_writer::tag('pre', s($noteoutput), ['class' => 'bg-light p-3']);
     echo html_writer::end_div();
     echo html_writer::end_div();
@@ -546,21 +551,21 @@ if ($noteoutput !== '') {
 
 echo html_writer::start_div('card');
 echo html_writer::start_div('card-body');
-echo html_writer::tag('h5', get_string('scheduledtaskstatus', 'local_imisbridge'), ['class' => 'card-title']);
-echo html_writer::tag('p', get_string('scheduledtaskintro', 'local_imisbridge'));
+echo html_writer::tag('h5', get_string('scheduledtaskstatus', 'local_membershipbridge'), ['class' => 'card-title']);
+echo html_writer::tag('p', get_string('scheduledtaskintro', 'local_membershipbridge'));
 echo html_writer::start_tag('ul');
-echo html_writer::tag('li', get_string('schedule_enrollments', 'local_imisbridge'));
-echo html_writer::tag('li', get_string('schedule_cancellations', 'local_imisbridge'));
-echo html_writer::tag('li', get_string('schedule_groups', 'local_imisbridge'));
-echo html_writer::tag('li', get_string('schedule_tutorialgroups', 'local_imisbridge'));
-echo html_writer::tag('li', get_string('schedule_cleanup', 'local_imisbridge'));
+echo html_writer::tag('li', get_string('schedule_enrollments', 'local_membershipbridge'));
+echo html_writer::tag('li', get_string('schedule_cancellations', 'local_membershipbridge'));
+echo html_writer::tag('li', get_string('schedule_groups', 'local_membershipbridge'));
+echo html_writer::tag('li', get_string('schedule_tutorialgroups', 'local_membershipbridge'));
+echo html_writer::tag('li', get_string('schedule_cleanup', 'local_membershipbridge'));
 echo html_writer::end_tag('ul');
 // Primary link: the iMIS audit log shows what was actually sent to iMIS and the
 // result. The secondary link is Moodle's cron run output for the scheduled tasks.
-echo html_writer::tag('p', get_string('viewlogshelp', 'local_imisbridge'), ['class' => 'text-muted']);
+echo html_writer::tag('p', get_string('viewlogshelp', 'local_membershipbridge'), ['class' => 'text-muted']);
 echo html_writer::start_div('d-flex gap-2 flex-wrap');
-echo html_writer::link($auditurl, get_string('openlog', 'local_imisbridge'), ['class' => 'btn btn-primary btn-sm']);
-echo html_writer::link($logsurl, get_string('viewtaskrunlogs', 'local_imisbridge'), ['class' => 'btn btn-secondary btn-sm']);
+echo html_writer::link($auditurl, get_string('openlog', 'local_membershipbridge'), ['class' => 'btn btn-primary btn-sm']);
+echo html_writer::link($logsurl, get_string('viewtaskrunlogs', 'local_membershipbridge'), ['class' => 'btn btn-secondary btn-sm']);
 echo html_writer::end_div();
 echo html_writer::end_div();
 echo html_writer::end_div();

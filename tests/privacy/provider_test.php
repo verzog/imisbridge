@@ -15,14 +15,14 @@
 // along with Moodle.  If not, see <http://www.gnu.org/licenses/>.
 
 /**
- * Tests for the local_imisbridge privacy provider.
+ * Tests for the local_membershipbridge privacy provider.
  *
- * @package    local_imisbridge
+ * @package    local_membershipbridge
  * @copyright  2024 Vernon Spain
  * @license    http://www.gnu.org/copyleft/gpl.html GNU GPL v3 or later
  */
 
-namespace local_imisbridge\privacy;
+namespace local_membershipbridge\privacy;
 
 use core_privacy\local\metadata\collection;
 use core_privacy\local\request\approved_contextlist;
@@ -33,10 +33,10 @@ use core_privacy\local\request\writer;
 /**
  * Unit tests for {@see provider}.
  *
- * @package    local_imisbridge
+ * @package    local_membershipbridge
  * @copyright  2024 Vernon Spain
  * @license    http://www.gnu.org/copyleft/gpl.html GNU GPL v3 or later
- * @covers     \local_imisbridge\privacy\provider
+ * @covers     \local_membershipbridge\privacy\provider
  */
 final class provider_test extends \advanced_testcase {
     /**
@@ -47,7 +47,7 @@ final class provider_test extends \advanced_testcase {
      */
     private function insert_log(int $userid): void {
         global $DB;
-        $DB->insert_record('local_imisbridge_log', (object)[
+        $DB->insert_record('local_membershipbridge_log', (object)[
             'userid'      => $userid,
             'operation'   => 'MoodleUpdate',
             'status'      => 'success',
@@ -63,7 +63,7 @@ final class provider_test extends \advanced_testcase {
     public function test_get_metadata(): void {
         $this->resetAfterTest();
 
-        $collection = new collection('local_imisbridge');
+        $collection = new collection('local_membershipbridge');
         $result     = provider::get_metadata($collection);
 
         $this->assertInstanceOf(collection::class, $result);
@@ -72,7 +72,7 @@ final class provider_test extends \advanced_testcase {
         foreach ($result->get_collection() as $item) {
             $names[] = $item->get_name();
         }
-        $this->assertContains('local_imisbridge_log', $names);
+        $this->assertContains('local_membershipbridge_log', $names);
         $this->assertContains('imis', $names);
     }
 
@@ -92,7 +92,7 @@ final class provider_test extends \advanced_testcase {
         $contextlist = provider::get_contexts_for_userid($user->id);
         $this->assertEquals([$systemcontext->id], $contextlist->get_contextids());
 
-        $approved = new approved_contextlist($user, 'local_imisbridge', [$systemcontext->id]);
+        $approved = new approved_contextlist($user, 'local_membershipbridge', [$systemcontext->id]);
         provider::export_user_data($approved);
         $this->assertTrue(writer::with_context($systemcontext)->has_any_data());
     }
@@ -112,11 +112,11 @@ final class provider_test extends \advanced_testcase {
         $this->insert_log($other->id);
 
         $systemcontext = \context_system::instance();
-        $approved = new approved_contextlist($user, 'local_imisbridge', [$systemcontext->id]);
+        $approved = new approved_contextlist($user, 'local_membershipbridge', [$systemcontext->id]);
         provider::delete_data_for_user($approved);
 
-        $this->assertEquals(0, $DB->count_records('local_imisbridge_log', ['userid' => $user->id]));
-        $this->assertEquals(1, $DB->count_records('local_imisbridge_log', ['userid' => $other->id]));
+        $this->assertEquals(0, $DB->count_records('local_membershipbridge_log', ['userid' => $user->id]));
+        $this->assertEquals(1, $DB->count_records('local_membershipbridge_log', ['userid' => $other->id]));
     }
 
     /**
@@ -133,13 +133,13 @@ final class provider_test extends \advanced_testcase {
 
         $systemcontext = \context_system::instance();
 
-        $userlist = new userlist($systemcontext, 'local_imisbridge');
+        $userlist = new userlist($systemcontext, 'local_membershipbridge');
         provider::get_users_in_context($userlist);
         $this->assertEqualsCanonicalizing([$user->id], $userlist->get_userids());
 
-        $approved = new approved_userlist($systemcontext, 'local_imisbridge', [$user->id]);
+        $approved = new approved_userlist($systemcontext, 'local_membershipbridge', [$user->id]);
         provider::delete_data_for_users($approved);
-        $this->assertEquals(0, $DB->count_records('local_imisbridge_log', ['userid' => $user->id]));
+        $this->assertEquals(0, $DB->count_records('local_membershipbridge_log', ['userid' => $user->id]));
     }
 
     /**
@@ -153,15 +153,15 @@ final class provider_test extends \advanced_testcase {
         $this->resetAfterTest();
 
         $names = [];
-        foreach (provider::get_metadata(new collection('local_imisbridge'))->get_collection() as $item) {
+        foreach (provider::get_metadata(new collection('local_membershipbridge'))->get_collection() as $item) {
             $names[] = $item->get_name();
         }
-        $this->assertContains('local_imisbridge_scorepush', $names);
+        $this->assertContains('local_membershipbridge_scorepush', $names);
 
         $user  = $this->getDataGenerator()->create_user();
         $other = $this->getDataGenerator()->create_user();
         foreach ([$user, $other] as $u) {
-            $DB->insert_record('local_imisbridge_scorepush', (object)[
+            $DB->insert_record('local_membershipbridge_scorepush', (object)[
                 'userid'     => $u->id,
                 'itemid'     => 42,
                 'finalgrade' => 80,
@@ -172,30 +172,30 @@ final class provider_test extends \advanced_testcase {
         $systemcontext = \context_system::instance();
         $this->assertEquals([$systemcontext->id], provider::get_contexts_for_userid($user->id)->get_contextids());
 
-        $userlist = new userlist($systemcontext, 'local_imisbridge');
+        $userlist = new userlist($systemcontext, 'local_membershipbridge');
         provider::get_users_in_context($userlist);
         $this->assertEqualsCanonicalizing([$user->id, $other->id], $userlist->get_userids());
 
-        $approved = new approved_contextlist($user, 'local_imisbridge', [$systemcontext->id]);
+        $approved = new approved_contextlist($user, 'local_membershipbridge', [$systemcontext->id]);
         provider::export_user_data($approved);
         $this->assertTrue(writer::with_context($systemcontext)->has_any_data());
 
         // Queue a score push for each user, as the observer would.
         foreach ([$user, $other] as $u) {
-            $task = new \local_imisbridge\task\push_score_note_task();
+            $task = new \local_membershipbridge\task\push_score_note_task();
             $task->set_custom_data((object)['userid' => $u->id, 'itemid' => 42, 'generation' => 1, 'imisid' => 'x']);
             \core\task\manager::queue_adhoc_task($task);
         }
 
         provider::delete_data_for_user($approved);
-        $this->assertEquals(0, $DB->count_records('local_imisbridge_scorepush', ['userid' => $user->id]));
-        $queued = \core\task\manager::get_adhoc_tasks(\local_imisbridge\task\push_score_note_task::class);
+        $this->assertEquals(0, $DB->count_records('local_membershipbridge_scorepush', ['userid' => $user->id]));
+        $queued = \core\task\manager::get_adhoc_tasks(\local_membershipbridge\task\push_score_note_task::class);
         $this->assertCount(1, $queued, 'the erased user\'s queued score push is deleted');
         $this->assertEquals($other->id, reset($queued)->get_custom_data()->userid);
-        $this->assertEquals(1, $DB->count_records('local_imisbridge_scorepush', ['userid' => $other->id]));
+        $this->assertEquals(1, $DB->count_records('local_membershipbridge_scorepush', ['userid' => $other->id]));
 
-        provider::delete_data_for_users(new approved_userlist($systemcontext, 'local_imisbridge', [$other->id]));
-        $this->assertEquals(0, $DB->count_records('local_imisbridge_scorepush'));
-        $this->assertCount(0, \core\task\manager::get_adhoc_tasks(\local_imisbridge\task\push_score_note_task::class));
+        provider::delete_data_for_users(new approved_userlist($systemcontext, 'local_membershipbridge', [$other->id]));
+        $this->assertEquals(0, $DB->count_records('local_membershipbridge_scorepush'));
+        $this->assertCount(0, \core\task\manager::get_adhoc_tasks(\local_membershipbridge\task\push_score_note_task::class));
     }
 }

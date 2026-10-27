@@ -21,17 +21,17 @@
  * pushed onto an adhoc task so it runs in cron rather than blocking the
  * user-facing login/quiz/completion request.
  *
- * @package    local_imisbridge
+ * @package    local_membershipbridge
  * @copyright  2024 Vernon Spain
  * @license    http://www.gnu.org/copyleft/gpl.html GNU GPL v3 or later
  */
 
-namespace local_imisbridge;
+namespace local_membershipbridge;
 
 /**
- * Event observer for local_imisbridge.
+ * Event observer for local_membershipbridge.
  *
- * @package    local_imisbridge
+ * @package    local_membershipbridge
  * @copyright  2024 Vernon Spain
  * @license    http://www.gnu.org/copyleft/gpl.html GNU GPL v3 or later
  */
@@ -137,7 +137,7 @@ class observer {
      * @return \stdClass The push payload (matching push_activity_task's custom data).
      */
     public static function completion_push_data(string $imisid, \stdClass $course, int $userid): \stdClass {
-        $credittype = get_config('local_imisbridge', 'credit_type');
+        $credittype = get_config('local_membershipbridge', 'credit_type');
         if (empty($credittype)) {
             $credittype = 'CEU';
         }
@@ -443,10 +443,10 @@ class observer {
     public static function queue_score_push(int $userid, string $imisid, \stdClass $cm, \grade_item $item, int $gradeid): bool {
         // Serialise claims for this learner and grade item, so concurrent grading
         // events cannot interleave their read-then-write of the tracking row.
-        $lock = \core\lock\lock_config::get_lock_factory('local_imisbridge_scorepush')
+        $lock = \core\lock\lock_config::get_lock_factory('local_membershipbridge_scorepush')
             ->get_lock($userid . '_' . $item->id, 10);
         if (!$lock) {
-            debugging('local_imisbridge: could not lock the score push for user ' . $userid
+            debugging('local_membershipbridge: could not lock the score push for user ' . $userid
                 . ' and grade item ' . $item->id . '; skipped', DEBUG_DEVELOPER);
             return false;
         }
@@ -535,14 +535,14 @@ class observer {
         global $DB, $CFG;
         require_once($CFG->libdir . '/gradelib.php');
 
-        $record = $DB->get_record('local_imisbridge_scorepush', ['userid' => $userid, 'itemid' => $itemid]);
+        $record = $DB->get_record('local_membershipbridge_scorepush', ['userid' => $userid, 'itemid' => $itemid]);
 
         if ($finalgrade === null) {
             if ($record && $record->finalgrade !== null) {
                 $record->finalgrade = null;
                 $record->generation = (int)$record->generation + 1;
                 $record->timequeued = time();
-                $DB->update_record('local_imisbridge_scorepush', $record);
+                $DB->update_record('local_membershipbridge_scorepush', $record);
             }
             return null;
         }
@@ -558,11 +558,11 @@ class observer {
             $record->finalgrade = $finalgrade;
             $record->generation = (int)$record->generation + 1;
             $record->timequeued = time();
-            $DB->update_record('local_imisbridge_scorepush', $record);
+            $DB->update_record('local_membershipbridge_scorepush', $record);
             return (int)$record->generation;
         }
 
-        $DB->insert_record('local_imisbridge_scorepush', (object)[
+        $DB->insert_record('local_membershipbridge_scorepush', (object)[
             'userid'     => $userid,
             'itemid'     => $itemid,
             'finalgrade' => $finalgrade,
@@ -674,7 +674,7 @@ class observer {
         string $status,
         float $score
     ): void {
-        $credittype = get_config('local_imisbridge', 'credit_type');
+        $credittype = get_config('local_membershipbridge', 'credit_type');
         if (empty($credittype)) {
             $credittype = 'CEU';
         }
@@ -829,7 +829,7 @@ class observer {
      * @return float
      */
     private static function course_credit_value(int $courseid): float {
-        $shortname = get_config('local_imisbridge', 'credit_field');
+        $shortname = get_config('local_membershipbridge', 'credit_field');
         if (empty($shortname)) {
             return 0.0;
         }

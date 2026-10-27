@@ -17,17 +17,17 @@
 /**
  * Scheduled task: sync iMIS groups (incremental, based on last run time).
  *
- * @package    local_imisbridge
+ * @package    local_membershipbridge
  * @copyright  2024 Vernon Spain
  * @license    http://www.gnu.org/copyleft/gpl.html GNU GPL v3 or later
  */
 
-namespace local_imisbridge\task;
+namespace local_membershipbridge\task;
 
 /**
  * Syncs iMIS groups, incrementally based on the last run timestamp.
  *
- * @package    local_imisbridge
+ * @package    local_membershipbridge
  * @copyright  2024 Vernon Spain
  * @license    http://www.gnu.org/copyleft/gpl.html GNU GPL v3 or later
  */
@@ -38,7 +38,7 @@ class sync_groups_task extends \core\task\scheduled_task {
      * @return string
      */
     public function get_name(): string {
-        return get_string('task_sync_groups', 'local_imisbridge');
+        return get_string('task_sync_groups', 'local_membershipbridge');
     }
 
     /**
@@ -47,17 +47,17 @@ class sync_groups_task extends \core\task\scheduled_task {
      * @return void
      */
     public function execute(): void {
-        if (!\local_imisbridge\util::is_enabled('task_groups_enabled')) {
+        if (!\local_membershipbridge\util::is_enabled('task_groups_enabled')) {
             mtrace('Membership Bridge: Group sync task disabled in plugin settings; skipping.');
             return;
         }
 
-        $provider = \local_imisbridge\provider\manager::org_sync_instance();
+        $provider = \local_membershipbridge\provider\manager::org_sync_instance();
         if ($provider === null) {
             mtrace('Membership Bridge: no configured sync provider (see the Sync provider setting); skipping group sync.');
             return;
         }
-        if ($provider instanceof \local_imisbridge\rest_client) {
+        if ($provider instanceof \local_membershipbridge\rest_client) {
             // Under REST, groups come from the tutorial group sync. Return without
             // touching the watermark, so switching back to the ATS bridge resumes its
             // incremental sync from where it left off rather than skipping changes.
@@ -71,7 +71,7 @@ class sync_groups_task extends \core\task\scheduled_task {
             // the scheduled-task last-run time. A disabled run returns early without
             // advancing it, so re-enabling the task does not skip changes made while
             // it was off. Null means sync everything (first run).
-            $lastsync    = get_config('local_imisbridge', 'groups_last_sync');
+            $lastsync    = get_config('local_membershipbridge', 'groups_last_sync');
             $lastupdated = !empty($lastsync) ? gmdate('Y-m-d\TH:i:s', (int)$lastsync) : null;
 
             // Stamp the window start before the call so changes made during the sync
@@ -81,7 +81,7 @@ class sync_groups_task extends \core\task\scheduled_task {
             $result = $provider->update_groups(null, null, $lastupdated);
 
             // Advance the watermark only after a successful sync.
-            set_config('groups_last_sync', $windowstart, 'local_imisbridge');
+            set_config('groups_last_sync', $windowstart, 'local_membershipbridge');
             mtrace('Membership Bridge: Group sync complete. Result: ' . var_export($result, true));
         } catch (\Exception $e) {
             mtrace('Membership Bridge: Group sync FAILED: ' . $e->getMessage());

@@ -17,23 +17,23 @@
 /**
  * Tests for the results back-fill.
  *
- * @package    local_imisbridge
+ * @package    local_membershipbridge
  * @copyright  2024 Vernon Spain
  * @license    http://www.gnu.org/copyleft/gpl.html GNU GPL v3 or later
  */
 
-namespace local_imisbridge;
+namespace local_membershipbridge;
 
-use local_imisbridge\task\push_activity_task;
-use local_imisbridge\task\push_score_note_task;
+use local_membershipbridge\task\push_activity_task;
+use local_membershipbridge\task\push_score_note_task;
 
 /**
  * Unit tests for {@see backfill}.
  *
- * @package    local_imisbridge
+ * @package    local_membershipbridge
  * @copyright  2024 Vernon Spain
  * @license    http://www.gnu.org/copyleft/gpl.html GNU GPL v3 or later
- * @covers     \local_imisbridge\backfill
+ * @covers     \local_membershipbridge\backfill
  */
 final class backfill_test extends \advanced_testcase {
     /** @var \stdClass The course. */
@@ -49,8 +49,8 @@ final class backfill_test extends \advanced_testcase {
         parent::setUp();
         $this->resetAfterTest();
         require_once($CFG->libdir . '/gradelib.php');
-        set_config('wsdl_url', 'https://example.invalid/wsmoodle.asmx?WSDL', 'local_imisbridge');
-        set_config('imis_id_source', 'idnumber', 'local_imisbridge');
+        set_config('wsdl_url', 'https://example.invalid/wsmoodle.asmx?WSDL', 'local_membershipbridge');
+        set_config('imis_id_source', 'idnumber', 'local_membershipbridge');
         $this->course = $this->getDataGenerator()->create_course();
     }
 
@@ -112,7 +112,7 @@ final class backfill_test extends \advanced_testcase {
     public function test_skips_ids_not_in_imis_format(): void {
         $this->completer('20016', time());
         $this->completer('anon47', time());
-        set_config('imis_id_format', 'digits', 'local_imisbridge');
+        set_config('imis_id_format', 'digits', 'local_membershipbridge');
 
         $report = (new backfill((int)$this->course->id, true))->completions();
 
@@ -126,7 +126,7 @@ final class backfill_test extends \advanced_testcase {
     /**
      * A push queued before Digits only was set is skipped when it runs, not sent.
      *
-     * @covers \local_imisbridge\task\push_activity_task::execute
+     * @covers \local_membershipbridge\task\push_activity_task::execute
      * @return void
      */
     public function test_queued_push_skipped_after_format_change(): void {
@@ -135,7 +135,7 @@ final class backfill_test extends \advanced_testcase {
         $tasks = \core\task\manager::get_adhoc_tasks(push_activity_task::class);
         $this->assertCount(1, $tasks);
 
-        set_config('imis_id_format', 'digits', 'local_imisbridge');
+        set_config('imis_id_format', 'digits', 'local_membershipbridge');
         $this->expectOutputRegex('/anon47 is not in the iMIS ID format; skipping/');
         reset($tasks)->execute();
     }
@@ -148,7 +148,7 @@ final class backfill_test extends \advanced_testcase {
     public function test_member_filter_and_override(): void {
         $this->completer('20016', time());
         $this->completer('20017', time());
-        set_config('push_course_overrides', "{$this->course->id}=2152", 'local_imisbridge');
+        set_config('push_course_overrides', "{$this->course->id}=2152", 'local_membershipbridge');
 
         $report = (new backfill((int)$this->course->id, true, '20017'))->completions();
 
@@ -166,7 +166,7 @@ final class backfill_test extends \advanced_testcase {
      */
     public function test_completions_respect_toggle(): void {
         $this->completer('20016', time());
-        set_config('push_completions', '0', 'local_imisbridge');
+        set_config('push_completions', '0', 'local_membershipbridge');
 
         $report = (new backfill((int)$this->course->id, true))->completions();
 
@@ -181,7 +181,7 @@ final class backfill_test extends \advanced_testcase {
      */
     public function test_scores_sent_once(): void {
         global $DB;
-        set_config('push_score_modules', 'assign', 'local_imisbridge');
+        set_config('push_score_modules', 'assign', 'local_membershipbridge');
         $user   = $this->getDataGenerator()->create_user(['idnumber' => '20016']);
         $this->getDataGenerator()->enrol_user($user->id, $this->course->id);
         $assign = $this->getDataGenerator()->create_module('assign', ['course' => $this->course->id, 'grade' => 100]);

@@ -15,9 +15,9 @@
 // along with Moodle.  If not, see <http://www.gnu.org/licenses/>.
 
 /**
- * External web service definitions for local_imisbridge.
+ * External web service definitions for local_membershipbridge.
  *
- * @package    local_imisbridge
+ * @package    local_membershipbridge
  * @copyright  2024 Vernon Spain
  * @license    http://www.gnu.org/copyleft/gpl.html GNU GPL v3 or later
  */
@@ -25,23 +25,23 @@
 defined('MOODLE_INTERNAL') || die();
 
 $functions = [
-    'local_imisbridge_get_completions_since' => [
-        'classname'   => 'local_imisbridge\\external\\get_completions_since',
+    'local_membershipbridge_get_completions_since' => [
+        'classname'   => 'local_membershipbridge\\external\\get_completions_since',
         'methodname'  => 'execute',
         'description' => 'Return course completions and final course grades changed since a given time, '
             . 'for bulk pull synchronisation to iMIS.',
         'type'        => 'read',
-        'capabilities' => 'local/imisbridge:readcompletions',
+        'capabilities' => 'local/membershipbridge:readcompletions',
         'ajax'        => false,
     ],
-    'local_imisbridge_cancel_enrolment' => [
-        'classname'   => 'local_imisbridge\\external\\cancel_enrolment',
+    'local_membershipbridge_cancel_enrolment' => [
+        'classname'   => 'local_membershipbridge\\external\\cancel_enrolment',
         'methodname'  => 'execute',
         'description' => 'Cancel a user\'s enrolment in a course by suspending it and removing their role, '
             . 'without unenrolling (so grades and completion are preserved). For the inbound '
             . 'order-cancellation path; point the ATS unenrol function mapping at this.',
         'type'        => 'write',
-        'capabilities' => 'local/imisbridge:cancelenrolment',
+        'capabilities' => 'local/membershipbridge:cancelenrolment',
         'ajax'        => false,
     ],
 ];
@@ -52,14 +52,14 @@ $functions = [
 // function may instead be added to the inbound core-functions service if the ATS
 // uses a separate inbound token (see docs/CHANGEOVER-CHECKLIST.md).
 $services = [
-    'iMIS bridge' => [
+    'Membership bridge' => [
         'functions'       => [
-            'local_imisbridge_get_completions_since',
-            'local_imisbridge_cancel_enrolment',
+            'local_membershipbridge_get_completions_since',
+            'local_membershipbridge_cancel_enrolment',
         ],
         'restrictedusers' => 1,
         'enabled'         => 1,
-        'shortname'       => 'local_imisbridge',
+        'shortname'       => 'local_membershipbridge',
         'downloadfiles'   => 0,
         'uploadfiles'     => 0,
     ],

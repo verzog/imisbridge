@@ -17,14 +17,14 @@
 /**
  * Reads registrations from an iMIS IQA over the REST API.
  *
- * @package    local_imisbridge
+ * @package    local_membershipbridge
  * @copyright  2024 Vernon Spain
  * @license    http://www.gnu.org/copyleft/gpl.html GNU GPL v3 or later
  */
 
-namespace local_imisbridge\registration;
+namespace local_membershipbridge\registration;
 
-use local_imisbridge\rest_client;
+use local_membershipbridge\rest_client;
 
 /**
  * {@see reader} over a registrations IQA, run with no prompts.
@@ -43,7 +43,7 @@ use local_imisbridge\rest_client;
  * A failed read throws (from {@see rest_client::run_iqa()}), so an outage can never
  * look like an empty registration list.
  *
- * @package    local_imisbridge
+ * @package    local_membershipbridge
  * @copyright  2024 Vernon Spain
  * @license    http://www.gnu.org/copyleft/gpl.html GNU GPL v3 or later
  */

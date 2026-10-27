@@ -17,16 +17,16 @@
 /**
  * Plugin version information.
  *
- * @package    local_imisbridge
+ * @package    local_membershipbridge
  * @copyright  2024 Vernon Spain
  * @license    http://www.gnu.org/copyleft/gpl.html GNU GPL v3 or later
  */
 
 defined('MOODLE_INTERNAL') || die();
 
-$plugin->component = 'local_imisbridge';
-$plugin->version   = 2026102700;
+$plugin->component = 'local_membershipbridge';
+$plugin->version   = 2026102800;
 $plugin->requires  = 2025100600; // Moodle 5.1+.
 $plugin->supported = [501, 503]; // Moodle 5.1 to 5.3 LTS.
 $plugin->maturity  = MATURITY_STABLE;
-$plugin->release   = '1.26.5';
+$plugin->release   = '2.0.0';

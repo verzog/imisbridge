@@ -25,7 +25,7 @@ Key behaviours:
   from iMIS and enrols active registrants (creating missing accounts) and suspends
   cancelled ones itself, with no ATS involved. A dry run is on by default. The
   *Sync provider* setting can also keep the ATS syncs while records go over REST.
-* **Cancellation without data loss**: the `local_imisbridge_cancel_enrolment` web
+* **Cancellation without data loss**: the `local_membershipbridge_cancel_enrolment` web
   service function lets the ATS bridge *suspend* a cancelled learner (grades and
   completion kept) instead of hard-unenrolling them.
 * On login, a per-user enrolment/cancellation/group sync can be queued as an adhoc
@@ -65,7 +65,7 @@ Key behaviours:
 
 The plugin can be also installed by putting the contents of this directory to
 
-    {your/moodle/dirroot}/local/imisbridge
+    {your/moodle/dirroot}/local/membershipbridge
 
 Afterwards, log in to your Moodle site as an admin and go to _Site administration
 > Notifications_ to complete the installation.
@@ -142,9 +142,6 @@ trademark of Moodle Pty Ltd. This project is independent: it is not affiliated
 with, sponsored or endorsed by Advanced Solutions International, ATS (the vendor of
 the `wsmoodle` bridge) or Moodle Pty Ltd. Their names are used only to describe the
 systems this plugin works with.
-
-The plugin's Moodle component name, `local_imisbridge`, is a technical identifier
-only.
 
 ## License ##
 

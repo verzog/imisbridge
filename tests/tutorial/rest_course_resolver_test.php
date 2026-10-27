@@ -17,14 +17,14 @@
 /**
  * Tests for the MOODLE_PRODUCTS course resolver.
  *
- * @package    local_imisbridge
+ * @package    local_membershipbridge
  * @copyright  2024 Vernon Spain
  * @license    http://www.gnu.org/copyleft/gpl.html GNU GPL v3 or later
  */
 
-namespace local_imisbridge\tutorial;
+namespace local_membershipbridge\tutorial;
 
-use local_imisbridge\rest_client;
+use local_membershipbridge\rest_client;
 
 /**
  * Unit tests for {@see rest_course_resolver}.
@@ -32,10 +32,10 @@ use local_imisbridge\rest_client;
  * A stub REST client returns canned IQA rows, so the tests assert only the
  * resolver's matching and validation logic with no network.
  *
- * @package    local_imisbridge
+ * @package    local_membershipbridge
  * @copyright  2024 Vernon Spain
  * @license    http://www.gnu.org/copyleft/gpl.html GNU GPL v3 or later
- * @covers     \local_imisbridge\tutorial\rest_course_resolver
+ * @covers     \local_membershipbridge\tutorial\rest_course_resolver
  */
 final class rest_course_resolver_test extends \advanced_testcase {
     /**
@@ -186,7 +186,7 @@ final class rest_course_resolver_test extends \advanced_testcase {
     public function test_override_wins_without_reading_imis(): void {
         $course = $this->getDataGenerator()->create_course();
         set_config('course_map_overrides', "# Staging test courses\nACCD_26={$course->id}\n"
-            . "rpldERM_26/REG={$course->id}\nGONE=999999\n", 'local_imisbridge');
+            . "rpldERM_26/REG={$course->id}\nGONE=999999\n", 'local_membershipbridge');
         $client = $this->stub_client([$this->entity(['Code' => 'ACCD_26/REG', 'Description' => '2152'])]);
 
         $resolver = new rest_course_resolver($client);

@@ -17,12 +17,12 @@
 /**
  * Contract for a source of tutorial-group membership rows.
  *
- * @package    local_imisbridge
+ * @package    local_membershipbridge
  * @copyright  2024 Vernon Spain
  * @license    http://www.gnu.org/copyleft/gpl.html GNU GPL v3 or later
  */
 
-namespace local_imisbridge\tutorial;
+namespace local_membershipbridge\tutorial;
 
 /**
  * A source the group sync reads its desired membership from.
@@ -32,7 +32,7 @@ namespace local_imisbridge\tutorial;
  * any other reader can be dropped in without touching the sync engine, and tests
  * inject a fake reader with no network.
  *
- * @package    local_imisbridge
+ * @package    local_membershipbridge
  * @copyright  2024 Vernon Spain
  * @license    http://www.gnu.org/copyleft/gpl.html GNU GPL v3 or later
  */

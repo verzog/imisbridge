@@ -17,17 +17,17 @@
 /**
  * Scheduled task: sync iMIS tutorial groups into Moodle course groups (nightly by default).
  *
- * @package    local_imisbridge
+ * @package    local_membershipbridge
  * @copyright  2024 Vernon Spain
  * @license    http://www.gnu.org/copyleft/gpl.html GNU GPL v3 or later
  */
 
-namespace local_imisbridge\task;
+namespace local_membershipbridge\task;
 
-use local_imisbridge\rest_client;
-use local_imisbridge\tutorial\group_sync;
-use local_imisbridge\tutorial\rest_course_resolver;
-use local_imisbridge\tutorial\rest_reader;
+use local_membershipbridge\rest_client;
+use local_membershipbridge\tutorial\group_sync;
+use local_membershipbridge\tutorial\rest_course_resolver;
+use local_membershipbridge\tutorial\rest_reader;
 
 /**
  * Makes Moodle course groups match the iMIS MoodleTutorialGroup panel.
@@ -37,7 +37,7 @@ use local_imisbridge\tutorial\rest_reader;
  * group web-service capabilities. The feature is off until explicitly enabled, and
  * defaults to dry-run so a new site logs what it would do before it touches data.
  *
- * @package    local_imisbridge
+ * @package    local_membershipbridge
  * @copyright  2024 Vernon Spain
  * @license    http://www.gnu.org/copyleft/gpl.html GNU GPL v3 or later
  */
@@ -48,7 +48,7 @@ class sync_tutorial_groups extends \core\task\scheduled_task {
      * @return string
      */
     public function get_name(): string {
-        return get_string('task_sync_tutorial_groups', 'local_imisbridge');
+        return get_string('task_sync_tutorial_groups', 'local_membershipbridge');
     }
 
     /**
@@ -57,7 +57,7 @@ class sync_tutorial_groups extends \core\task\scheduled_task {
      * @return void
      */
     public function execute(): void {
-        if (!\local_imisbridge\util::is_enabled_optin('tutorial_sync_enabled')) {
+        if (!\local_membershipbridge\util::is_enabled_optin('tutorial_sync_enabled')) {
             mtrace('Membership Bridge: Tutorial group sync disabled in plugin settings; skipping.');
             return;
         }
@@ -70,8 +70,8 @@ class sync_tutorial_groups extends \core\task\scheduled_task {
             return;
         }
 
-        $dryrun = \local_imisbridge\util::is_enabled('tutorial_dry_run');
-        $guard  = (int)get_config('local_imisbridge', 'tutorial_removal_guard_pct');
+        $dryrun = \local_membershipbridge\util::is_enabled('tutorial_dry_run');
+        $guard  = (int)get_config('local_membershipbridge', 'tutorial_removal_guard_pct');
 
         mtrace('Membership Bridge: Starting tutorial group sync' . ($dryrun ? ' (DRY RUN)' : '') . '...');
         try {

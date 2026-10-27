@@ -15,9 +15,9 @@
 // along with Moodle.  If not, see <http://www.gnu.org/licenses/>.
 
 /**
- * Scheduled task definitions for local_imisbridge.
+ * Scheduled task definitions for local_membershipbridge.
  *
- * @package    local_imisbridge
+ * @package    local_membershipbridge
  * @copyright  2024 Vernon Spain
  * @license    http://www.gnu.org/copyleft/gpl.html GNU GPL v3 or later
  */
@@ -28,7 +28,7 @@ $tasks = [
 
     // Nightly full enrollment sync — all users.
     [
-        'classname' => '\local_imisbridge\task\sync_enrollments_task',
+        'classname' => '\local_membershipbridge\task\sync_enrollments_task',
         'blocking'  => 0,
         'minute'    => '0',
         'hour'      => '2',
@@ -40,7 +40,7 @@ $tasks = [
 
     // Nightly cancellation sync — all users.
     [
-        'classname' => '\local_imisbridge\task\sync_cancellations_task',
+        'classname' => '\local_membershipbridge\task\sync_cancellations_task',
         'blocking'  => 0,
         'minute'    => '15',
         'hour'      => '2',
@@ -52,7 +52,7 @@ $tasks = [
 
     // Nightly group sync — only records changed since last run.
     [
-        'classname' => '\local_imisbridge\task\sync_groups_task',
+        'classname' => '\local_membershipbridge\task\sync_groups_task',
         'blocking'  => 0,
         'minute'    => '30',
         'hour'      => '2',
@@ -65,7 +65,7 @@ $tasks = [
     // Nightly tutorial-group sync — mirrors the iMIS MoodleTutorialGroup panel.
     // Admins can change the schedule in Site admin > Server > Scheduled tasks.
     [
-        'classname' => '\local_imisbridge\task\sync_tutorial_groups',
+        'classname' => '\local_membershipbridge\task\sync_tutorial_groups',
         'blocking'  => 0,
         'minute'    => '45',
         'hour'      => '2',
@@ -77,7 +77,7 @@ $tasks = [
 
     // Daily audit-log cleanup — prunes rows past the retention period.
     [
-        'classname' => '\local_imisbridge\task\cleanup_log_task',
+        'classname' => '\local_membershipbridge\task\cleanup_log_task',
         'blocking'  => 0,
         'minute'    => '45',
         'hour'      => '3',

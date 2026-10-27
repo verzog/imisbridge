@@ -17,17 +17,17 @@
 /**
  * Scheduled task: prune old Membership Bridge audit-log rows.
  *
- * @package    local_imisbridge
+ * @package    local_membershipbridge
  * @copyright  2024 Vernon Spain
  * @license    http://www.gnu.org/copyleft/gpl.html GNU GPL v3 or later
  */
 
-namespace local_imisbridge\task;
+namespace local_membershipbridge\task;
 
 /**
  * Deletes audit-log rows older than the configured retention period.
  *
- * @package    local_imisbridge
+ * @package    local_membershipbridge
  * @copyright  2024 Vernon Spain
  * @license    http://www.gnu.org/copyleft/gpl.html GNU GPL v3 or later
  */
@@ -38,7 +38,7 @@ class cleanup_log_task extends \core\task\scheduled_task {
      * @return string
      */
     public function get_name(): string {
-        return get_string('task_cleanup_log', 'local_imisbridge');
+        return get_string('task_cleanup_log', 'local_membershipbridge');
     }
 
     /**
@@ -49,7 +49,7 @@ class cleanup_log_task extends \core\task\scheduled_task {
     public function execute(): void {
         // Default to 90 days when the setting has not been saved yet (e.g. just
         // after an upgrade); an explicitly saved 0 still means keep indefinitely.
-        $days = get_config('local_imisbridge', 'log_retention_days');
+        $days = get_config('local_membershipbridge', 'log_retention_days');
         $days = ($days === false) ? 90 : (int)$days;
 
         if ($days <= 0) {
@@ -57,7 +57,7 @@ class cleanup_log_task extends \core\task\scheduled_task {
             return;
         }
 
-        $deleted = \local_imisbridge\logger::purge($days);
+        $deleted = \local_membershipbridge\logger::purge($days);
         mtrace('Membership Bridge: pruned ' . $deleted . ' audit-log row(s) older than ' . $days . ' days.');
     }
 }

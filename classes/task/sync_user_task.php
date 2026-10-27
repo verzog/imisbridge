@@ -19,17 +19,17 @@
  *
  * Queued on login so the external SOAP round-trips do not block the user.
  *
- * @package    local_imisbridge
+ * @package    local_membershipbridge
  * @copyright  2024 Vernon Spain
  * @license    http://www.gnu.org/copyleft/gpl.html GNU GPL v3 or later
  */
 
-namespace local_imisbridge\task;
+namespace local_membershipbridge\task;
 
 /**
  * Synchronises one iMIS user's enrolments, cancellations and groups.
  *
- * @package    local_imisbridge
+ * @package    local_membershipbridge
  * @copyright  2024 Vernon Spain
  * @license    http://www.gnu.org/copyleft/gpl.html GNU GPL v3 or later
  */
@@ -40,7 +40,7 @@ class sync_user_task extends \core\task\adhoc_task {
      * @return string
      */
     public function get_name(): string {
-        return get_string('task_sync_user', 'local_imisbridge');
+        return get_string('task_sync_user', 'local_membershipbridge');
     }
 
     /**
@@ -56,19 +56,19 @@ class sync_user_task extends \core\task\adhoc_task {
             return;
         }
         // Re-check the iMIS ID format: it may have been set to Digits only after queueing.
-        if (!\local_imisbridge\util::is_valid_imis_id((string)$imisid)) {
+        if (!\local_membershipbridge\util::is_valid_imis_id((string)$imisid)) {
             mtrace('Membership Bridge: ' . $imisid . ' is not in the iMIS ID format; skipping.');
             return;
         }
 
-        if (!\local_imisbridge\provider\manager::sync_configured()) {
+        if (!\local_membershipbridge\provider\manager::sync_configured()) {
             mtrace('Membership Bridge: no configured sync provider; skipping ' . $imisid . '.');
             return;
         }
 
-        $enrolments = \local_imisbridge\util::is_enabled('sync_enrolments_on_login');
-        $cancellations = \local_imisbridge\util::is_enabled('sync_cancellations_on_login');
-        $groups = \local_imisbridge\util::is_enabled('sync_groups_on_login');
+        $enrolments = \local_membershipbridge\util::is_enabled('sync_enrolments_on_login');
+        $cancellations = \local_membershipbridge\util::is_enabled('sync_cancellations_on_login');
+        $groups = \local_membershipbridge\util::is_enabled('sync_groups_on_login');
 
         // Return before touching the network if every login sync was disabled
         // after this task was queued: constructing the client fetches the WSDL.
@@ -77,7 +77,7 @@ class sync_user_task extends \core\task\adhoc_task {
             return;
         }
 
-        $provider = \local_imisbridge\provider\manager::org_sync_instance();
+        $provider = \local_membershipbridge\provider\manager::org_sync_instance();
         if ($provider === null) {
             mtrace('Membership Bridge: no configured sync provider; skipping ' . $imisid . '.');
             return;

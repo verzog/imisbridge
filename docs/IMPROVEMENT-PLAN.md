@@ -2,7 +2,7 @@
 
 Synthesises the vendor-incident lessons (`DESIGN-NOTES.md`) and the reconstructed
 vendor architecture (`VENDOR-ARCHITECTURE.md`) into a prioritised roadmap for
-`local_imisbridge`. The goal: match what the vendor bridge does, avoid every
+`local_membershipbridge`. The goal: match what the vendor bridge does, avoid every
 mistake it made, and be fully observable.
 
 Each work item is sized to be **one concern per PR**. Items marked ✅ are already
@@ -12,7 +12,7 @@ in the plugin; the rest are proposed, in priority order.
 
 ## What we already do right (baseline)
 
-- ✅ **Restricted service.** The "iMIS bridge" external service is
+- ✅ **Restricted service.** The "Membership bridge" external service is
   `restrictedusers => 1`, not on the mobile service, and both functions on it
   (`get_completions_since`, `cancel_enrolment`) enforce `validate_parameters →
   validate_context → require_capability` with the capability checked in the
@@ -22,7 +22,7 @@ in the plugin; the rest are proposed, in priority order.
   completion writes the canonical `MOODLE` record (`MoodleUpdate`); quiz scores and
   module notes are append-only `MOODLENOTE`s (`CreateActivity`), so a re-attempt can
   never overwrite a completion (1.16.0).
-- ✅ **Cancellation keeps data.** `local_imisbridge_cancel_enrolment` suspends
+- ✅ **Cancellation keeps data.** `local_membershipbridge_cancel_enrolment` suspends
   instead of unenrolling, keeping grades and completion (CHANGEOVER-CHECKLIST §C).
 - ✅ **Tutorial group sync (1.19.x).** A plugin-controlled scheduled task pulls the
   iMIS `MoodleTutorialGroup` panel over direct REST — the first REST *pull* in the
@@ -72,7 +72,7 @@ records the vendor already wrote to iMIS.
 > **Status: superseded for cutover.** The changeover instead repoints the ATS
 > bridge at Moodle's **core** functions (`core_user_*`, `enrol_manual_enrol_users`)
 > on a hand-built restricted service, plus the plugin's own
-> `local_imisbridge_cancel_enrolment` for cancellations — see
+> `local_membershipbridge_cancel_enrolment` for cancellations — see
 > `CHANGEOVER-CHECKLIST.md` §C. The core enrol function *does* run `require_login()`,
 > so the service account needs `moodle/course:view` + `viewhiddencourses` rather than
 > `manager`. The in-plugin functions below remain the fallback **only if** the
@@ -114,7 +114,7 @@ Likely two PRs: (2a) users, (2b) enrolment.
 - Role on enrol is configurable (default Student), mirroring `ROLE_ID`.
 - Specific errors naming the course and reason (e.g. "course 2172: manual enrol
   instance disabled"), never Moodle's generic `requireloginerror`.
-- New capabilities (`local/imisbridge:provisionusers`, `:enrolusers`), granted to
+- New capabilities (`local/membershipbridge:provisionusers`, `:enrolusers`), granted to
   no role by default, each with the right risk flags; on the restricted service,
   never on mobile; checked in the correct context.
 
@@ -145,7 +145,7 @@ Likely two PRs: (2a) users, (2b) enrolment.
   token** and the **minimal service role** (the precise capability list), so the
   operator never grants `manager` to make it work.
 - Document enabling web services + the REST protocol, and the recommended SSO/
-  token handling (token in POST body, dedicated non-personal `imisbridge`
+  token handling (token in POST body, dedicated non-personal `membershipbridge`
   account).
 - Note the throttle expectation (`API_DELAY_MILLISECONDS`-style) is unnecessary
   with our bulk/paged calls, but bulk endpoints are provided so iMIS need not loop

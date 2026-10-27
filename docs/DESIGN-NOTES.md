@@ -2,7 +2,7 @@
 
 Lessons captured while diagnosing a production outage on SCCA's existing vendor
 iMIS→Moodle bridge (`local_imis`, built by ATS). Each item is written as a
-requirement or caution for our own `local_imisbridge` plugin. The thread running
+requirement or caution for our own `local_membershipbridge` plugin. The thread running
 through all of it: when the vendor bridge broke, nothing in Moodle could tell us
 why, because the parts that mattered weren't logged, weren't owned properly, and
 weren't observable.
@@ -34,7 +34,7 @@ For our plugin:
   security-keys page — privileged create/enrol functions exposed to anyone.)
 - Document, in the README and ideally in an admin settings page, exactly which
   account the token belongs to. Never leave the operator guessing.
-- The service account must be dedicated and non-personal (e.g. `imisbridge`),
+- The service account must be dedicated and non-personal (e.g. `membershipbridge`),
   never a staff member's SSO account. A departing employee must not be able to
   silently break the integration, and the audit trail must not read "created by
   <random person>".

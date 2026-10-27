@@ -15,9 +15,9 @@
 // along with Moodle.  If not, see <http://www.gnu.org/licenses/>.
 
 /**
- * Capability definitions for local_imisbridge.
+ * Capability definitions for local_membershipbridge.
  *
- * @package    local_imisbridge
+ * @package    local_membershipbridge
  * @copyright  2024 Vernon Spain
  * @license    http://www.gnu.org/copyleft/gpl.html GNU GPL v3 or later
  */
@@ -37,7 +37,7 @@ $capabilities = [
     // context does not satisfy a system-context capability check. Adding the user
     // to the restricted service's allowed-users list controls service access but
     // does not, on its own, grant this capability.
-    'local/imisbridge:readcompletions' => [
+    'local/membershipbridge:readcompletions' => [
         'riskbitmask'  => RISK_PERSONAL,
         'captype'      => 'read',
         'contextlevel' => CONTEXT_SYSTEM,
@@ -51,7 +51,7 @@ $capabilities = [
     // or deleted - so it carries no data-loss risk flag, unlike core unenrol.
     //
     // Granted to no role by default. Assign it to the inbound service-account role.
-    'local/imisbridge:cancelenrolment' => [
+    'local/membershipbridge:cancelenrolment' => [
         'captype'      => 'write',
         'contextlevel' => CONTEXT_COURSE,
         'archetypes'   => [],

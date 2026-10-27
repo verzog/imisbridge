@@ -15,24 +15,24 @@
 // along with Moodle.  If not, see <http://www.gnu.org/licenses/>.
 
 /**
- * Tests for the local_imisbridge bulk completions web service.
+ * Tests for the local_membershipbridge bulk completions web service.
  *
- * @package    local_imisbridge
+ * @package    local_membershipbridge
  * @copyright  2024 Vernon Spain
  * @license    http://www.gnu.org/copyleft/gpl.html GNU GPL v3 or later
  */
 
-namespace local_imisbridge\external;
+namespace local_membershipbridge\external;
 
 use core_external\external_api;
 
 /**
  * Unit tests for {@see get_completions_since}.
  *
- * @package    local_imisbridge
+ * @package    local_membershipbridge
  * @copyright  2024 Vernon Spain
  * @license    http://www.gnu.org/copyleft/gpl.html GNU GPL v3 or later
- * @covers     \local_imisbridge\external\get_completions_since
+ * @covers     \local_membershipbridge\external\get_completions_since
  */
 final class get_completions_since_test extends \advanced_testcase {
     /**
@@ -263,7 +263,7 @@ final class get_completions_since_test extends \advanced_testcase {
      */
     public function test_imisid_respects_source(): void {
         $this->setAdminUser();
-        set_config('imis_id_source', 'email', 'local_imisbridge');
+        set_config('imis_id_source', 'email', 'local_membershipbridge');
         $user   = $this->getDataGenerator()->create_user(['email' => 'member@example.org']);
         $course = $this->getDataGenerator()->create_course();
         $this->make_completion((int)$user->id, (int)$course->id, 1000);

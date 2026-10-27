@@ -17,12 +17,12 @@
 /**
  * Registry and factory for external records-system providers.
  *
- * @package    local_imisbridge
+ * @package    local_membershipbridge
  * @copyright  2024 Vernon Spain
  * @license    http://www.gnu.org/copyleft/gpl.html GNU GPL v3 or later
  */
 
-namespace local_imisbridge\provider;
+namespace local_membershipbridge\provider;
 
 /**
  * Resolves the active provider and lists the providers available to choose from.
@@ -31,7 +31,7 @@ namespace local_imisbridge\provider;
  * {@see provider_interface} (or {@see org_sync_provider}) and add it to
  * {@see providers()} keyed by the value stored in the connection setting.
  *
- * @package    local_imisbridge
+ * @package    local_membershipbridge
  * @copyright  2024 Vernon Spain
  * @license    http://www.gnu.org/copyleft/gpl.html GNU GPL v3 or later
  */
@@ -43,8 +43,8 @@ class manager {
      */
     public static function providers(): array {
         return [
-            'soap' => \local_imisbridge\imis_client::class,
-            'rest' => \local_imisbridge\rest_client::class,
+            'soap' => \local_membershipbridge\imis_client::class,
+            'rest' => \local_membershipbridge\rest_client::class,
         ];
     }
 
@@ -57,7 +57,7 @@ class manager {
      * @return string
      */
     public static function active_key(): string {
-        $configured = (string)get_config('local_imisbridge', 'transport');
+        $configured = (string)get_config('local_membershipbridge', 'transport');
         return isset(self::providers()[$configured]) ? $configured : 'soap';
     }
 
@@ -119,7 +119,7 @@ class manager {
      * @return string Fully-qualified class name.
      */
     public static function sync_provider_class(): string {
-        $configured = (string)get_config('local_imisbridge', 'sync_provider');
+        $configured = (string)get_config('local_membershipbridge', 'sync_provider');
         return self::providers()[$configured] ?? self::active_provider_class();
     }
 
@@ -130,7 +130,7 @@ class manager {
      * @return array<string,string> Setting value => label.
      */
     public static function sync_menu(): array {
-        $menu = ['' => get_string('sync_provider_same', 'local_imisbridge')];
+        $menu = ['' => get_string('sync_provider_same', 'local_membershipbridge')];
         foreach (self::providers() as $key => $class) {
             if (is_a($class, org_sync_provider::class, true)) {
                 $menu[$key] = $class::label();

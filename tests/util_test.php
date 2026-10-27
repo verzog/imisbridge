@@ -15,22 +15,22 @@
 // along with Moodle.  If not, see <http://www.gnu.org/licenses/>.
 
 /**
- * Tests for the local_imisbridge util helpers.
+ * Tests for the local_membershipbridge util helpers.
  *
- * @package    local_imisbridge
+ * @package    local_membershipbridge
  * @copyright  2024 Vernon Spain
  * @license    http://www.gnu.org/copyleft/gpl.html GNU GPL v3 or later
  */
 
-namespace local_imisbridge;
+namespace local_membershipbridge;
 
 /**
  * Unit tests for {@see util}.
  *
- * @package    local_imisbridge
+ * @package    local_membershipbridge
  * @copyright  2024 Vernon Spain
  * @license    http://www.gnu.org/copyleft/gpl.html GNU GPL v3 or later
- * @covers     \local_imisbridge\util
+ * @covers     \local_membershipbridge\util
  */
 final class util_test extends \advanced_testcase {
     /**
@@ -44,10 +44,10 @@ final class util_test extends \advanced_testcase {
         // Unset is treated as enabled so upgrades keep existing behaviour.
         $this->assertTrue(util::is_enabled('push_completions'));
 
-        set_config('push_completions', '0', 'local_imisbridge');
+        set_config('push_completions', '0', 'local_membershipbridge');
         $this->assertFalse(util::is_enabled('push_completions'));
 
-        set_config('push_completions', '1', 'local_imisbridge');
+        set_config('push_completions', '1', 'local_membershipbridge');
         $this->assertTrue(util::is_enabled('push_completions'));
     }
 
@@ -62,14 +62,14 @@ final class util_test extends \advanced_testcase {
         // Unset defaults to username so existing installs are unchanged.
         $this->assertSame('username', util::imis_id_source());
 
-        set_config('imis_id_source', 'idnumber', 'local_imisbridge');
+        set_config('imis_id_source', 'idnumber', 'local_membershipbridge');
         $this->assertSame('idnumber', util::imis_id_source());
 
-        set_config('imis_id_source', 'email', 'local_imisbridge');
+        set_config('imis_id_source', 'email', 'local_membershipbridge');
         $this->assertSame('email', util::imis_id_source());
 
         // An unrecognised value falls back to username.
-        set_config('imis_id_source', 'bogus', 'local_imisbridge');
+        set_config('imis_id_source', 'bogus', 'local_membershipbridge');
         $this->assertSame('username', util::imis_id_source());
     }
 
@@ -86,14 +86,14 @@ final class util_test extends \advanced_testcase {
         // Default source is username.
         $this->assertSame('member123', util::get_imis_id($user));
 
-        set_config('imis_id_source', 'idnumber', 'local_imisbridge');
+        set_config('imis_id_source', 'idnumber', 'local_membershipbridge');
         $this->assertSame('IM-9', util::get_imis_id($user));
 
-        set_config('imis_id_source', 'email', 'local_imisbridge');
+        set_config('imis_id_source', 'email', 'local_membershipbridge');
         $this->assertSame('a@b.test', util::get_imis_id($user));
 
         // Empty configured field yields an empty string.
-        set_config('imis_id_source', 'idnumber', 'local_imisbridge');
+        set_config('imis_id_source', 'idnumber', 'local_membershipbridge');
         $this->assertSame('', util::get_imis_id((object)['idnumber' => '   ']));
         $this->assertSame('', util::get_imis_id((object)['username' => 'x']));
     }
@@ -109,10 +109,10 @@ final class util_test extends \advanced_testcase {
         // Unset WSDL: not configured, so automatic writes should no-op.
         $this->assertFalse(util::is_configured());
 
-        set_config('wsdl_url', 'https://example.invalid/wsmoodle.asmx?WSDL', 'local_imisbridge');
+        set_config('wsdl_url', 'https://example.invalid/wsmoodle.asmx?WSDL', 'local_membershipbridge');
         $this->assertTrue(util::is_configured());
 
-        set_config('wsdl_url', '', 'local_imisbridge');
+        set_config('wsdl_url', '', 'local_membershipbridge');
         $this->assertFalse(util::is_configured());
     }
 
@@ -134,17 +134,17 @@ final class util_test extends \advanced_testcase {
      */
     public function test_imis_id_format(): void {
         $this->resetAfterTest();
-        set_config('imis_id_source', 'idnumber', 'local_imisbridge');
+        set_config('imis_id_source', 'idnumber', 'local_membershipbridge');
         $member = (object)['idnumber' => '20016', 'email' => 'm@example.com'];
         $anon   = (object)['idnumber' => 'anon47', 'email' => 'a@example.com'];
 
         $this->assertSame('anon47', util::get_imis_id($anon), 'any value by default');
 
-        set_config('imis_id_format', 'digits', 'local_imisbridge');
+        set_config('imis_id_format', 'digits', 'local_membershipbridge');
         $this->assertSame('20016', util::get_imis_id($member));
         $this->assertSame('', util::get_imis_id($anon));
 
-        set_config('imis_id_source', 'email', 'local_imisbridge');
+        set_config('imis_id_source', 'email', 'local_membershipbridge');
         $this->assertSame('a@example.com', util::get_imis_id($anon), 'digits rule does not apply to email');
     }
 }

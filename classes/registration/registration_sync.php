@@ -17,16 +17,16 @@
 /**
  * Enrolment and cancellation sync from registration rows.
  *
- * @package    local_imisbridge
+ * @package    local_membershipbridge
  * @copyright  2024 Vernon Spain
  * @license    http://www.gnu.org/copyleft/gpl.html GNU GPL v3 or later
  */
 
-namespace local_imisbridge\registration;
+namespace local_membershipbridge\registration;
 
-use local_imisbridge\enrolment;
-use local_imisbridge\tutorial\course_resolver;
-use local_imisbridge\util;
+use local_membershipbridge\enrolment;
+use local_membershipbridge\tutorial\course_resolver;
+use local_membershipbridge\util;
 
 /**
  * Enrols active registrants and suspends cancelled ones, deciding per member and course.
@@ -55,7 +55,7 @@ use local_imisbridge\util;
  *   skipped and logged;
  * - a dry run reports every change without making any.
  *
- * @package    local_imisbridge
+ * @package    local_membershipbridge
  * @copyright  2024 Vernon Spain
  * @license    http://www.gnu.org/copyleft/gpl.html GNU GPL v3 or later
  */

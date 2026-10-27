@@ -17,12 +17,12 @@
 /**
  * Back-fill of existing course results to iMIS.
  *
- * @package    local_imisbridge
+ * @package    local_membershipbridge
  * @copyright  2024 Vernon Spain
  * @license    http://www.gnu.org/copyleft/gpl.html GNU GPL v3 or later
  */
 
-namespace local_imisbridge;
+namespace local_membershipbridge;
 
 /**
  * Queues pushes for results that already exist in one course, as if each had just
@@ -35,7 +35,7 @@ namespace local_imisbridge;
  * is not sent again. A dry run (the default) reports what would be queued and
  * changes nothing.
  *
- * @package    local_imisbridge
+ * @package    local_membershipbridge
  * @copyright  2024 Vernon Spain
  * @license    http://www.gnu.org/copyleft/gpl.html GNU GPL v3 or later
  */
@@ -208,7 +208,7 @@ class backfill {
      */
     private static function score_unsent(int $userid, int $itemid, float $finalgrade): bool {
         global $DB;
-        $record = $DB->get_record('local_imisbridge_scorepush', ['userid' => $userid, 'itemid' => $itemid]);
+        $record = $DB->get_record('local_membershipbridge_scorepush', ['userid' => $userid, 'itemid' => $itemid]);
         return !$record || $record->finalgrade === null || grade_floats_different((float)$record->finalgrade, $finalgrade);
     }
 

@@ -4,6 +4,35 @@ All notable changes to the iMIS Bridge plugin (`local_imisbridge`) are documente
 in this file. The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [2.0.0] - 2026-10-28
+
+### Changed
+- **Renamed to `local_membershipbridge`** (folder `local/membershipbridge`), so no
+  part of the plugin is named after a third party's trademark. Everything that
+  carried the old name follows:
+  - namespaces;
+  - settings (`local_membershipbridge/…`);
+  - tables (`local_membershipbridge_log`, `local_membershipbridge_scorepush`);
+  - capabilities (`local/membershipbridge:cancelenrolment`, `:readcompletions`);
+  - web-service functions (`local_membershipbridge_cancel_enrolment`,
+    `local_membershipbridge_get_completions_since`);
+  - the external service, now *Membership bridge*.
+
+### Added
+- **Carry-over from `local_imisbridge` on install** (`classes/migration.php`). It
+  copies:
+  - settings;
+  - the audit log and sent-score records, keeping their ids;
+  - role grants of the old capabilities;
+  - the tutorial-group memberships the plugin manages;
+  - queued pushes, except activity pushes queued by a version before 1.8.0. Those
+    still name the course by idnumber or shortname, so they are dropped, as the
+    1.8.0 upgrade did;
+  - the cancel function on hand-built web services.
+  
+  It then switches the old plugin's writes off. The steps (tokens, the ATS unenrol
+  mapping, uninstalling the old plugin) are in `docs/CHANGEOVER-CHECKLIST.md` §M.
+
 ## [1.26.5] - 2026-10-27
 
 ### Changed
@@ -616,11 +645,11 @@ behaviour.
 - Generalised the privacy metadata string, `README.md`, and `docs/TESTING.md` to
   describe the configurable identifier rather than assuming the username.
 
-[1.8.0]: https://github.com/verzog/imisbridge/releases/tag/v1.8.0
-[1.7.0]: https://github.com/verzog/imisbridge/releases/tag/v1.7.0
-[1.6.1]: https://github.com/verzog/imisbridge/releases/tag/v1.6.1
-[1.6.0]: https://github.com/verzog/imisbridge/releases/tag/v1.6.0
-[1.5.0]: https://github.com/verzog/imisbridge/releases/tag/v1.5.0
-[1.4.2]: https://github.com/verzog/imisbridge/releases/tag/v1.4.2
-[1.4.1]: https://github.com/verzog/imisbridge/releases/tag/v1.4.1
-[1.4.0]: https://github.com/verzog/imisbridge/releases/tag/v1.4.0
+[1.8.0]: https://github.com/verzog/membershipbridge/releases/tag/v1.8.0
+[1.7.0]: https://github.com/verzog/membershipbridge/releases/tag/v1.7.0
+[1.6.1]: https://github.com/verzog/membershipbridge/releases/tag/v1.6.1
+[1.6.0]: https://github.com/verzog/membershipbridge/releases/tag/v1.6.0
+[1.5.0]: https://github.com/verzog/membershipbridge/releases/tag/v1.5.0
+[1.4.2]: https://github.com/verzog/membershipbridge/releases/tag/v1.4.2
+[1.4.1]: https://github.com/verzog/membershipbridge/releases/tag/v1.4.1
+[1.4.0]: https://github.com/verzog/membershipbridge/releases/tag/v1.4.0

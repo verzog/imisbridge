@@ -1,7 +1,7 @@
 # iMIS plugin changeover checklist
 
 Confirming a successful switch from the vendor `local_imis` plugin to
-`local_imisbridge` on the live Moodle. Use alongside `TEST-CHECKLIST.md`
+`local_membershipbridge` on the live Moodle. Use alongside `TEST-CHECKLIST.md`
 (setup/connectivity), `TEST-PLAN.md` (the per-feature test matrix) and
 `VENDOR-ARCHITECTURE.md` (what the vendor did).
 
@@ -18,6 +18,10 @@ tutorial groups) or any other provider combination.
 vendor never had (iMIS tutorial groups → Moodle course groups, over direct REST),
 so it has no parity to prove and does not depend on the vendor swap. It can go
 live before, with, or after the changeover; §T has its own checks.
+
+**The plugin was renamed in 2.0.0**, from `local_imisbridge` to
+`local_membershipbridge`. A site that already has `local_imisbridge` installed
+(including staging copies of it) moves across first, using §M.
 
 ## At a glance
 
@@ -44,7 +48,7 @@ In working order. Section letters refer to the full checklist below.
 4. **Outbound parity (§B).** Completion, quiz score and activity score records match
    the vendor's. Check them in iMIS, not only in the audit log.
 5. **Inbound service (§C).**
-   - Core create/enrol functions plus `local_imisbridge_cancel_enrolment` on a
+   - Core create/enrol functions plus `local_membershipbridge_cancel_enrolment` on a
      restricted service.
    - A service-account role with the starred capabilities, allowed to assign Student.
    - A new token.
@@ -81,12 +85,12 @@ In working order. Section letters refer to the full checklist below.
 
 ## What is the same, and what differs
 
-| Concern | Vendor `local_imis` | New `local_imisbridge` |
+| Concern | Vendor `local_imis` | New `local_membershipbridge` |
 |---|---|---|
 | Completion → iMIS | `course_completed` → `MoodleUpdate` (canonical MOODLE record) | `course_completed` → `MoodleUpdate` — **same** |
 | Score → iMIS | `user_graded` → `createActivity` (MOODLENOTE) | Quiz: `quiz_attempt_submitted` → `CreateActivity` (MOODLENOTE, `Note2 = score`). Other activities (1.20.0): `user_graded` → `CreateActivity` (MOODLENOTE, `Note2 = score`, per activity) for the types ticked in **Push activity scores** — same record type; **opt-in per activity type** |
 | Module completions | `course_module_completion_updated` → MOODLENOTE | **opt-in** via `push_module_completions` (default off, **graded modules only**) |
-| Inbound provisioning | `local_imis_*` web-service functions (in-plugin) | **create/enrol: none in-plugin** → Moodle **core** functions on a hand-built service; **cancel:** `local_imisbridge_cancel_enrolment` (suspend, keeps data) |
+| Inbound provisioning | `local_imis_*` web-service functions (in-plugin) | **create/enrol: none in-plugin** → Moodle **core** functions on a hand-built service; **cancel:** `local_membershipbridge_cancel_enrolment` (suspend, keeps data) |
 | Tutorial groups | none | **new:** nightly REST pull of the `MoodleTutorialGroup` panel (§T) |
 | Identity field | `$user->idnumber` | `imis_id_source` setting (set to **ID number**) |
 | productID | numeric Moodle course id | numeric Moodle course id — **same** |
@@ -94,8 +98,8 @@ In working order. Section letters refer to the full checklist below.
 Verified from the code: the new plugin's observers are `user_loggedin`,
 `course_completed`, `mod_quiz\event\attempt_submitted`, and (opt-in)
 `course_module_completion_updated` and `core\event\user_graded`. Its web-service functions are
-`local_imisbridge_get_completions_since` (a read-only completions pull) and
-`local_imisbridge_cancel_enrolment` (suspend-not-unenrol cancellation, §C), both on
+`local_membershipbridge_get_completions_since` (a read-only completions pull) and
+`local_membershipbridge_cancel_enrolment` (suspend-not-unenrol cancellation, §C), both on
 a restricted service — it exposes **no** create/get/update/enrol functions.
 
 ---
@@ -135,7 +139,7 @@ Resolve these before cutover — they are behaviour changes, not bugs:
 
 Order matters here — disable writes **before** entering any endpoint.
 
-- [ ] `local_imisbridge` installed on the live Moodle; **pause Moodle cron** for the
+- [ ] `local_membershipbridge` installed on the live Moodle; **pause Moodle cron** for the
   configuration window.
 - [ ] **Disable every write toggle FIRST, before saving any endpoint.** Eight
   automatic writes default to **enabled** (and an *unset* value is treated as
@@ -197,7 +201,7 @@ Order matters here — disable writes **before** entering any endpoint.
 
 ## C. Inbound provisioning — verify the core-functions service
 
-> **`local_imisbridge` provides no inbound functions by design.** Inbound
+> **`local_membershipbridge` provides no inbound functions by design.** Inbound
 > provisioning (create user, enrol, unenrol) is done by **core Moodle web-service
 > functions** (`core_user_*`, `enrol_manual_*`) exposed on an external service, with
 > ATS's `FN_*` mappings repointed to those core names (§D). The vendor's
@@ -207,7 +211,7 @@ Order matters here — disable writes **before** entering any endpoint.
 > its `validate_context()` still runs `require_login()`, so the account needs
 > `moodle/course:view` (+ `viewhiddencourses` for hidden courses) — see the recipe
 > below. A single-plugin alternative (adding external
-> functions + a `db/services.php` to `local_imisbridge` and pointing `FN_*` at them)
+> functions + a `db/services.php` to `local_membershipbridge` and pointing `FN_*` at them)
 > is heavier — more code and capability surface. Prefer the core route **unless**
 > the existing-user test below shows ATS strands the enrol when
 > `core_user_create_users` throws on an already-existing user (parity decision 3):
@@ -218,7 +222,7 @@ Order matters here — disable writes **before** entering any endpoint.
 > requirement is to **keep the learner's data**. Core `enrol_manual_unenrol_users`
 > **hard-unenrols**, deleting that enrolment's grades and completion — the wrong
 > outcome. Point the ATS `FN_ENROL_MANUAL_UNENROL_USERS` mapping at
-> **`local_imisbridge_cancel_enrolment`** instead. It takes
+> **`local_membershipbridge_cancel_enrolment`** instead. It takes
 > `enrolments: [{userid, courseid, roleid?}]`, and for each entry **suspends** every
 > enrolment the user has in the course (row, grades and completion all kept; access
 > removed) and **unassigns the role that enrolment grants** — the enrolment
@@ -228,8 +232,8 @@ Order matters here — disable writes **before** entering any endpoint.
 > half-apply data. `roleid` is optional: 0/omitted targets each suspended enrolment's
 > default role; a specific id removes just that role.
 >
-> Grant the service-account role **`local/imisbridge:cancelenrolment`** and add the
-> function to the inbound service (it is also on the plugin's own `iMIS bridge`
+> Grant the service-account role **`local/membershipbridge:cancelenrolment`** and add the
+> function to the inbound service (it is also on the plugin's own `Membership bridge`
 > service).
 >
 > **On the live `invalidparameter` error (unconfirmed root cause):** the ATS logs
@@ -251,9 +255,9 @@ Order matters here — disable writes **before** entering any endpoint.
    service.
 3. Add its **functions**: `core_user_get_users`, `core_user_create_users`,
    `core_user_update_users`, `enrol_manual_enrol_users`, and — for cancellation —
-   **`local_imisbridge_cancel_enrolment`** (suspend + unassign role, keeping data; see
+   **`local_membershipbridge_cancel_enrolment`** (suspend + unassign role, keeping data; see
    the cancellation callout above). Add core `enrol_manual_unenrol_users` as well only
-   if some flow still needs a hard unenrol. (`local_imisbridge_get_completions_since`
+   if some flow still needs a hard unenrol. (`local_membershipbridge_get_completions_since`
    can ride the same service if one token also serves the outbound bulk pull;
    `core_webservice_get_site_info` is handy for a connectivity check.)
 4. Create a dedicated **service-account** user and add it as an **authorised user**
@@ -272,8 +276,8 @@ Order matters here — disable writes **before** entering any endpoint.
      `moodle/site:viewuseridentity` on this role, so granting `viewalldetails` is
      simpler.)
    - `enrol/manual:enrol`, `enrol/manual:unenrol`
-   - ★ **`local/imisbridge:cancelenrolment`** — required by
-     `local_imisbridge_cancel_enrolment` (the suspend-not-unenrol cancellation
+   - ★ **`local/membershipbridge:cancelenrolment`** — required by
+     `local_membershipbridge_cancel_enrolment` (the suspend-not-unenrol cancellation
      function). Checked in the course context, so this system-context role covers
      every course. Granted to no role by default.
    - ★ **`moodle/course:view`** — "View courses without participation". Without it,
@@ -286,7 +290,7 @@ Order matters here — disable writes **before** entering any endpoint.
      **hidden** (the usual prod case: courses hidden until launch).
    - ★ **`moodle/role:assign`** — needed by `enrol_manual_enrol_users` to assign the
      Student role (`ROLE_ID`).
-   - `local/imisbridge:readcompletions` — only if this token also serves the pull.
+   - `local/membershipbridge:readcompletions` — only if this token also serves the pull.
 6. **Allow this role to assign Student.** `moodle/role:assign` alone is not enough:
    go to Site admin → Users → Permissions → **Define roles → Allow role assignments**
    and tick that the service-account role may assign the **Student** role
@@ -317,7 +321,7 @@ Then verify:
 - [ ] `FN_*` mappings changed from the `local_imis_*` names to the core names
   (`core_user_get_users`, `core_user_create_users`, `core_user_update_users`,
   `enrol_manual_enrol_users`), with **`FN_ENROL_MANUAL_UNENROL_USERS` →
-  `local_imisbridge_cancel_enrolment`** so a cancellation suspends and removes the
+  `local_membershipbridge_cancel_enrolment`** so a cancellation suspends and removes the
   role instead of hard-unenrolling (see the cancellation callout in §C). Leave it on
   core `enrol_manual_unenrol_users` only if a hard unenrol is genuinely wanted.
 - [ ] `WEBSERVICE_TOKEN` → the new token on the new service.
@@ -406,13 +410,13 @@ way, each with the symptom that identifies it:
   only* inbound test, you cannot assume that yet — confirm an enrol works on the token
   first, or read the log. Fix (missing-function case): add the function that
   `FN_ENROL_MANUAL_UNENROL_USERS` maps to (core `enrol_manual_unenrol_users`, or
-  `local_imisbridge_cancel_enrolment`) to the external service the ATS token uses
+  `local_membershipbridge_cancel_enrolment`) to the external service the ATS token uses
   (Site admin → Server → Web services → External services → *service* → Functions),
   and confirm the token user is an authorised user of it. When mapping to
-  **`local_imisbridge_cancel_enrolment`**: it only exists after
+  **`local_membershipbridge_cancel_enrolment`**: it only exists after
   the plugin is **deployed and upgraded** (its `db/services.php` then registers it and
-  adds it to the plugin's own `iMIS bridge` service), and the service-account role
-  must hold **`local/imisbridge:cancelenrolment`** (checked inside the function; a
+  adds it to the plugin's own `Membership bridge` service), and the service-account role
+  must hold **`local/membershipbridge:cancelenrolment`** (checked inside the function; a
   missing one surfaces as `nopermissions`, not `accessexception`). The function also
   calls `validate_context()`, so it still needs `course:view` (+ `viewhiddencourses`
   for a hidden course) as in §C.
@@ -484,11 +488,11 @@ Moodle core web-service functions** — *not* by the plugin's `SendNewOrdersToMo
 SOAP pull. So on this install the plugin's **order/cancellation/group sync is not
 the enrolment mechanism** and its login/nightly sync toggles stay **off**.
 
-`local_imisbridge` owns:
+`local_membershipbridge` owns:
 
 - the **outbound** push — completions via `MoodleUpdate`, quiz scores (and opt-in
   module notes) via `CreateActivity`;
-- the inbound **cancellation** function `local_imisbridge_cancel_enrolment` (called
+- the inbound **cancellation** function `local_membershipbridge_cancel_enrolment` (called
   by ATS, suspend-not-unenrol — §C);
 - **tutorial group membership** — the §T scheduled task, which makes Moodle course
   groups match the iMIS `MoodleTutorialGroup` panel over direct REST.
@@ -498,14 +502,14 @@ keep it that way, so tutorial groups have **one** writer (§T).
 
 ## T. Tutorial group sync go-live (direct REST — independent of the vendor swap)
 
-A nightly scheduled task (`\local_imisbridge\task\sync_tutorial_groups`, 02:45 by
+A nightly scheduled task (`\local_membershipbridge\task\sync_tutorial_groups`, 02:45 by
 default) reads the iMIS `MoodleTutorialGroup` panel and makes each course's groups
 match it: it creates the groups (under the grouping **Tutorials (iMIS)**), adds the
 people iMIS lists, and removes the people iMIS no longer lists. It runs as cron
 using Moodle's internal group API, so it needs **no** Moodle web-service user or
 group capabilities — only an **iMIS** account that can read the panel and the
 course-lookup IQA. It only ever touches groups whose idnumber starts `imis:` and
-memberships it created itself (component `local_imisbridge`), so groups and members
+memberships it created itself (component `local_membershipbridge`), so groups and members
 that teachers add by hand are left alone.
 
 Requires **1.19.4 or later** (1.19.2 fixed the course lookup; 1.19.4 fixed the audit
@@ -549,7 +553,7 @@ log on long REST URLs).
   **on** (the default).
 - [ ] Run the task now: *Site admin → Server → Scheduled tasks →* "Membership
   Bridge: sync tutorial groups" *→ Run now* (or from the CLI:
-  `php admin/cli/scheduled_task.php --execute='\local_imisbridge\task\sync_tutorial_groups'`).
+  `php admin/cli/scheduled_task.php --execute='\local_membershipbridge\task\sync_tutorial_groups'`).
 - [ ] Read the task log. The summary line reports courses, groups created, members
   added/removed, rows skipped and removal guards; each skipped row says why:
   - `no Moodle course mapped` → missing/wrong `MOODLE_PRODUCTS` row (T1);
@@ -684,7 +688,7 @@ run could write to **production iMIS**.
 - [ ] Catalyst pins the endpoints and credentials in the staging `config.php`, so the
   copy can never reach production (forced settings cannot be changed in the UI):
   ```php
-  $CFG->forced_plugin_settings['local_imisbridge'] = [
+  $CFG->forced_plugin_settings['local_membershipbridge'] = [
       'rest_base_url' => 'https://<imis-staging-host>',
       'rest_username' => '<staging service account>',
       'rest_password' => '<staging password>',
@@ -711,7 +715,7 @@ run could write to **production iMIS**.
 
 ### S2. First login: switch writes off, configure
 
-- [ ] Upgrade `local_imisbridge` to the current release.
+- [ ] Upgrade `local_membershipbridge` to the current release.
 - [ ] Push toggles **off** to start: *Push completions*, *Push quiz scores*, *Push
   module completions*, and no types ticked in *Push activity scores*.
 - [ ] Login syncs **off** (*Sync enrolments / cancellations / groups on login*).
@@ -834,6 +838,48 @@ invariant):
 Rolling back the vendor swap does **not** require turning off the tutorial group
 sync (§T) — the vendor never managed those groups. Roll that back separately, by
 unticking *Enable tutorial group sync* (§T5).
+
+## M. Moving a site from `local_imisbridge` to `local_membershipbridge` (2.0.0)
+
+Moodle treats the renamed component as a new plugin. On install it carries the old
+one's site over (`classes/migration.php`):
+- settings;
+- audit log and sent-score records, with their ids, so no score is sent twice;
+- each role's grants of the old capabilities;
+- the tutorial-group memberships the old plugin manages;
+- pushes it queued but had not sent. On a version before 1.8.0, queued activity
+  pushes still carry the course idnumber or shortname, so they are dropped
+  instead; re-send those completions with the back-fill;
+- the cancel function on any hand-built service, such as the ATS inbound one.
+
+It then turns the old plugin's pushes and syncs **off**, so the two never both
+write. Do it in a maintenance window:
+
+- [ ] Pause cron.
+- [ ] Replace the code: remove the `local/imisbridge` folder and add
+  `local/membershipbridge` (the 2.0.0 release zip unpacks to that folder).
+- [ ] *Site administration → Notifications*: install `local_membershipbridge`. The
+  old plugin now shows as *missing from disk*.
+- [ ] Check the settings carried over (*Plugins → Local plugins → Membership
+  Bridge*) and that *Push completions* and the other toggles are as they were.
+- [ ] Uninstall `local_imisbridge` (*Plugins overview → Uninstall*). This deletes its
+  old settings, tables, capabilities, its own *iMIS bridge* service and that
+  service's tokens.
+- [ ] **Tokens and services.**
+  - The plugin's own service is now *Membership bridge*. Add its authorised users
+    and create new tokens there if anything used the old *iMIS bridge* service
+    (e.g. a completions pull).
+  - A hand-built inbound service keeps its token and now also has
+    `local_membershipbridge_cancel_enrolment`.
+- [ ] **ATS `MOODLE_SETTINGS`:** `FN_ENROL_MANUAL_UNENROL_USERS` →
+  `local_membershipbridge_cancel_enrolment`, and `WEBSERVICE_TOKEN` if a token
+  changed.
+- [ ] The inbound service account's role has
+  `local/membershipbridge:cancelenrolment` (copied from the old grant; check it).
+- [ ] *Scheduled tasks*: the new tasks run at their default times. Re-apply any
+  custom schedule.
+- [ ] Resume cron, then run a one-member manual sync and a test cancellation, and
+  check the audit log.
 
 ---
 

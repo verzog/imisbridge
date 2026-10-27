@@ -17,16 +17,16 @@
 /**
  * Tests for the provider registry and capability resolution.
  *
- * @package    local_imisbridge
+ * @package    local_membershipbridge
  * @copyright  2024 Vernon Spain
  * @license    http://www.gnu.org/copyleft/gpl.html GNU GPL v3 or later
  */
 
-namespace local_imisbridge;
+namespace local_membershipbridge;
 
-use local_imisbridge\provider\manager;
-use local_imisbridge\provider\provider_interface;
-use local_imisbridge\provider\org_sync_provider;
+use local_membershipbridge\provider\manager;
+use local_membershipbridge\provider\provider_interface;
+use local_membershipbridge\provider\org_sync_provider;
 
 /**
  * Unit tests for {@see manager} and the provider capability contract.
@@ -35,10 +35,10 @@ use local_imisbridge\provider\org_sync_provider;
  * membership) without constructing a client, since the SOAP client requires a
  * live WSDL to build.
  *
- * @package    local_imisbridge
+ * @package    local_membershipbridge
  * @copyright  2024 Vernon Spain
  * @license    http://www.gnu.org/copyleft/gpl.html GNU GPL v3 or later
- * @covers     \local_imisbridge\provider\manager
+ * @covers     \local_membershipbridge\provider\manager
  */
 final class provider_manager_test extends \advanced_testcase {
     /**
@@ -60,12 +60,12 @@ final class provider_manager_test extends \advanced_testcase {
         $this->assertSame('soap', manager::active_key());
         $this->assertSame(imis_client::class, manager::active_provider_class());
 
-        set_config('transport', 'rest', 'local_imisbridge');
+        set_config('transport', 'rest', 'local_membershipbridge');
         $this->assertSame('rest', manager::active_key());
         $this->assertSame(rest_client::class, manager::active_provider_class());
 
         // An unrecognised value falls back to the SOAP bridge.
-        set_config('transport', 'bogus', 'local_imisbridge');
+        set_config('transport', 'bogus', 'local_membershipbridge');
         $this->assertSame(imis_client::class, manager::active_provider_class());
     }
 
@@ -114,12 +114,12 @@ final class provider_manager_test extends \advanced_testcase {
      * @return void
      */
     public function test_rest_sync_needs_registrations_iqa(): void {
-        set_config('transport', 'rest', 'local_imisbridge');
-        set_config('rest_base_url', 'https://example.test', 'local_imisbridge');
+        set_config('transport', 'rest', 'local_membershipbridge');
+        set_config('rest_base_url', 'https://example.test', 'local_membershipbridge');
         $this->assertFalse(manager::sync_configured());
         $this->assertNull(manager::org_sync_instance());
 
-        set_config('reg_iqa', '$/_SCCA/Events/Registrations', 'local_imisbridge');
+        set_config('reg_iqa', '$/_SCCA/Events/Registrations', 'local_membershipbridge');
         $this->assertTrue(manager::sync_configured());
         $this->assertInstanceOf(rest_client::class, manager::org_sync_instance());
     }
@@ -131,21 +131,21 @@ final class provider_manager_test extends \advanced_testcase {
      * @return void
      */
     public function test_sync_provider_selection(): void {
-        set_config('transport', 'rest', 'local_imisbridge');
+        set_config('transport', 'rest', 'local_membershipbridge');
         $this->assertSame(rest_client::class, manager::sync_provider_class(), 'blank follows the connection provider');
 
-        set_config('sync_provider', 'soap', 'local_imisbridge');
+        set_config('sync_provider', 'soap', 'local_membershipbridge');
         $this->assertSame(imis_client::class, manager::sync_provider_class());
         $this->assertSame(rest_client::class, manager::active_provider_class(), 'pushes still go over REST');
 
         // The SOAP bridge syncs with its own setting (a WSDL URL), not the REST one.
-        set_config('rest_base_url', 'https://example.test', 'local_imisbridge');
+        set_config('rest_base_url', 'https://example.test', 'local_membershipbridge');
         $this->assertFalse(manager::sync_configured());
-        set_config('wsdl_url', 'https://example.test/wsmoodle.asmx?WSDL', 'local_imisbridge');
+        set_config('wsdl_url', 'https://example.test/wsmoodle.asmx?WSDL', 'local_membershipbridge');
         $this->assertTrue(manager::sync_configured());
 
         // An unrecognised value follows the connection provider.
-        set_config('sync_provider', 'bogus', 'local_imisbridge');
+        set_config('sync_provider', 'bogus', 'local_membershipbridge');
         $this->assertSame(rest_client::class, manager::sync_provider_class());
 
         $menu = manager::sync_menu();
@@ -160,13 +160,13 @@ final class provider_manager_test extends \advanced_testcase {
     public function test_is_configured_delegates(): void {
         // Default provider is SOAP, which needs a WSDL URL.
         $this->assertFalse(util::is_configured());
-        set_config('wsdl_url', 'https://example.test/wsmoodle.asmx?WSDL', 'local_imisbridge');
+        set_config('wsdl_url', 'https://example.test/wsmoodle.asmx?WSDL', 'local_membershipbridge');
         $this->assertTrue(util::is_configured());
 
         // Switching to REST changes which setting is required.
-        set_config('transport', 'rest', 'local_imisbridge');
+        set_config('transport', 'rest', 'local_membershipbridge');
         $this->assertFalse(util::is_configured());
-        set_config('rest_base_url', 'https://example.test', 'local_imisbridge');
+        set_config('rest_base_url', 'https://example.test', 'local_membershipbridge');
         $this->assertTrue(util::is_configured());
     }
 
