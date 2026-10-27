@@ -47,6 +47,13 @@ class migration {
     /** @var string The current component name. */
     public const NEW = 'local_membershipbridge';
 
+    /**
+     * @var int The local_imisbridge version (1.8.0) from which queued activity pushes
+     *     carry the numeric course id; earlier ones carry the course idnumber or
+     *     shortname, and would write to the wrong iMIS product.
+     */
+    private const NUMERIC_PRODUCT_VERSION = 2026101901;
+
     /** @var string[] Tables carried over, by their name without the component prefix. */
     private const TABLES = ['log', 'scorepush'];
 
@@ -83,10 +90,11 @@ class migration {
         foreach (self::TABLES as $suffix) {
             $report[$suffix] = self::copy_table(self::OLD . '_' . $suffix, self::NEW . '_' . $suffix);
         }
-        $report['capabilities']  = self::copy_capabilities();
-        $report['groupmembers']  = self::move_group_memberships();
-        $report['adhoctasks']    = self::move_adhoc_tasks();
-        $report['servicefuncs']  = self::add_functions_to_services();
+        $report['capabilities'] = self::copy_capabilities();
+        $report['groupmembers'] = self::move_group_memberships();
+        $report['droppedtasks'] = self::drop_incompatible_tasks();
+        $report['adhoctasks']   = self::move_adhoc_tasks();
+        $report['servicefuncs'] = self::add_functions_to_services();
         self::switch_off_old_writes();
         return $report;
     }
@@ -189,6 +197,30 @@ class migration {
         $count = $DB->count_records('groups_members', ['component' => self::OLD]);
         if ($count) {
             $DB->set_field('groups_members', 'component', self::NEW, ['component' => self::OLD]);
+        }
+        return $count;
+    }
+
+    /**
+     * Drop activity pushes queued by a local_imisbridge older than 1.8.0, as its own
+     * upgrade to 1.8.0 did: their product id is the course idnumber or shortname, not
+     * the numeric course id, and sending them would write to the wrong iMIS product.
+     * Affected completions can be re-sent with the results back-fill.
+     *
+     * @return int The number of queued pushes dropped.
+     */
+    private static function drop_incompatible_tasks(): int {
+        global $DB;
+
+        $oldversion = (int)get_config(self::OLD, 'version');
+        if ($oldversion >= self::NUMERIC_PRODUCT_VERSION) {
+            return 0;
+        }
+        $classname = '\\' . self::OLD . '\\task\\push_activity_task';
+        $params = ['component' => self::OLD, 'classname' => $classname];
+        $count = $DB->count_records('task_adhoc', $params);
+        if ($count) {
+            $DB->delete_records('task_adhoc', $params);
         }
         return $count;
     }

@@ -25,6 +25,7 @@
 namespace local_membershipbridge;
 
 use local_membershipbridge\task\push_activity_task;
+use local_membershipbridge\task\push_module_note_task;
 
 /**
  * Unit tests for {@see migration}.
@@ -59,6 +60,24 @@ final class migration_test extends \advanced_testcase {
         $table->setName(migration::OLD . '_' . $suffix);
         $DB->get_manager()->create_temp_table($table);
         return $table;
+    }
+
+    /**
+     * Queue a task as the old plugin would have: under its component and class name.
+     *
+     * @param \core\task\adhoc_task $task The task, of this plugin's class.
+     * @return int The task_adhoc id.
+     */
+    private function old_task(\core\task\adhoc_task $task): int {
+        global $DB;
+        $id = \core\task\manager::queue_adhoc_task($task);
+        $record = $DB->get_record('task_adhoc', ['id' => $id], '*', MUST_EXIST);
+        $DB->update_record('task_adhoc', (object)[
+            'id' => $id,
+            'component' => migration::OLD,
+            'classname' => str_replace(migration::NEW, migration::OLD, $record->classname),
+        ]);
+        return $id;
     }
 
     /**
@@ -191,5 +210,42 @@ final class migration_test extends \advanced_testcase {
         $this->assertSame('0', get_config(migration::OLD, 'tutorial_sync_enabled'));
 
         $DB->get_manager()->drop_table($table);
+    }
+
+    /**
+     * From a local_imisbridge older than 1.8.0, queued activity pushes still carry the
+     * course idnumber or shortname as the product, so they are dropped rather than
+     * sent to the wrong iMIS product; other queued tasks still carry over.
+     *
+     * @return void
+     */
+    public function test_drops_activity_pushes_from_before_numeric_product(): void {
+        global $DB;
+        set_config('version', 2026101400, migration::OLD);
+        $push = $this->old_task(new push_activity_task());
+        $note = $this->old_task(new push_module_note_task());
+
+        $report = migration::from_imisbridge();
+
+        $this->assertSame(1, $report['droppedtasks']);
+        $this->assertSame(1, $report['adhoctasks']);
+        $this->assertFalse($DB->record_exists('task_adhoc', ['id' => $push]));
+        $this->assertSame(migration::NEW, $DB->get_field('task_adhoc', 'component', ['id' => $note]));
+    }
+
+    /**
+     * From 1.8.0 on, queued activity pushes are kept and carried over.
+     *
+     * @return void
+     */
+    public function test_keeps_activity_pushes_from_numeric_product_on(): void {
+        global $DB;
+        set_config('version', 2026101901, migration::OLD);
+        $push = $this->old_task(new push_activity_task());
+
+        $report = migration::from_imisbridge();
+
+        $this->assertSame(0, $report['droppedtasks']);
+        $this->assertSame(migration::NEW, $DB->get_field('task_adhoc', 'component', ['id' => $push]));
     }
 }

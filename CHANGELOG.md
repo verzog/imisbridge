@@ -25,7 +25,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - the audit log and sent-score records, keeping their ids;
   - role grants of the old capabilities;
   - the tutorial-group memberships the plugin manages;
-  - queued pushes;
+  - queued pushes, except activity pushes queued by a version before 1.8.0. Those
+    still name the course by idnumber or shortname, so they are dropped, as the
+    1.8.0 upgrade did;
   - the cancel function on hand-built web services.
   
   It then switches the old plugin's writes off. The steps (tokens, the ATS unenrol

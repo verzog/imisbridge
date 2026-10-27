@@ -847,7 +847,9 @@ one's site over (`classes/migration.php`):
 - audit log and sent-score records, with their ids, so no score is sent twice;
 - each role's grants of the old capabilities;
 - the tutorial-group memberships the old plugin manages;
-- pushes it queued but had not sent;
+- pushes it queued but had not sent. On a version before 1.8.0, queued activity
+  pushes still carry the course idnumber or shortname, so they are dropped
+  instead; re-send those completions with the back-fill;
 - the cancel function on any hand-built service, such as the ATS inbound one.
 
 It then turns the old plugin's pushes and syncs **off**, so the two never both
