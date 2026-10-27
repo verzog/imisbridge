@@ -4,6 +4,18 @@ All notable changes to the iMIS Bridge plugin (`local_imisbridge`) are documente
 in this file. The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.26.5] - 2026-10-27
+
+### Changed
+- **Public name is Membership Bridge.** The README title, its settings-page
+  paths, the task and CLI log prefixes ("Membership Bridge: …") and the design and
+  improvement-plan headings now use the plugin's display name, Membership Bridge,
+  instead of "iMIS Bridge". The README has a trademarks notice: iMIS and Moodle are
+  their owners' trademarks and this project is not affiliated with or endorsed by
+  them. Nothing else changes: the component (`local_imisbridge`), settings, tables,
+  capabilities, web-service functions and the *iMIS bridge* external service keep
+  their names, so existing installations and ATS mappings are unaffected.
+
 ## [1.26.4] - 2026-10-26
 
 ### Fixed

@@ -48,22 +48,22 @@ class sync_cancellations_task extends \core\task\scheduled_task {
      */
     public function execute(): void {
         if (!\local_imisbridge\util::is_enabled('task_cancellations_enabled')) {
-            mtrace('iMIS Bridge: Cancellation sync task disabled in plugin settings; skipping.');
+            mtrace('Membership Bridge: Cancellation sync task disabled in plugin settings; skipping.');
             return;
         }
 
         $provider = \local_imisbridge\provider\manager::org_sync_instance();
         if ($provider === null) {
-            mtrace('iMIS Bridge: no configured sync provider (see the Sync provider setting); skipping cancellation sync.');
+            mtrace('Membership Bridge: no configured sync provider (see the Sync provider setting); skipping cancellation sync.');
             return;
         }
 
-        mtrace('iMIS Bridge: Starting cancellation sync for all users...');
+        mtrace('Membership Bridge: Starting cancellation sync for all users...');
         try {
             $result = $provider->sync_cancelled_orders(null);
-            mtrace('iMIS Bridge: Cancellation sync complete. Result: ' . var_export($result, true));
+            mtrace('Membership Bridge: Cancellation sync complete. Result: ' . var_export($result, true));
         } catch (\Exception $e) {
-            mtrace('iMIS Bridge: Cancellation sync FAILED: ' . $e->getMessage());
+            mtrace('Membership Bridge: Cancellation sync FAILED: ' . $e->getMessage());
             throw $e;
         }
     }

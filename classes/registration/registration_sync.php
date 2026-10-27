@@ -122,7 +122,7 @@ class registration_sync {
         $this->trace          = $options['trace'] ?? static function (string $line): void {
             // Cron runs on the CLI; on a web page the report carries the messages instead.
             if (CLI_SCRIPT) {
-                mtrace('iMIS Bridge: ' . $line);
+                mtrace('Membership Bridge: ' . $line);
             }
         };
     }

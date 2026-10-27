@@ -57,23 +57,23 @@ class push_activity_task extends \core\task\adhoc_task {
         }
         // Re-check the iMIS ID format: it may have been set to Digits only after queueing.
         if (!\local_imisbridge\util::is_valid_imis_id((string)$data->imisid)) {
-            mtrace('iMIS Bridge: ' . $data->imisid . ' is not in the iMIS ID format; skipping.');
+            mtrace('Membership Bridge: ' . $data->imisid . ' is not in the iMIS ID format; skipping.');
             return;
         }
 
         // Re-check the governing write toggle: an admin may have disabled it after
         // this task was queued but before cron reached it.
         if (!empty($data->toggle) && !\local_imisbridge\util::is_enabled($data->toggle)) {
-            mtrace('iMIS Bridge: activity push disabled in plugin settings; skipping ' . $data->imisid . '.');
+            mtrace('Membership Bridge: activity push disabled in plugin settings; skipping ' . $data->imisid . '.');
             return;
         }
 
         if (!\local_imisbridge\util::is_configured()) {
-            mtrace('iMIS Bridge: external system not configured; skipping ' . $data->imisid . '.');
+            mtrace('Membership Bridge: external system not configured; skipping ' . $data->imisid . '.');
             return;
         }
 
-        mtrace('iMIS Bridge: pushing activity record for ' . $data->imisid . '...');
+        mtrace('Membership Bridge: pushing activity record for ' . $data->imisid . '...');
 
         // The active provider performs the write. A completion and a per-attempt
         // score are distinct operations so a score never overwrites a completion.
@@ -84,6 +84,6 @@ class push_activity_task extends \core\task\adhoc_task {
             $provider->push_score($data);
         }
 
-        mtrace('iMIS Bridge: activity record pushed for ' . $data->imisid . '.');
+        mtrace('Membership Bridge: activity record pushed for ' . $data->imisid . '.');
     }
 }

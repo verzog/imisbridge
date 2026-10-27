@@ -48,22 +48,22 @@ class sync_enrollments_task extends \core\task\scheduled_task {
      */
     public function execute(): void {
         if (!\local_imisbridge\util::is_enabled('task_enrolments_enabled')) {
-            mtrace('iMIS Bridge: Enrolment sync task disabled in plugin settings; skipping.');
+            mtrace('Membership Bridge: Enrolment sync task disabled in plugin settings; skipping.');
             return;
         }
 
         $provider = \local_imisbridge\provider\manager::org_sync_instance();
         if ($provider === null) {
-            mtrace('iMIS Bridge: no configured sync provider (see the Sync provider setting); skipping enrolment sync.');
+            mtrace('Membership Bridge: no configured sync provider (see the Sync provider setting); skipping enrolment sync.');
             return;
         }
 
-        mtrace('iMIS Bridge: Starting enrollment sync for all users...');
+        mtrace('Membership Bridge: Starting enrollment sync for all users...');
         try {
             $result = $provider->sync_orders(null);
-            mtrace('iMIS Bridge: Enrollment sync complete. Result: ' . var_export($result, true));
+            mtrace('Membership Bridge: Enrollment sync complete. Result: ' . var_export($result, true));
         } catch (\Exception $e) {
-            mtrace('iMIS Bridge: Enrollment sync FAILED: ' . $e->getMessage());
+            mtrace('Membership Bridge: Enrollment sync FAILED: ' . $e->getMessage());
             throw $e;
         }
     }

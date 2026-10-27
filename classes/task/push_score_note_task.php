@@ -61,19 +61,19 @@ class push_score_note_task extends \core\task\adhoc_task {
         }
         // Re-check the iMIS ID format: it may have been set to Digits only after queueing.
         if (!\local_imisbridge\util::is_valid_imis_id((string)$data->imisid)) {
-            mtrace('iMIS Bridge: ' . $data->imisid . ' is not in the iMIS ID format; skipping.');
+            mtrace('Membership Bridge: ' . $data->imisid . ' is not in the iMIS ID format; skipping.');
             return;
         }
 
         // Re-check the checklist: an admin may have unticked this type after queueing.
         if (!in_array((string)($data->modname ?? ''), \local_imisbridge\util::score_push_modules(), true)) {
-            mtrace('iMIS Bridge: score push not enabled for ' . ($data->modname ?? '?') . '; skipping '
+            mtrace('Membership Bridge: score push not enabled for ' . ($data->modname ?? '?') . '; skipping '
                 . $data->imisid . '.');
             return;
         }
 
         if (!\local_imisbridge\util::is_configured()) {
-            mtrace('iMIS Bridge: external system not configured; skipping ' . $data->imisid . '.');
+            mtrace('Membership Bridge: external system not configured; skipping ' . $data->imisid . '.');
             return;
         }
 
@@ -86,17 +86,17 @@ class push_score_note_task extends \core\task\adhoc_task {
             'itemid' => (int)($data->itemid ?? 0),
         ]);
         if (!$claim || (int)$claim->generation !== (int)($data->generation ?? 0)) {
-            mtrace('iMIS Bridge: score for ' . $data->imisid . ' (cm ' . (int)$data->cmid
+            mtrace('Membership Bridge: score for ' . $data->imisid . ' (cm ' . (int)$data->cmid
                 . ') superseded by a later grade, cleared or erased; skipping.');
             return;
         }
 
-        mtrace('iMIS Bridge: pushing score note for ' . $data->imisid . ' (cm ' . (int)$data->cmid . ')...');
+        mtrace('Membership Bridge: pushing score note for ' . $data->imisid . ' (cm ' . (int)$data->cmid . ')...');
 
         // The active provider records the supplementary note (never the canonical
         // course-completion record).
         \local_imisbridge\provider\manager::instance()->push_module_note($data);
 
-        mtrace('iMIS Bridge: score note pushed for ' . $data->imisid . '.');
+        mtrace('Membership Bridge: score note pushed for ' . $data->imisid . '.');
     }
 }

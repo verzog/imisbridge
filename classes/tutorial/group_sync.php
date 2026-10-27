@@ -104,7 +104,7 @@ class group_sync {
         $this->removalguardpct   = max(0, min(100, $guard));
         $this->removalguardfloor = max(1, (int)($options['removalguardfloor'] ?? 10));
         $this->trace             = $options['trace'] ?? function (string $line): void {
-            mtrace('iMIS Bridge: ' . $line);
+            mtrace('Membership Bridge: ' . $line);
         };
     }
 

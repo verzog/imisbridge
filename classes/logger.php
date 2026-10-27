@@ -29,7 +29,7 @@
 namespace local_imisbridge;
 
 /**
- * Writes and prunes iMIS Bridge audit-log records.
+ * Writes and prunes Membership Bridge audit-log records.
  *
  * @package    local_imisbridge
  * @copyright  2024 Vernon Spain

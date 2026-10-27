@@ -15,7 +15,7 @@
 // along with Moodle.  If not, see <http://www.gnu.org/licenses/>.
 
 /**
- * Scheduled task: prune old iMIS Bridge audit-log rows.
+ * Scheduled task: prune old Membership Bridge audit-log rows.
  *
  * @package    local_imisbridge
  * @copyright  2024 Vernon Spain
@@ -53,11 +53,11 @@ class cleanup_log_task extends \core\task\scheduled_task {
         $days = ($days === false) ? 90 : (int)$days;
 
         if ($days <= 0) {
-            mtrace('iMIS Bridge: audit-log retention disabled; keeping all rows.');
+            mtrace('Membership Bridge: audit-log retention disabled; keeping all rows.');
             return;
         }
 
         $deleted = \local_imisbridge\logger::purge($days);
-        mtrace('iMIS Bridge: pruned ' . $deleted . ' audit-log row(s) older than ' . $days . ' days.');
+        mtrace('Membership Bridge: pruned ' . $deleted . ' audit-log row(s) older than ' . $days . ' days.');
     }
 }

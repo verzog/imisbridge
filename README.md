@@ -1,4 +1,4 @@
-# iMIS Bridge #
+# Membership Bridge #
 
 Bridges Moodle with the iMIS association management system. It pushes
 course-completion and quiz results back to iMIS as activity records, mirrors iMIS
@@ -35,9 +35,10 @@ Key behaviours:
 * A command-line **results back-fill** (`cli/backfill.php --course=ID`) sends one
   course's existing completions and/or activity scores to iMIS, as if each had just
   happened. A dry run unless `--execute` is given.
-* An admin page (Site administration > Plugins > Local plugins > iMIS Bridge >
-  *Open sync admin*) provides a connection test, a one-member manual sync (a Member
-  ID is required) and test controls for pushing a single completion or module note.
+* An admin page (Site administration > Plugins > Local plugins > Membership
+  Bridge > *Open sync admin*) provides a connection test, a one-member manual sync
+  (a Member ID is required) and test controls for pushing a single completion or
+  module note.
 * Every call made to iMIS is recorded in an audit log (viewable from the
   settings page), with credentials redacted; old entries are pruned on a
   configurable schedule.
@@ -78,7 +79,7 @@ to complete the installation from the command line.
 ## Configuration ##
 
 After installation, configure the plugin under _Site administration > Plugins >
-Local plugins > iMIS Bridge_:
+Local plugins > Membership Bridge_:
 
 > **Before entering any endpoint, turn the automatic writes off.** Completion and
 > quiz pushes, the three login syncs and the three nightly tasks all default to
@@ -133,6 +134,17 @@ Scheduled tasks_): enrolment sync 02:00, cancellation sync 02:15, group sync
 * `docs/VENDOR-ARCHITECTURE.md`, `docs/DESIGN-NOTES.md` — the vendor bridge and
   the lessons taken from it.
 * `docs/IMPROVEMENT-PLAN.md` — the roadmap.
+
+## Trademarks ##
+
+iMIS is a trademark of Advanced Solutions International, Inc. Moodle is a
+trademark of Moodle Pty Ltd. This project is independent: it is not affiliated
+with, sponsored or endorsed by Advanced Solutions International, ATS (the vendor of
+the `wsmoodle` bridge) or Moodle Pty Ltd. Their names are used only to describe the
+systems this plugin works with.
+
+The plugin's Moodle component name, `local_imisbridge`, is a technical identifier
+only.
 
 ## License ##
 

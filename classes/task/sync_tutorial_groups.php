@@ -58,7 +58,7 @@ class sync_tutorial_groups extends \core\task\scheduled_task {
      */
     public function execute(): void {
         if (!\local_imisbridge\util::is_enabled_optin('tutorial_sync_enabled')) {
-            mtrace('iMIS Bridge: Tutorial group sync disabled in plugin settings; skipping.');
+            mtrace('Membership Bridge: Tutorial group sync disabled in plugin settings; skipping.');
             return;
         }
 
@@ -66,14 +66,14 @@ class sync_tutorial_groups extends \core\task\scheduled_task {
         // push transport, so it needs the REST connection settings regardless of
         // whether the plugin is otherwise configured for SOAP.
         if (!rest_client::is_configured()) {
-            mtrace('iMIS Bridge: REST connection not configured; skipping tutorial group sync.');
+            mtrace('Membership Bridge: REST connection not configured; skipping tutorial group sync.');
             return;
         }
 
         $dryrun = \local_imisbridge\util::is_enabled('tutorial_dry_run');
         $guard  = (int)get_config('local_imisbridge', 'tutorial_removal_guard_pct');
 
-        mtrace('iMIS Bridge: Starting tutorial group sync' . ($dryrun ? ' (DRY RUN)' : '') . '...');
+        mtrace('Membership Bridge: Starting tutorial group sync' . ($dryrun ? ' (DRY RUN)' : '') . '...');
         try {
             $client   = new rest_client();
             $sync     = new group_sync(
@@ -84,7 +84,7 @@ class sync_tutorial_groups extends \core\task\scheduled_task {
             $report = $sync->run();
 
             mtrace(sprintf(
-                'iMIS Bridge: Tutorial group sync %s. Courses: %d, groups created: %d, '
+                'Membership Bridge: Tutorial group sync %s. Courses: %d, groups created: %d, '
                     . 'members added: %d, removed: %d, rows skipped: %d, removal guards: %d.',
                 $report['aborted'] ? 'ABORTED (no changes)' : 'complete',
                 $report['coursesprocessed'],
@@ -95,7 +95,7 @@ class sync_tutorial_groups extends \core\task\scheduled_task {
                 $report['guardskipped']
             ));
         } catch (\Exception $e) {
-            mtrace('iMIS Bridge: Tutorial group sync FAILED: ' . $e->getMessage());
+            mtrace('Membership Bridge: Tutorial group sync FAILED: ' . $e->getMessage());
             throw $e;
         }
     }

@@ -47,7 +47,7 @@ if ($unrecognised) {
 }
 
 if ($options['help']) {
-    cli_writeln("Read-only iMIS Bridge connection test.
+    cli_writeln("Read-only Membership Bridge connection test.
 
 Runs GetBridgeSettings, and MoodleGetUserProfile when --imisid is given.
 No data is written to iMIS or Moodle.
