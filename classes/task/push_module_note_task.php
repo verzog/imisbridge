@@ -58,28 +58,28 @@ class push_module_note_task extends \core\task\adhoc_task {
         }
         // Re-check the iMIS ID format: it may have been set to Digits only after queueing.
         if (!\local_imisbridge\util::is_valid_imis_id((string)$data->imisid)) {
-            mtrace('iMIS Bridge: ' . $data->imisid . ' is not in the iMIS ID format; skipping.');
+            mtrace('Membership Bridge: ' . $data->imisid . ' is not in the iMIS ID format; skipping.');
             return;
         }
 
         // Re-check the opt-in toggle: an admin may have disabled it after queueing.
         if (!\local_imisbridge\util::is_enabled_optin('push_module_completions')) {
-            mtrace('iMIS Bridge: module-completion push disabled; skipping ' . $data->imisid . '.');
+            mtrace('Membership Bridge: module-completion push disabled; skipping ' . $data->imisid . '.');
             return;
         }
 
         if (!\local_imisbridge\util::is_configured()) {
-            mtrace('iMIS Bridge: external system not configured; skipping ' . $data->imisid . '.');
+            mtrace('Membership Bridge: external system not configured; skipping ' . $data->imisid . '.');
             return;
         }
 
         $cmid = (int)($data->cmid ?? 0);
-        mtrace('iMIS Bridge: pushing module note for ' . $data->imisid . ' (cm ' . $cmid . ')...');
+        mtrace('Membership Bridge: pushing module note for ' . $data->imisid . ' (cm ' . $cmid . ')...');
 
         // The active provider records the supplementary note (never the canonical
         // course-completion record).
         \local_imisbridge\provider\manager::instance()->push_module_note($data);
 
-        mtrace('iMIS Bridge: module note pushed for ' . $data->imisid . '.');
+        mtrace('Membership Bridge: module note pushed for ' . $data->imisid . '.');
     }
 }

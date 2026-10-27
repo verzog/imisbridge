@@ -48,24 +48,24 @@ class sync_groups_task extends \core\task\scheduled_task {
      */
     public function execute(): void {
         if (!\local_imisbridge\util::is_enabled('task_groups_enabled')) {
-            mtrace('iMIS Bridge: Group sync task disabled in plugin settings; skipping.');
+            mtrace('Membership Bridge: Group sync task disabled in plugin settings; skipping.');
             return;
         }
 
         $provider = \local_imisbridge\provider\manager::org_sync_instance();
         if ($provider === null) {
-            mtrace('iMIS Bridge: no configured sync provider (see the Sync provider setting); skipping group sync.');
+            mtrace('Membership Bridge: no configured sync provider (see the Sync provider setting); skipping group sync.');
             return;
         }
         if ($provider instanceof \local_imisbridge\rest_client) {
             // Under REST, groups come from the tutorial group sync. Return without
             // touching the watermark, so switching back to the ATS bridge resumes its
             // incremental sync from where it left off rather than skipping changes.
-            mtrace('iMIS Bridge: ' . $provider->update_groups() . ' Skipping group sync.');
+            mtrace('Membership Bridge: ' . $provider->update_groups() . ' Skipping group sync.');
             return;
         }
 
-        mtrace('iMIS Bridge: Starting group sync...');
+        mtrace('Membership Bridge: Starting group sync...');
         try {
             // Incremental sync uses a watermark this task manages itself, rather than
             // the scheduled-task last-run time. A disabled run returns early without
@@ -82,9 +82,9 @@ class sync_groups_task extends \core\task\scheduled_task {
 
             // Advance the watermark only after a successful sync.
             set_config('groups_last_sync', $windowstart, 'local_imisbridge');
-            mtrace('iMIS Bridge: Group sync complete. Result: ' . var_export($result, true));
+            mtrace('Membership Bridge: Group sync complete. Result: ' . var_export($result, true));
         } catch (\Exception $e) {
-            mtrace('iMIS Bridge: Group sync FAILED: ' . $e->getMessage());
+            mtrace('Membership Bridge: Group sync FAILED: ' . $e->getMessage());
             throw $e;
         }
     }

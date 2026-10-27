@@ -1,4 +1,4 @@
-# iMIS Bridge — design notes from the vendor-bridge incident (14–15 Oct 2026)
+# Membership Bridge — design notes from the vendor-bridge incident (14–15 Oct 2026)
 
 Lessons captured while diagnosing a production outage on SCCA's existing vendor
 iMIS→Moodle bridge (`local_imis`, built by ATS). Each item is written as a

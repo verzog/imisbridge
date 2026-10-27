@@ -1,4 +1,4 @@
-# iMIS Bridge — improvement plan
+# Membership Bridge — improvement plan
 
 Synthesises the vendor-incident lessons (`DESIGN-NOTES.md`) and the reconstructed
 vendor architecture (`VENDOR-ARCHITECTURE.md`) into a prioritised roadmap for

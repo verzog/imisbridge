@@ -57,12 +57,12 @@ class sync_user_task extends \core\task\adhoc_task {
         }
         // Re-check the iMIS ID format: it may have been set to Digits only after queueing.
         if (!\local_imisbridge\util::is_valid_imis_id((string)$imisid)) {
-            mtrace('iMIS Bridge: ' . $imisid . ' is not in the iMIS ID format; skipping.');
+            mtrace('Membership Bridge: ' . $imisid . ' is not in the iMIS ID format; skipping.');
             return;
         }
 
         if (!\local_imisbridge\provider\manager::sync_configured()) {
-            mtrace('iMIS Bridge: no configured sync provider; skipping ' . $imisid . '.');
+            mtrace('Membership Bridge: no configured sync provider; skipping ' . $imisid . '.');
             return;
         }
 
@@ -73,17 +73,17 @@ class sync_user_task extends \core\task\adhoc_task {
         // Return before touching the network if every login sync was disabled
         // after this task was queued: constructing the client fetches the WSDL.
         if (!$enrolments && !$cancellations && !$groups) {
-            mtrace('iMIS Bridge: all login syncs disabled; skipping ' . $imisid . '.');
+            mtrace('Membership Bridge: all login syncs disabled; skipping ' . $imisid . '.');
             return;
         }
 
         $provider = \local_imisbridge\provider\manager::org_sync_instance();
         if ($provider === null) {
-            mtrace('iMIS Bridge: no configured sync provider; skipping ' . $imisid . '.');
+            mtrace('Membership Bridge: no configured sync provider; skipping ' . $imisid . '.');
             return;
         }
 
-        mtrace('iMIS Bridge: syncing user ' . $imisid . '...');
+        mtrace('Membership Bridge: syncing user ' . $imisid . '...');
 
         if ($enrolments) {
             $provider->sync_orders($imisid);
@@ -95,6 +95,6 @@ class sync_user_task extends \core\task\adhoc_task {
             $provider->update_groups($imisid);
         }
 
-        mtrace('iMIS Bridge: user sync complete for ' . $imisid . '.');
+        mtrace('Membership Bridge: user sync complete for ' . $imisid . '.');
     }
 }
