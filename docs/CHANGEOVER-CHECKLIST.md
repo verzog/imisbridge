@@ -19,6 +19,64 @@ vendor never had (iMIS tutorial groups → Moodle course groups, over direct RES
 so it has no parity to prove and does not depend on the vendor swap. It can go
 live before, with, or after the changeover; §T has its own checks.
 
+## At a glance
+
+In working order. Section letters refer to the full checklist below.
+
+1. **Make the parity decisions.**
+   - Which activity types send scores.
+   - Whether module-completion notes are needed.
+   - That ATS doesn't strand an existing user when create fails.
+   - Whether each course sends the welcome email (§R4).
+2. **Rehearse on the Catalyst staging copy (§S).**
+   - Before the first cron run, Catalyst forces the staging endpoints and credentials
+     (including `service_endpoint`) and sets `noemailever`.
+   - Writes off.
+   - Use the default providers: ATS, with REST for tutorial groups.
+   - Run the syncs as a dry run, then live.
+   - Test pushes against real records and compare them with the vendor.
+3. **Pre-cutover on live, writes off (§A).**
+   - Pause cron.
+   - Turn every write toggle off *before* entering any endpoint.
+   - Transport = ATS.
+   - iMIS ID source = ID number.
+   - Then set the WSDL, token and `service_endpoint`.
+4. **Outbound parity (§B).** Completion, quiz score and activity score records match
+   the vendor's. Check them in iMIS, not only in the audit log.
+5. **Inbound service (§C).**
+   - Core create/enrol functions plus `local_imisbridge_cancel_enrolment` on a
+     restricted service.
+   - A service-account role with the starred capabilities, allowed to assign Student.
+   - A new token.
+   - End-to-end tests, including a hidden course and an existing user.
+6. **Repoint ATS (§D).**
+   - Point the `FN_*` mappings at the core functions, with unenrol going to the cancel
+     function.
+   - Use the new token.
+   - Check that `REST_ENDPOINT` points at the right Moodle.
+   - Keep `GROUP_IQA_NAME` empty.
+7. **Tutorial group sync, a separate go-live (§T).**
+   - Set up the REST service account and the lookup IQA.
+   - Run as a dry run, then live.
+   - Confirm the removal guard and the empty-read abort.
+   - It runs nightly at 02:45.
+8. **REST registration sync, optional, retires ATS enrolment (§R).**
+   - Set up the registrations IQA.
+   - Run as a dry run, then live.
+   - Keep a single writer: switch off the iDMS push once it's live.
+9. **Cutover (§E).**
+   - Disable the vendor plugin's observers, but keep it installed.
+   - Enable the new plugin's write toggles.
+   - Keep only one system enrolling.
+10. **First 24–48 hours (§F).**
+    - Clean audit log, with no duplicates.
+    - Spot-check a registration, a completion, a cancellation and SAML login.
+    - Only then retire the vendor plugin.
+11. **Rollback if needed (§G).**
+    - Turn the new plugin's toggles off first.
+    - Re-enable the vendor plugin.
+    - Point the `FN_*` mappings back at the vendor's functions.
+
 ---
 
 ## What is the same, and what differs
