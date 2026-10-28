@@ -138,6 +138,8 @@ Scheduled tasks_): enrolment sync 02:00, cancellation sync 02:15, group sync
 * `docs/VENDOR-ARCHITECTURE.md`, `docs/DESIGN-NOTES.md` — the vendor bridge and
   the lessons taken from it.
 * `docs/IMPROVEMENT-PLAN.md` — the roadmap.
+* `imis/` — pages that live in iMIS, such as the event dashboard's *Tutorial
+  Groups* tab (`imis/tutorial-groups.html`). Not part of the plugin zip.
 
 ## Trademarks ##
 

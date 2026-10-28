@@ -533,6 +533,9 @@ log on long REST URLs).
 - [ ] **Tutors (2.1.0):** the panel has a **Tutor** checkbox (a yes/no property),
   ticked on each tutor's allocation row. Its property name must match the plugin's
   *Tutor field* setting (default `Tutor`). The REST service account can read it.
+- [ ] The event dashboard's **Tutorial Groups** tab is the current
+  `imis/tutorial-groups.html`, which adds *Mark as tutor / Unmark tutor* and keeps a
+  tutor's tick when they move group. See `imis/README.md`.
 
 ### T2. Moodle side
 

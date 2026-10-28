@@ -1,0 +1,713 @@
+<div id="tgb">
+<h3>Tutorial groups</h3>
+<div id="tgb-course" style="margin-bottom: 6px;"></div>
+<div id="tgb-summary" style="margin-bottom: 6px;"></div>
+<div id="tgb-tutors" style="margin-bottom: 6px;"></div>
+<div id="tgb-controls" style="margin: 12px 0;"></div>
+<div id="tgb-status" style="margin: 8px 0; font-weight: 600;"></div>
+<table id="tgb-table">
+</table>
+</div>
+<script>
+  (function () {
+    var REGISTRANT_IQA = '$/_SCCA/Events/Activeregistrations';
+    var LOOKUP_IQA = '$/_SCCA/Events/MoodleCourseLookup';
+    var PANEL = 'MoodleTutorialGroup';
+    var TUTOR = 'Tutor';
+    var MAXLEN = 60;
+    var AMP = String.fromCharCode(38);
+    var DC = 'Asi.Soa.Core.DataContracts.';
+    var STRINGS = 'System.Collections.ObjectModel.Collection`1[[System.String, mscorlib]], mscorlib';
+    var root = (typeof gWebRoot === 'string') ? gWebRoot : '';
+    var eventKey = new URLSearchParams(window.location.search).get('EventKey');
+    var tokenField = document.getElementById('__RequestVerificationToken');
+    var token = tokenField ? tokenField.value : '';
+    var el = {
+      course: document.getElementById('tgb-course'),
+      summary: document.getElementById('tgb-summary'),
+      tutors: document.getElementById('tgb-tutors'),
+      controls: document.getElementById('tgb-controls'),
+      status: document.getElementById('tgb-status'),
+      table: document.getElementById('tgb-table')
+    };
+    var people = {};
+    var order = [];
+    var groupNames = [];
+    var busy = false;
+    var mapped = false;
+    // True after a refresh fails: the cached rows may be stale, so changes wait for a good refresh.
+    var loadFailed = false;
+    var nameInput, datalist, addBtn, removeBtn, tutorBtn, untutorBtn, refreshBtn, filterBox;
+
+    el.table.style.width = '100%';
+    el.table.style.borderCollapse = 'collapse';
+    el.table.style.marginTop = '8px';
+
+    function setStatus(text) {
+      el.status.textContent = text;
+    }
+
+    function styleCell(c, isHead) {
+      c.style.padding = '6px 12px';
+      c.style.textAlign = 'left';
+      c.style.verticalAlign = 'top';
+      c.style.borderBottom = isHead ? '2px solid #bbb' : '1px solid #ddd';
+      if (isHead) {
+        c.style.fontWeight = '600';
+        c.style.whiteSpace = 'nowrap';
+      }
+    }
+
+    function items(data) {
+      if (!data) {
+        return [];
+      }
+      if (!data.Items) {
+        return [];
+      }
+      return data.Items.$values || [];
+    }
+
+    // A typed value such as {"$type": "System.Boolean", "$value": true} unwrapped to its value.
+    function scalar(v) {
+      if (v !== null) {
+        if (typeof v === 'object') {
+          if ('$value' in v) {
+            return v.$value;
+          }
+        }
+      }
+      return v;
+    }
+
+    function flatten(item) {
+      var row = {};
+      var props = [];
+      if (item.Properties) {
+        props = item.Properties.$values || [];
+      }
+      props.forEach(function (p) {
+        var v = p.Value;
+        if (v !== null) {
+          if (typeof v === 'object') {
+            if ('$value' in v) {
+              v = v.$value;
+            }
+          }
+        }
+        row[p.Name] = v;
+      });
+      return row;
+    }
+
+    // A Yes/No property can come back as a boolean or as text such as "True".
+    function isTicked(v) {
+      if (v === true) {
+        return true;
+      }
+      return /^(true|1|yes|y)$/i.test(String(v === null ? '' : v).trim());
+    }
+
+    function send(method, url, body) {
+      var opts = {
+        method: method,
+        headers: { 'RequestVerificationToken': token, 'Accept': 'application/json' },
+        credentials: 'same-origin'
+      };
+      if (body) {
+        opts.headers['Content-Type'] = 'application/json';
+        opts.body = JSON.stringify(body);
+      }
+      return fetch(root + url, opts).then(function (res) {
+        return res.text().then(function (text) {
+          if (!res.ok) {
+            console.error('Tutorial groups: ' + method + ' ' + url + ' failed', res.status, text);
+            throw new Error('HTTP ' + res.status);
+          }
+          if (text) {
+            return JSON.parse(text);
+          }
+          return null;
+        });
+      });
+    }
+
+    function get(url) {
+      return send('GET', url, null);
+    }
+
+    function getAll(base) {
+      var all = [];
+      function page(offset) {
+        return get(base + AMP + 'offset=' + offset).then(function (data) {
+          all = all.concat(items(data));
+          if (data) {
+            if (isTicked(scalar(data.HasNext))) {
+              return page(scalar(data.NextOffset));
+            }
+          }
+          return all;
+        });
+      }
+      return page(0);
+    }
+
+    function prop(name, value) {
+      return { '$type': DC + 'GenericPropertyData, Asi.Contracts', Name: name, Value: value };
+    }
+
+    // A PUT replaces the whole row, so the Tutor flag is always sent: a move keeps it,
+    // and a new row starts unticked.
+    function entity(id, groupName, ordinal, tutor) {
+      var props = [
+        prop('ID', id),
+        prop('Code', eventKey),
+        prop('Moodlegroupname', groupName),
+        prop(TUTOR, { '$type': 'System.Boolean', '$value': tutor === true })
+      ];
+      var e = {
+        '$type': DC + 'GenericEntityData, Asi.Contracts',
+        EntityTypeName: PANEL,
+        PrimaryParentEntityTypeName: 'Party',
+        PrimaryParentIdentity: {
+          '$type': DC + 'IdentityData, Asi.Contracts',
+          EntityTypeName: 'Party',
+          IdentityElements: { '$type': STRINGS, '$values': [id] }
+        },
+        Properties: { '$type': DC + 'GenericPropertyDataCollection, Asi.Contracts', '$values': props }
+      };
+      if (ordinal !== null) {
+        props.push(prop('Ordinal', { '$type': 'System.Int32', '$value': Number(ordinal) }));
+        e.Identity = {
+          '$type': DC + 'IdentityData, Asi.Contracts',
+          EntityTypeName: PANEL,
+          IdentityElements: { '$type': STRINGS, '$values': [id, String(ordinal)] }
+        };
+      }
+      return e;
+    }
+
+    function rowUrl(id, ordinal) {
+      return '/api/' + PANEL + '/~' + encodeURIComponent(id + '|' + ordinal);
+    }
+
+    function loadCourse() {
+      var url = '/api/IQA?QueryName=' + encodeURIComponent(LOOKUP_IQA) +
+        AMP + 'Parameter=' + encodeURIComponent(eventKey + '/REG') +
+        AMP + 'limit=10';
+      return get(url).then(function (data) {
+        // As the Moodle sync does: skip a neighbouring product (e.g. .../REGNZ) a loose
+        // query returns, and take the first row whose Description is a course id.
+        var want = (eventKey + '/REG').toLowerCase();
+        var courseId = '';
+        items(data).map(flatten).forEach(function (r) {
+          var code = String(r.Code || '').trim();
+          var id = String(r.Description || '').trim();
+          if (courseId === '') {
+            if (code === '' || code.toLowerCase() === want) {
+              if (/^0*[1-9][0-9]*$/.test(id)) {
+                courseId = id;
+              }
+            }
+          }
+        });
+        return courseId;
+      });
+    }
+
+    function loadRegistrants() {
+      var base = '/api/IQA?QueryName=' + encodeURIComponent(REGISTRANT_IQA) +
+        AMP + 'Parameter=' + encodeURIComponent(eventKey) +
+        AMP + 'limit=500';
+      return getAll(base).then(function (list) {
+        return list.map(flatten);
+      });
+    }
+
+    function loadRows() {
+      return getAll('/api/' + PANEL + '?limit=500').then(function (list) {
+        return list.map(flatten).filter(function (r) {
+          return String(r.Code || '') === eventKey;
+        });
+      });
+    }
+
+    function findName(name) {
+      var low = name.toLowerCase();
+      var hit = null;
+      groupNames.forEach(function (g) {
+        if (g.toLowerCase() === low) {
+          hit = g;
+        }
+      });
+      return hit;
+    }
+
+    // A tutor if any of their rows is ticked, as the Moodle sync reads it.
+    function isTutor(p) {
+      return p.rows.some(function (row) {
+        return row.tutor;
+      });
+    }
+
+    function build(registrants, rows) {
+      people = {};
+      order = [];
+      registrants.forEach(function (r) {
+        var id = String(r.ID);
+        if (people[id]) {
+          return;
+        }
+        people[id] = {
+          id: id,
+          name: (r['Last Name'] || '') + ', ' + (r['First Name'] || ''),
+          type: r['Member Type'] || '',
+          registered: true,
+          rows: []
+        };
+        order.push(id);
+      });
+      rows.forEach(function (r) {
+        var id = String(r.ID);
+        if (!people[id]) {
+          people[id] = { id: id, name: '(not on the registrant list)', type: '', registered: false, rows: [] };
+          order.push(id);
+        }
+        people[id].rows.push({ ordinal: r.Ordinal, group: String(r.Moodlegroupname || ''), tutor: isTicked(r[TUTOR]) });
+      });
+      order.sort(function (a, b) {
+        var pa = people[a];
+        var pb = people[b];
+        if (pa.registered !== pb.registered) {
+          return pa.registered ? -1 : 1;
+        }
+        return pa.name.localeCompare(pb.name);
+      });
+      groupNames = [];
+      order.forEach(function (id) {
+        people[id].rows.forEach(function (row) {
+          if (row.group) {
+            if (findName(row.group) === null) {
+              groupNames.push(row.group);
+            }
+          }
+        });
+      });
+      groupNames.sort(function (a, b) {
+        return a.localeCompare(b);
+      });
+    }
+
+    function renderSummary() {
+      var counts = {};
+      var without = 0;
+      var notReg = 0;
+      var tutors = [];
+      order.forEach(function (id) {
+        var p = people[id];
+        if (!p.registered) {
+          notReg = notReg + 1;
+        }
+        if (p.rows.length === 0) {
+          without = without + 1;
+          return;
+        }
+        var g = p.rows[0].group;
+        counts[g] = (counts[g] || 0) + 1;
+        if (isTutor(p)) {
+          tutors.push(p.name + ' (' + g + ')');
+        }
+      });
+      var parts = groupNames.map(function (g) {
+        return g + ' (' + (counts[g] || 0) + ')';
+      });
+      var text = 'Groups: ' + (parts.length ? parts.join(', ') : 'none yet') +
+        '. Registrants without a group: ' + without + '.';
+      if (notReg) {
+        text = text + ' In a group but not an active registrant: ' + notReg + '.';
+      }
+      el.summary.textContent = text;
+      el.tutors.textContent = 'Tutors: ' + (tutors.length ? tutors.join(', ') : 'none marked yet') + '.';
+      datalist.textContent = '';
+      groupNames.forEach(function (g) {
+        var o = document.createElement('option');
+        o.value = g;
+        datalist.appendChild(o);
+      });
+    }
+
+    function cell(tr, text) {
+      var td = tr.insertCell();
+      td.textContent = text;
+      styleCell(td, false);
+      return td;
+    }
+
+    function render() {
+      el.table.textContent = '';
+      var head = el.table.insertRow();
+      var allBox = document.createElement('input');
+      allBox.type = 'checkbox';
+      allBox.title = 'Select all shown';
+      allBox.addEventListener('change', function () {
+        el.table.querySelectorAll('input.tgb-pick').forEach(function (c) {
+          c.checked = allBox.checked;
+        });
+      });
+      var th0 = document.createElement('th');
+      th0.appendChild(allBox);
+      styleCell(th0, true);
+      th0.style.width = '36px';
+      head.appendChild(th0);
+      ['Name', 'iMIS ID', 'Member type', 'Current group', 'Tutor', 'Note'].forEach(function (h) {
+        var th = document.createElement('th');
+        th.textContent = h;
+        styleCell(th, true);
+        head.appendChild(th);
+      });
+      var shown = 0;
+      order.forEach(function (id) {
+        var p = people[id];
+        if (filterBox.checked) {
+          if (p.rows.length !== 0) {
+            return;
+          }
+        }
+        shown = shown + 1;
+        var tr = el.table.insertRow();
+        if (shown % 2 === 0) {
+          tr.style.background = 'rgba(0, 0, 0, 0.03)';
+        }
+        var pick = document.createElement('input');
+        pick.type = 'checkbox';
+        pick.className = 'tgb-pick';
+        pick.dataset.id = id;
+        var pickCell = tr.insertCell();
+        styleCell(pickCell, false);
+        pickCell.appendChild(pick);
+        cell(tr, p.name);
+        cell(tr, id);
+        cell(tr, p.type);
+        cell(tr, p.rows.length ? p.rows[0].group : '');
+        var tutorCell = cell(tr, isTutor(p) ? 'Tutor' : '');
+        if (isTutor(p)) {
+          tutorCell.style.fontWeight = '600';
+        }
+        var notes = [];
+        if (!p.registered) {
+          notes.push('Not an active registrant - remove from group?');
+        }
+        if (p.rows.length !== 0) {
+          if (p.rows.length !== 1) {
+            notes.push('Has ' + p.rows.length + ' rows for this event - Add to group will tidy this.');
+          }
+        }
+        var noteCell = cell(tr, notes.join(' '));
+        if (notes.length) {
+          noteCell.style.color = '#a94442';
+        }
+      });
+      if (shown === 0) {
+        var empty = el.table.insertRow();
+        var td = empty.insertCell();
+        td.colSpan = 7;
+        styleCell(td, false);
+        td.textContent = filterBox.checked ? 'Everyone is in a group.' : 'No registrants found for this event.';
+      }
+    }
+
+    function selected() {
+      var ids = [];
+      el.table.querySelectorAll('input.tgb-pick').forEach(function (c) {
+        if (c.checked) {
+          ids.push(c.dataset.id);
+        }
+      });
+      return ids;
+    }
+
+    function setBusy(b) {
+      busy = b;
+      addBtn.disabled = b || !mapped || loadFailed;
+      removeBtn.disabled = b || !mapped || loadFailed;
+      tutorBtn.disabled = b || !mapped || loadFailed;
+      untutorBtn.disabled = b || !mapped || loadFailed;
+      refreshBtn.disabled = b;
+    }
+
+    function series(ids, worker) {
+      var i = 0;
+      function next() {
+        if (i === ids.length) {
+          return Promise.resolve();
+        }
+        var id = ids[i];
+        i = i + 1;
+        setStatus('Saving ' + i + ' of ' + ids.length + '...');
+        return worker(id).then(next);
+      }
+      return next();
+    }
+
+    function deleteRows(id, rows) {
+      return rows.reduce(function (chain, row) {
+        return chain.then(function () {
+          return send('DELETE', rowUrl(id, row.ordinal), null);
+        });
+      }, Promise.resolve());
+    }
+
+    // Changes are made from the cached rows, so they wait until a refresh has succeeded.
+    function blocked() {
+      if (busy) {
+        return true;
+      }
+      if (loadFailed) {
+        setStatus('The last refresh failed. Click Refresh and try again once it loads.');
+        return true;
+      }
+      return false;
+    }
+
+    function addSelected() {
+      if (blocked()) {
+        return;
+      }
+      var ids = selected();
+      if (!ids.length) {
+        setStatus('Tick at least one person first.');
+        return;
+      }
+      var name = nameInput.value.replace(/\s+/g, ' ').trim();
+      if (!name) {
+        setStatus('Type a group name first.');
+        return;
+      }
+      if (name.slice(0, MAXLEN) !== name) {
+        setStatus('Group names can be at most ' + MAXLEN + ' characters.');
+        return;
+      }
+      var existing = findName(name);
+      if (existing) {
+        name = existing;
+      }
+      var c = { added: 0, moved: 0, same: 0, failed: 0 };
+      setBusy(true);
+      series(ids, function (id) {
+        var p = people[id];
+        var work;
+        if (p.rows.length === 0) {
+          work = send('POST', '/api/' + PANEL, entity(id, name, null, false)).then(function () {
+            c.added = c.added + 1;
+          });
+        } else {
+          var first = p.rows[0];
+          // A tutor moved to another group stays a tutor. Any ticked row counts, so the
+          // tick survives when the duplicate rows are deleted.
+          var tutor = isTutor(p);
+          var step;
+          if (first.group.toLowerCase() === name.toLowerCase()) {
+            step = Promise.resolve();
+            if (first.tutor !== tutor) {
+              step = send('PUT', rowUrl(id, first.ordinal), entity(id, first.group, first.ordinal, tutor));
+            }
+            step = step.then(function () {
+              c.same = c.same + 1;
+            });
+          } else {
+            step = send('PUT', rowUrl(id, first.ordinal), entity(id, name, first.ordinal, tutor)).then(function () {
+              c.moved = c.moved + 1;
+            });
+          }
+          work = step.then(function () {
+            return deleteRows(id, p.rows.slice(1));
+          });
+        }
+        return work.catch(function () {
+          c.failed = c.failed + 1;
+        });
+      }).then(function () {
+        var msg = 'Done: ' + c.added + ' added, ' + c.moved + ' moved, ' +
+          c.same + ' already in ' + name + '.';
+        if (c.failed) {
+          msg = msg + ' ' + c.failed + ' failed - see the browser console.';
+        }
+        return reload(msg);
+      });
+    }
+
+    function removeSelected() {
+      if (blocked()) {
+        return;
+      }
+      var ids = selected().filter(function (id) {
+        return people[id].rows.length !== 0;
+      });
+      if (!ids.length) {
+        setStatus('None of the ticked people are in a group.');
+        return;
+      }
+      if (!window.confirm('Remove ' + ids.length + ' people from their tutorial group?')) {
+        return;
+      }
+      var c = { removed: 0, failed: 0 };
+      setBusy(true);
+      series(ids, function (id) {
+        return deleteRows(id, people[id].rows).then(function () {
+          c.removed = c.removed + 1;
+        }).catch(function () {
+          c.failed = c.failed + 1;
+        });
+      }).then(function () {
+        var msg = 'Done: ' + c.removed + ' removed from their group.';
+        if (c.failed) {
+          msg = msg + ' ' + c.failed + ' failed - see the browser console.';
+        }
+        return reload(msg);
+      });
+    }
+
+    // Mark (flag true) or unmark (flag false) the ticked people as their group's tutor.
+    // Only people already in a group can be marked; their group is unchanged. Every row
+    // the person has for the event is updated, because the Moodle sync reads them all.
+    function setTutorSelected(flag) {
+      if (blocked()) {
+        return;
+      }
+      var ticked = selected();
+      if (!ticked.length) {
+        setStatus('Tick at least one person first.');
+        return;
+      }
+      var ids = ticked.filter(function (id) {
+        return people[id].rows.length !== 0;
+      });
+      var notInGroup = ticked.length - ids.length;
+      if (!ids.length) {
+        setStatus('Add the ticked people to a group first, then mark them as tutor.');
+        return;
+      }
+      var c = { changed: 0, same: 0, failed: 0 };
+      setBusy(true);
+      series(ids, function (id) {
+        var rows = people[id].rows.filter(function (row) {
+          return row.tutor !== flag;
+        });
+        if (!rows.length) {
+          c.same = c.same + 1;
+          return Promise.resolve();
+        }
+        return rows.reduce(function (chain, row) {
+          return chain.then(function () {
+            return send('PUT', rowUrl(id, row.ordinal), entity(id, row.group, row.ordinal, flag));
+          });
+        }, Promise.resolve()).then(function () {
+          c.changed = c.changed + 1;
+        }).catch(function () {
+          c.failed = c.failed + 1;
+        });
+      }).then(function () {
+        var msg = 'Done: ' + c.changed + (flag ? ' marked as tutor' : ' no longer tutor') + ', ' +
+          c.same + ' unchanged.';
+        if (notInGroup) {
+          msg = msg + ' ' + notInGroup + ' not in a group, skipped.';
+        }
+        if (c.failed) {
+          msg = msg + ' ' + c.failed + ' failed - see the browser console.';
+        }
+        return reload(msg);
+      });
+    }
+
+    function reload(message) {
+      setBusy(true);
+      setStatus(message ? message + ' Refreshing...' : 'Loading...');
+      return Promise.all([loadRegistrants(), loadRows()]).then(function (res) {
+        build(res[0], res[1]);
+        renderSummary();
+        render();
+        loadFailed = false;
+        setBusy(false);
+        setStatus(message || '');
+      }).catch(function (e) {
+        loadFailed = true;
+        setBusy(false);
+        setStatus('Could not load data - ' + e.message + '. See the browser console.');
+      });
+    }
+
+    function button(label, cls, handler) {
+      var b = document.createElement('button');
+      b.type = 'button';
+      b.className = 'btn ' + cls;
+      b.style.marginRight = '8px';
+      b.textContent = label;
+      b.addEventListener('click', handler);
+      el.controls.appendChild(b);
+      return b;
+    }
+
+    function buildControls() {
+      var label = document.createElement('label');
+      label.textContent = 'Group name ';
+      label.style.marginRight = '6px';
+      el.controls.appendChild(label);
+      nameInput = document.createElement('input');
+      nameInput.type = 'text';
+      nameInput.className = 'form-control';
+      nameInput.maxLength = MAXLEN;
+      nameInput.placeholder = 'e.g. Tutorial A';
+      nameInput.setAttribute('list', 'tgb-names');
+      nameInput.style.display = 'inline-block';
+      nameInput.style.width = '260px';
+      nameInput.style.marginRight = '8px';
+      el.controls.appendChild(nameInput);
+      datalist = document.createElement('datalist');
+      datalist.id = 'tgb-names';
+      el.controls.appendChild(datalist);
+      addBtn = button('Add to group', 'btn-primary', addSelected);
+      removeBtn = button('Remove from group', 'btn-default', removeSelected);
+      tutorBtn = button('Mark as tutor', 'btn-default', function () {
+        setTutorSelected(true);
+      });
+      untutorBtn = button('Unmark tutor', 'btn-default', function () {
+        setTutorSelected(false);
+      });
+      refreshBtn = button('Refresh', 'btn-default', function () {
+        reload('');
+      });
+      var filterLabel = document.createElement('label');
+      filterLabel.style.marginLeft = '12px';
+      filterBox = document.createElement('input');
+      filterBox.type = 'checkbox';
+      filterBox.style.marginRight = '4px';
+      filterBox.addEventListener('change', render);
+      filterLabel.appendChild(filterBox);
+      filterLabel.appendChild(document.createTextNode('Show only people without a group'));
+      el.controls.appendChild(filterLabel);
+    }
+
+    if (!eventKey) {
+      setStatus('This tab needs an EventKey in the page address.');
+      return;
+    }
+    buildControls();
+    setBusy(true);
+    loadCourse().then(function (courseId) {
+      mapped = courseId !== '';
+      if (mapped) {
+        el.course.textContent = 'Event ' + eventKey + ' syncs to Moodle course ' + courseId + '.';
+      } else {
+        el.course.textContent = 'No Moodle course is mapped for ' + eventKey + ' (no ' + eventKey +
+          '/REG row in MOODLE_PRODUCTS). Add one before building groups.';
+        el.course.style.color = '#a94442';
+      }
+    }).catch(function (e) {
+      mapped = false;
+      el.course.textContent = 'Could not check the Moodle course mapping - ' + e.message + '.';
+      el.course.style.color = '#a94442';
+    }).then(function () {
+      return reload('');
+    });
+  })();
+</script>
