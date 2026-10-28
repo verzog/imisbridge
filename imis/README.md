@@ -24,7 +24,8 @@ What it does, for the event in the page address (`EventKey`):
   nothing is saved from out-of-date rows.
 - Checks that the event maps to a Moodle course (a `{EventKey}/REG` row in
   `MOODLE_PRODUCTS`, through the `MoodleCourseLookup` query) and disables changes if
-  it doesn't.
+  it doesn't. As in the Moodle sync, a returned row with a different `Code` (such as
+  `{EventKey}/REGNZ`) is ignored, and the `Description` must be a course id.
 
 It needs:
 - the `MoodleTutorialGroup` panel source, with the properties `Code`,

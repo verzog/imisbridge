@@ -196,11 +196,22 @@
         AMP + 'Parameter=' + encodeURIComponent(eventKey + '/REG') +
         AMP + 'limit=10';
       return get(url).then(function (data) {
-        var rows = items(data).map(flatten);
-        if (rows.length === 0) {
-          return '';
-        }
-        return String(rows[0].Description || '').trim();
+        // As the Moodle sync does: skip a neighbouring product (e.g. .../REGNZ) a loose
+        // query returns, and take the first row whose Description is a course id.
+        var want = (eventKey + '/REG').toLowerCase();
+        var courseId = '';
+        items(data).map(flatten).forEach(function (r) {
+          var code = String(r.Code || '').trim();
+          var id = String(r.Description || '').trim();
+          if (courseId === '') {
+            if (code === '' || code.toLowerCase() === want) {
+              if (/^0*[1-9][0-9]*$/.test(id)) {
+                courseId = id;
+              }
+            }
+          }
+        });
+        return courseId;
       });
     }
 
@@ -491,14 +502,20 @@
           });
         } else {
           var first = p.rows[0];
+          // A tutor moved to another group stays a tutor. Any ticked row counts, so the
+          // tick survives when the duplicate rows are deleted.
+          var tutor = isTutor(p);
           var step;
           if (first.group.toLowerCase() === name.toLowerCase()) {
-            step = Promise.resolve().then(function () {
+            step = Promise.resolve();
+            if (first.tutor !== tutor) {
+              step = send('PUT', rowUrl(id, first.ordinal), entity(id, first.group, first.ordinal, tutor));
+            }
+            step = step.then(function () {
               c.same = c.same + 1;
             });
           } else {
-            // A tutor moved to another group stays a tutor.
-            step = send('PUT', rowUrl(id, first.ordinal), entity(id, name, first.ordinal, first.tutor)).then(function () {
+            step = send('PUT', rowUrl(id, first.ordinal), entity(id, name, first.ordinal, tutor)).then(function () {
               c.moved = c.moved + 1;
             });
           }
