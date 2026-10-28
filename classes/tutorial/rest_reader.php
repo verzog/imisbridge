@@ -46,13 +46,19 @@ class rest_reader implements reader {
     /** @var rest_client The authenticated iMIS REST client. */
     private rest_client $client;
 
+    /** @var string The panel property that marks a tutor (the Tutor checkbox), or '' for none. */
+    private string $tutorfield;
+
     /**
      * Build the reader, using the given client or one constructed from settings.
      *
-     * @param rest_client|null $client An iMIS REST client, or null to build one from settings.
+     * @param rest_client|null $client     An iMIS REST client, or null to build one from settings.
+     * @param string|null      $tutorfield The panel's tutor property, or null to use the
+     *                                     *Tutor field* setting.
      */
-    public function __construct(?rest_client $client = null) {
+    public function __construct(?rest_client $client = null, ?string $tutorfield = null) {
         $this->client = $client ?? new rest_client();
+        $this->tutorfield = trim($tutorfield ?? (string)get_config('local_membershipbridge', 'tutorial_tutor_field'));
     }
 
     /**
@@ -72,8 +78,23 @@ class rest_reader implements reader {
             if (trim($imisid) === '' || trim($code) === '' || trim($groupname) === '') {
                 continue;
             }
-            $rows[] = new membership_row($imisid, $code, $groupname);
+            $tutor = ($this->tutorfield !== '') && self::is_ticked(rest_client::property($entity, $this->tutorfield));
+            $rows[] = new membership_row($imisid, $code, $groupname, $tutor);
         }
         return $rows;
+    }
+
+    /**
+     * Whether a panel checkbox value is ticked. iMIS returns a checkbox as a boolean,
+     * or as text such as "True" or "1" depending on how the property is defined.
+     *
+     * @param mixed $value The property value.
+     * @return bool
+     */
+    public static function is_ticked($value): bool {
+        if (is_bool($value)) {
+            return $value;
+        }
+        return in_array(\core_text::strtolower(trim((string)$value)), ['1', 'true', 'yes', 'y'], true);
     }
 }

@@ -25,6 +25,7 @@
 namespace local_membershipbridge\tutorial;
 
 use context_course;
+use local_membershipbridge\enrolment;
 use local_membershipbridge\util;
 
 /**
@@ -46,6 +47,14 @@ use local_membershipbridge\util;
  * ever created is discovered site-wide, not just those for codes in the current read.
  * So a group whose rows have all disappeared — or whose code now maps to a different
  * course — is still visited and emptied (never deleted), rather than left stale.
+ *
+ * Tutors: a row whose Tutor checkbox is ticked also gives that person the configured
+ * tutor role (normally Non-editing teacher) in the course, owned by this plugin, and
+ * enrols them through the course's manual enrolment method when they are not
+ * enrolled yet. The role is removed when no row marks them as a tutor in that course
+ * any more; the enrolment is left in place. If no row in a read is marked as a tutor,
+ * tutor roles are left unchanged, so a panel without the checkbox (or a read that
+ * lost it) cannot strip every tutor.
  *
  * Safety is built in: an empty read suppresses all removals (never empty every group
  * at once), a per-group removal guard with an absolute floor aborts removals that
@@ -82,6 +91,12 @@ class group_sync {
     /** @var int Never guard removals below this absolute count, so small legitimate moves are not blocked. */
     private int $removalguardfloor;
 
+    /** @var int The role given to tutors, or 0 when tutor handling is off. */
+    private int $tutorroleid;
+
+    /** @var array<int,array<int,bool>> courseid => userid => true for tutors enrolled (or, in a dry run, to be). */
+    private array $tutorready = [];
+
     /** @var callable Sink for human-readable progress lines (defaults to mtrace). */
     private $trace;
 
@@ -94,7 +109,8 @@ class group_sync {
      * @param reader          $reader   The membership-row source.
      * @param course_resolver $resolver The code→course mapping.
      * @param array           $options  dryrun (bool), removalguardpct (int 0-100),
-     *                                  removalguardfloor (int), trace (callable).
+     *                                  removalguardfloor (int), tutorroleid (int, 0 = no
+     *                                  tutor handling), trace (callable).
      */
     public function __construct(reader $reader, course_resolver $resolver, array $options = []) {
         $this->reader            = $reader;
@@ -103,6 +119,7 @@ class group_sync {
         $guard                   = (int)($options['removalguardpct'] ?? 50);
         $this->removalguardpct   = max(0, min(100, $guard));
         $this->removalguardfloor = max(1, (int)($options['removalguardfloor'] ?? 10));
+        $this->tutorroleid       = max(0, (int)($options['tutorroleid'] ?? 0));
         $this->trace             = $options['trace'] ?? function (string $line): void {
             mtrace('Membership Bridge: ' . $line);
         };
@@ -112,8 +129,9 @@ class group_sync {
      * Run one reconciliation pass.
      *
      * @return array A report: counts (coursesprocessed, groupscreated, membersadded,
-     *               membersremoved, rowsskipped, guardskipped), an aborted flag, and a
-     *               messages list.
+     *               membersremoved, rowsskipped, guardskipped, tutorsenrolled,
+     *               tutorrolesadded, tutorrolesremoved), an aborted flag, and a messages
+     *               list.
      */
     public function run(): array {
         global $DB, $CFG;
@@ -126,6 +144,9 @@ class group_sync {
             'membersremoved'   => 0,
             'rowsskipped'      => 0,
             'guardskipped'     => 0,
+            'tutorsenrolled'    => 0,
+            'tutorrolesadded'   => 0,
+            'tutorrolesremoved' => 0,
             'aborted'          => false,
             'messages'         => [],
         ];
@@ -141,6 +162,9 @@ class group_sync {
             $report['aborted'] = true;
             return $report;
         }
+
+        // Tutors first: they are enrolled here if needed, so they can join their groups.
+        $this->reconcile_tutors($rows, $report);
 
         $desired = $this->build_desired($rows, $report);
 
@@ -203,7 +227,8 @@ class group_sync {
                 $report['rowsskipped']++;
                 continue;
             }
-            if (!is_enrolled(context_course::instance($courseid), $user, '', true)) {
+            $tutorready = $row->tutor && isset($this->tutorready[$courseid][$user->id]);
+            if (!$tutorready && !is_enrolled(context_course::instance($courseid), $user, '', true)) {
                 $this->log($report, "course {$courseid}: user {$user->id} (iMIS {$row->imisid}) not enrolled; skipped");
                 $report['rowsskipped']++;
                 continue;
@@ -212,6 +237,142 @@ class group_sync {
             $desired[$key]['members'][$user->id] = $row->imisid;
         }
         return $desired;
+    }
+
+    /**
+     * Give each tutor the tutor role in their course (enrolling them if needed), and take
+     * it away from anyone no longer marked as a tutor there.
+     *
+     * @param membership_row[] $rows   The source rows.
+     * @param array            $report The running report, by reference.
+     * @return void
+     */
+    private function reconcile_tutors(array $rows, array &$report): void {
+        global $DB;
+
+        if ($this->tutorroleid === 0) {
+            return;
+        }
+
+        // Courseid => userid => iMIS id, for every tutor row that maps to a course and user.
+        $want = [];
+        $anytutor = false;
+        foreach ($rows as $row) {
+            if (!$row->tutor || $row->code === '' || $row->imisid === '') {
+                continue;
+            }
+            $anytutor = true;
+            $courseid = $this->resolver->resolve_courseid($row->code);
+            $user = ($courseid === null) ? null : util::find_user_by_imis_id($row->imisid);
+            if ($user !== null) {
+                $want[$courseid][(int)$user->id] = $row->imisid;
+            }
+        }
+
+        foreach ($want as $courseid => $tutors) {
+            $contextid = context_course::instance($courseid)->id;
+            foreach ($tutors as $userid => $imisid) {
+                $label = "course {$courseid}: tutor user {$userid} (iMIS {$imisid})";
+                $enrolled = is_enrolled(context_course::instance($courseid), $userid, '', true);
+                if (!$enrolled && !$this->enrol_tutor($courseid, $userid, $label, $report)) {
+                    continue;
+                }
+                $this->tutorready[$courseid][$userid] = true;
+
+                $owned = [
+                    'roleid' => $this->tutorroleid,
+                    'userid' => $userid,
+                    'contextid' => $contextid,
+                    'component' => self::COMPONENT,
+                ];
+                if ($DB->record_exists('role_assignments', $owned)) {
+                    continue;
+                }
+                $report['tutorrolesadded']++;
+                if ($this->dryrun) {
+                    $this->log($report, "{$label}: would give the tutor role");
+                } else {
+                    role_assign($this->tutorroleid, $userid, $contextid, self::COMPONENT);
+                }
+            }
+        }
+
+        // Never strip every tutor because the read lost the checkbox: with no row marked
+        // as a tutor at all, leave the existing tutor roles alone.
+        if (!$anytutor) {
+            return;
+        }
+        $sql = "SELECT ra.id, ra.roleid, ra.userid, ra.contextid, ctx.instanceid AS courseid
+                  FROM {role_assignments} ra
+                  JOIN {context} ctx ON ctx.id = ra.contextid
+                 WHERE ra.component = :component AND ctx.contextlevel = :level";
+        $params = ['component' => self::COMPONENT, 'level' => CONTEXT_COURSE];
+        foreach ($DB->get_records_sql($sql, $params) as $ra) {
+            $courseid = (int)$ra->courseid;
+            if ((int)$ra->roleid === $this->tutorroleid && isset($want[$courseid][(int)$ra->userid])) {
+                continue;
+            }
+            $report['tutorrolesremoved']++;
+            if ($this->dryrun) {
+                $this->log($report, "course {$courseid}: user {$ra->userid} is no longer a tutor; would remove the tutor role");
+            } else {
+                role_unassign((int)$ra->roleid, (int)$ra->userid, (int)$ra->contextid, self::COMPONENT);
+            }
+        }
+    }
+
+    /**
+     * Enrol a tutor who is not yet enrolled, with no role of its own (the tutor role is
+     * given separately), through the course's manual enrolment method. A suspended
+     * manual enrolment is reactivated instead.
+     *
+     * @param int    $courseid The course id.
+     * @param int    $userid   The tutor's user id.
+     * @param string $label    Prefix for log lines.
+     * @param array  $report   The running report, by reference.
+     * @return bool Whether the tutor is (or, in a dry run, would be) enrolled.
+     */
+    private function enrol_tutor(int $courseid, int $userid, string $label, array &$report): bool {
+        global $DB;
+
+        $instance = enrolment::manual_instance($courseid);
+        $plugin   = enrol_get_plugin('manual');
+        if ($instance === null || $plugin === null) {
+            $this->log($report, "{$label}: not enrolled and the course has no manual enrolment method; skipped");
+            $report['rowsskipped']++;
+            return false;
+        }
+
+        $report['tutorsenrolled']++;
+        if ($this->dryrun) {
+            $this->log($report, "{$label}: would enrol");
+            return true;
+        }
+        if ($DB->record_exists('user_enrolments', ['enrolid' => $instance->id, 'userid' => $userid])) {
+            $plugin->update_user_enrol($instance, $userid, ENROL_USER_ACTIVE, 0, 0);
+        } else {
+            $plugin->enrol_user($instance, $userid, 0, 0, 0, ENROL_USER_ACTIVE);
+        }
+        return true;
+    }
+
+    /**
+     * The id of the role tutors are given, from the *Tutor role* setting, or 0 when the
+     * *Tutor field* setting is blank (tutor handling off) or the role does not exist.
+     *
+     * @return int
+     */
+    public static function configured_tutor_role(): int {
+        global $DB;
+
+        if (trim((string)get_config('local_membershipbridge', 'tutorial_tutor_field')) === '') {
+            return 0;
+        }
+        $shortname = (string)get_config('local_membershipbridge', 'tutorial_tutor_role');
+        if ($shortname === '') {
+            $shortname = 'teacher';
+        }
+        return (int)$DB->get_field('role', 'id', ['shortname' => $shortname]);
     }
 
     /**

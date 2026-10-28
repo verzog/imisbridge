@@ -529,6 +529,9 @@ log on long REST URLs).
   the **numeric Moodle course id**. (A *copied* event usually gets a new code — add
   its row.)
 - [ ] The panel rows carry the member's iMIS ID, the event code and the group name.
+- [ ] **Tutors (2.1.0):** the panel has a **Tutor** checkbox (a yes/no property),
+  ticked on each tutor's allocation row. Its property name must match the plugin's
+  *Tutor field* setting (default `Tutor`). The REST service account can read it.
 
 ### T2. Moodle side
 
@@ -543,9 +546,20 @@ log on long REST URLs).
 - [ ] **iMIS contact ID source = ID number** (the sync matches panel members to
   Moodle users through this setting; §A).
 - [ ] Members are **enrolled** in the course before their group row is processed —
-  the sync skips anyone not enrolled (it never enrols). Enrolment comes from the
-  iDMS push (§C), so a brand-new registrant can take one nightly cycle to appear in
-  their group.
+  the sync skips anyone not enrolled (it never enrols learners). Enrolment comes
+  from the iDMS push (§C), so a brand-new registrant can take one nightly cycle to
+  appear in their group.
+- [ ] **Tutors:** *Tutor field* matches the panel's checkbox, and *Tutor role* is
+  set; the default is Non-editing teacher, which can grade but not edit the course.
+  - A ticked row gives that person the tutor role in the course and adds them to the
+    group. Tutors who aren't enrolled yet are enrolled through the course's manual
+    enrolment method.
+  - Unticking the row removes the role, but the enrolment stays; remove it by hand
+    if needed.
+  - If no row at all is ticked (for example the checkbox was dropped from the panel),
+    tutor roles are left as they are.
+  - Set the course's group mode to **Separate groups** so each tutor sees only their
+    own groups' learners.
 
 ### T3. First run — dry run, then live
 

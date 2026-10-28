@@ -404,6 +404,31 @@ if ($hassiteconfig) {
         PARAM_RAW_TRIMMED
     ));
 
+    $settings->add(new admin_setting_configtext(
+        'local_membershipbridge/tutorial_tutor_field',
+        get_string('tutorial_tutor_field', 'local_membershipbridge'),
+        get_string('tutorial_tutor_field_desc', 'local_membershipbridge'),
+        'Tutor',
+        PARAM_ALPHANUMEXT
+    ));
+
+    // Course-level roles a tutor may be given; never manager or site-wide roles.
+    $tutorroles = [];
+    foreach (role_fix_names(get_all_roles(), null, ROLENAME_ORIGINAL) as $role) {
+        $teacher = in_array($role->archetype, ['teacher', 'editingteacher'], true);
+        $customcourserole = $role->archetype === '' && in_array(CONTEXT_COURSE, get_role_contextlevels($role->id));
+        if ($teacher || $customcourserole) {
+            $tutorroles[$role->shortname] = $role->localname;
+        }
+    }
+    $settings->add(new admin_setting_configselect(
+        'local_membershipbridge/tutorial_tutor_role',
+        get_string('tutorial_tutor_role', 'local_membershipbridge'),
+        get_string('tutorial_tutor_role_desc', 'local_membershipbridge'),
+        'teacher',
+        $tutorroles
+    ));
+
     $settings->add(new admin_setting_configtextarea(
         'local_membershipbridge/course_map_overrides',
         get_string('course_map_overrides', 'local_membershipbridge'),

@@ -4,6 +4,23 @@ All notable changes to the iMIS Bridge plugin (`local_imisbridge`) are documente
 in this file. The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [2.1.0] - 2026-10-28
+
+### Added
+- **Tutors from the tutorial group allocations.** The tutorial group sync reads a
+  **Tutor** checkbox on the iMIS `MoodleTutorialGroup` panel (new *Tutor field*
+  setting, default `Tutor`). A ticked row:
+  - gives that person the *Tutor role* in the course (new setting, default
+    Non-editing teacher), as a role assignment the plugin owns;
+  - enrols them through the course's manual enrolment method if they aren't
+    enrolled yet;
+  - adds them to the group, like any other member.
+  
+  When no row marks them as a tutor in that course any more, the role is removed;
+  their enrolment stays. If no row in a read is ticked at all, tutor roles are left
+  unchanged, so a panel that lost the checkbox can't strip every tutor. Dry run
+  reports each tutor enrolment and role change, and the task summary counts them.
+
 ## [2.0.0] - 2026-10-28
 
 ### Changed
@@ -645,11 +662,11 @@ behaviour.
 - Generalised the privacy metadata string, `README.md`, and `docs/TESTING.md` to
   describe the configurable identifier rather than assuming the username.
 
-[1.8.0]: https://github.com/verzog/membershipbridge/releases/tag/v1.8.0
-[1.7.0]: https://github.com/verzog/membershipbridge/releases/tag/v1.7.0
-[1.6.1]: https://github.com/verzog/membershipbridge/releases/tag/v1.6.1
-[1.6.0]: https://github.com/verzog/membershipbridge/releases/tag/v1.6.0
-[1.5.0]: https://github.com/verzog/membershipbridge/releases/tag/v1.5.0
-[1.4.2]: https://github.com/verzog/membershipbridge/releases/tag/v1.4.2
-[1.4.1]: https://github.com/verzog/membershipbridge/releases/tag/v1.4.1
-[1.4.0]: https://github.com/verzog/membershipbridge/releases/tag/v1.4.0
+[1.8.0]: https://github.com/verzog/moodle-local_membershipbridge/releases/tag/v1.8.0
+[1.7.0]: https://github.com/verzog/moodle-local_membershipbridge/releases/tag/v1.7.0
+[1.6.1]: https://github.com/verzog/moodle-local_membershipbridge/releases/tag/v1.6.1
+[1.6.0]: https://github.com/verzog/moodle-local_membershipbridge/releases/tag/v1.6.0
+[1.5.0]: https://github.com/verzog/moodle-local_membershipbridge/releases/tag/v1.5.0
+[1.4.2]: https://github.com/verzog/moodle-local_membershipbridge/releases/tag/v1.4.2
+[1.4.1]: https://github.com/verzog/moodle-local_membershipbridge/releases/tag/v1.4.1
+[1.4.0]: https://github.com/verzog/moodle-local_membershipbridge/releases/tag/v1.4.0
