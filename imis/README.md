@@ -1,0 +1,42 @@
+# iMIS-side pieces
+
+Pages and content that live in iMIS, not in Moodle. They are kept here so they are
+versioned with the plugin, and are left out of the plugin's release zip
+(`.gitattributes`).
+
+## `tutorial-groups.html`: Tutorial Groups tab
+
+The **Tutorial Groups** tab on the iMIS *Specific Event Dashboard*. Staff use it to
+build an event's tutorial groups and mark each group's tutors. It reads and writes
+the `MoodleTutorialGroup` panel rows that the plugin's tutorial group sync mirrors
+into Moodle (changeover checklist §T).
+
+What it does, for the event in the page address (`EventKey`):
+- Shows the event's active registrants with their current group and whether they
+  are a tutor, plus a summary of groups and tutors.
+- **Add to group:** puts the ticked people in the named group, creating or moving
+  their row. Duplicate rows for the event are tidied. A tutor moved to another group
+  stays a tutor.
+- **Remove from group:** deletes their rows for the event.
+- **Mark as tutor / Unmark tutor:** sets the `Tutor` checkbox on the ticked people's
+  row. They must already be in a group.
+- Checks that the event maps to a Moodle course (a `{EventKey}/REG` row in
+  `MOODLE_PRODUCTS`, through the `MoodleCourseLookup` query) and disables changes if
+  it doesn't.
+
+It needs:
+- the `MoodleTutorialGroup` panel source, with the properties `Code`,
+  `Moodlegroupname` and `Tutor` (Yes/No);
+- the queries `$/_SCCA/Events/Activeregistrations` (prompt: event key) and
+  `$/_SCCA/Events/MoodleCourseLookup` (prompt: `{EventKey}/REG`).
+
+### Installing or updating
+
+1. In iMIS, go to *RiSE → Page builder* and open the event dashboard page.
+2. On the **Tutorial Groups** tab, edit its **Content HTML** item and replace its
+   content with this file.
+3. Save and publish.
+
+The script contains no `&`, `<` or `>` (it builds `&` with `AMP` and uses nested
+`if`s instead of `&&`), because the iMIS content editor escapes them. Keep it that
+way when editing.
