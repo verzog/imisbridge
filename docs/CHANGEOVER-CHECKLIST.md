@@ -533,6 +533,13 @@ log on long REST URLs).
 - [ ] **Tutors (2.1.0):** the panel has a **Tutor** checkbox (a yes/no property),
   ticked on each tutor's allocation row. Its property name must match the plugin's
   *Tutor field* setting (default `Tutor`). The REST service account can read it.
+- [ ] **Existing rows have a Tutor value, not NULL.** Adding `Tutor` to a panel
+  that already has rows leaves them NULL. iMIS then returns HTTP 500 when it reads,
+  saves or deletes one of those rows on its own, so Mark as tutor, moves and Remove
+  fail for those people. (This was found on sccadev, 28/10/2026.) Straight after
+  adding the property, either set `Tutor = 0` where it is NULL and default the
+  column to 0, or make `Tutor` a text property. Then check that you can Mark as
+  tutor on someone who was allocated before the change. See `imis/README.md`.
 - [ ] The event dashboard's **Tutorial Groups** tab is the current
   `imis/tutorial-groups.html`, which adds *Mark as tutor / Unmark tutor* and keeps a
   tutor's tick when they move group. See `imis/README.md`.
