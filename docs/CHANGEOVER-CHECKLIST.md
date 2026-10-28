@@ -68,8 +68,9 @@ In working order. Section letters refer to the full checklist below.
    - Set up the registrations IQA.
    - Run as a dry run, then live.
    - Keep a single writer: switch off the iDMS push once it's live.
-9. **Cutover (§E).**
-   - Disable the vendor plugin's observers, but keep it installed.
+9. **Cutover (§E), or replace the vendor plugin outright (§E2).**
+   - Stop the vendor plugin (its own setting, or move its folder out of Moodle), but
+     keep it installed.
    - Enable the new plugin's write toggles.
    - Keep only one system enrolling.
 10. **First 24–48 hours (§F).**
@@ -807,10 +808,60 @@ run could write to **production iMIS**.
   plugin's writes — but **do NOT uninstall it yet.** Keep it installed (disabled)
   through the rollback window so a switch-back stays config-only (see G); uninstall
   only after post-cutover sign-off (F).
+  - Moodle has **no on/off switch for a local plugin**: while `local/imis` is on disk,
+    its observers run. Stop it with the vendor plugin's own enable setting, if it has
+    one. Otherwise **move the `local/imis` folder out of the Moodle tree** (don't
+    uninstall it): Moodle then lists it as *missing from disk*. Its code stops
+    running, and its settings, logs and token stay in the database. Rollback is
+    moving the folder back and purging caches.
+  - Moving the folder out also removes its inbound functions (`local_imis_*`), so
+    re-point the ATS `FN_*` mappings (§D) **in the same window**.
 - [ ] Enable the new plugin's write toggles.
 - [ ] Decide on the login/nightly syncs: if ATS now pushes enrolments inbound, the
   new plugin's login/nightly **pull** syncs may be redundant or conflicting —
   enable only what you intend to use.
+
+### E2. Alternative: replace the vendor plugin outright
+
+Instead of keeping `local_imis` installed but stopped, you can uninstall it and set
+up `local_membershipbridge` and the bridge in one window. The two plugins don't
+depend on each other, and the records already in iMIS are unaffected. Suited to
+staging and the Catalyst copy, where it also rehearses the cutover. On live, prefer
+§E unless you accept the slower rollback below.
+
+What it costs:
+- **Data:** the vendor plugin's settings, its log (`local_imis_logs`), and its own
+  service and token are deleted.
+- **Inbound:** ATS calls to `local_imis_*` fail from the uninstall until §C and §D
+  are done, so do them in the same window.
+- **Rollback:** restoring the database backup and the vendor folder (§G), not a
+  config switch.
+
+> **Uninstalling does not remove the plugin's folder.** If `local/imis` is still on
+> disk, Moodle reinstalls the vendor plugin with **default settings** at the next
+> upgrade check, and every completion is then written twice. Remove the folder as
+> part of the uninstall.
+
+- [ ] **Keep copies first:**
+  - a database backup;
+  - the `local/imis` folder;
+  - screenshots of the vendor plugin's settings and of ATS `MOODLE_SETTINGS`
+    (`FN_*`, `WEBSERVICE_TOKEN`, `ROLE_ID`).
+- [ ] Pause cron and enable maintenance mode.
+- [ ] Uninstall `local_imis` (*Plugins overview → Uninstall*, or
+  `php admin/cli/uninstall_plugins.php --plugins=local_imis --run`).
+- [ ] Move `local/imis` out of the Moodle tree.
+  - **Check:** it no longer appears in *Plugins overview*.
+- [ ] Install `local_membershipbridge` and configure it with **all writes off**
+  (§A): provider, WSDL and service endpoint, AuthToken, iMIS ID source = ID number.
+- [ ] Inbound service and token (§C), then re-point ATS (§D): `FN_*` to the core
+  functions, unenrol to `local_membershipbridge_cancel_enrolment`, and the new
+  `WEBSERVICE_TOKEN`.
+- [ ] Turn the pushes on.
+  - **Outbound (§B):** a completion and a quiz score reach iMIS.
+  - **Inbound (§C):** a registration enrols someone and a cancellation suspends
+    them.
+- [ ] Resume cron, disable maintenance mode, then follow §F.
 
 ## F. Post-cutover verification (first 24–48 hours)
 
@@ -844,10 +895,11 @@ invariant):
 - [ ] Then re-enable the vendor plugin's observers and its token/service.
 - [ ] Repoint ATS `FN_*` back to the `local_imis_*` names and the old token.
 
-> If the vendor plugin was already **uninstalled**, rollback is **not** config-only:
-> Moodle purged its code, configuration and tables, so it must be **reinstalled and
-> reconfigured** first. This is exactly why §E keeps it installed-but-disabled until
-> sign-off.
+> If the vendor plugin was already **uninstalled** (including by the §E2 route),
+> rollback is **not** config-only: Moodle purged its configuration and tables. Either
+> restore the database backup and the `local/imis` folder taken before the uninstall,
+> or reinstall and reconfigure it from the saved settings. This is exactly why §E
+> keeps it installed-but-stopped until sign-off.
 
 Rolling back the vendor swap does **not** require turning off the tutorial group
 sync (§T) — the vendor never managed those groups. Roll that back separately, by
