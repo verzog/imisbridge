@@ -273,8 +273,8 @@ class group_sync {
             $contextid = context_course::instance($courseid)->id;
             foreach ($tutors as $userid => $imisid) {
                 $label = "course {$courseid}: tutor user {$userid} (iMIS {$imisid})";
-                if (!is_enrolled(context_course::instance($courseid), $userid, '', true)
-                        && !$this->enrol_tutor($courseid, $userid, $label, $report)) {
+                $enrolled = is_enrolled(context_course::instance($courseid), $userid, '', true);
+                if (!$enrolled && !$this->enrol_tutor($courseid, $userid, $label, $report)) {
                     continue;
                 }
                 $this->tutorready[$courseid][$userid] = true;

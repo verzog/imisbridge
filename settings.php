@@ -415,8 +415,9 @@ if ($hassiteconfig) {
     // Course-level roles a tutor may be given; never manager or site-wide roles.
     $tutorroles = [];
     foreach (role_fix_names(get_all_roles(), null, ROLENAME_ORIGINAL) as $role) {
-        if (in_array($role->archetype, ['teacher', 'editingteacher'], true)
-                || ($role->archetype === '' && in_array(CONTEXT_COURSE, get_role_contextlevels($role->id)))) {
+        $teacher = in_array($role->archetype, ['teacher', 'editingteacher'], true);
+        $customcourserole = $role->archetype === '' && in_array(CONTEXT_COURSE, get_role_contextlevels($role->id));
+        if ($teacher || $customcourserole) {
             $tutorroles[$role->shortname] = $role->localname;
         }
     }
