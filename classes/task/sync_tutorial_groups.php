@@ -79,20 +79,24 @@ class sync_tutorial_groups extends \core\task\scheduled_task {
             $sync     = new group_sync(
                 new rest_reader($client),
                 new rest_course_resolver($client),
-                ['dryrun' => $dryrun, 'removalguardpct' => $guard]
+                ['dryrun' => $dryrun, 'removalguardpct' => $guard, 'tutorroleid' => group_sync::configured_tutor_role()]
             );
             $report = $sync->run();
 
             mtrace(sprintf(
                 'Membership Bridge: Tutorial group sync %s. Courses: %d, groups created: %d, '
-                    . 'members added: %d, removed: %d, rows skipped: %d, removal guards: %d.',
+                    . 'members added: %d, removed: %d, rows skipped: %d, removal guards: %d, '
+                    . 'tutors enrolled: %d, tutor roles added: %d, removed: %d.',
                 $report['aborted'] ? 'ABORTED (no changes)' : 'complete',
                 $report['coursesprocessed'],
                 $report['groupscreated'],
                 $report['membersadded'],
                 $report['membersremoved'],
                 $report['rowsskipped'],
-                $report['guardskipped']
+                $report['guardskipped'],
+                $report['tutorsenrolled'],
+                $report['tutorrolesadded'],
+                $report['tutorrolesremoved']
             ));
         } catch (\Exception $e) {
             mtrace('Membership Bridge: Tutorial group sync FAILED: ' . $e->getMessage());

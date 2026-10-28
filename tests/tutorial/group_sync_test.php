@@ -554,4 +554,155 @@ final class group_sync_test extends \advanced_testcase {
         );
         $this->assertCount(2, $groups, 'punctuation-distinct names must be two groups');
     }
+
+    /**
+     * The Non-editing teacher role's id, the default tutor role.
+     *
+     * @return int
+     */
+    private function tutor_role(): int {
+        global $DB;
+        return (int)$DB->get_field('role', 'id', ['shortname' => 'teacher'], MUST_EXIST);
+    }
+
+    /**
+     * Whether the user holds the plugin-owned tutor role in the course.
+     *
+     * @param int $userid   The user id.
+     * @param int $courseid The course id.
+     * @return bool
+     */
+    private function has_tutor_role(int $userid, int $courseid): bool {
+        global $DB;
+        return $DB->record_exists('role_assignments', [
+            'roleid'    => $this->tutor_role(),
+            'userid'    => $userid,
+            'contextid' => \context_course::instance($courseid)->id,
+            'component' => group_sync::COMPONENT,
+        ]);
+    }
+
+    /**
+     * A ticked Tutor row enrols a tutor who was not enrolled, gives them the tutor role
+     * and adds them to the group; a learner in the same group gets no tutor role.
+     *
+     * @return void
+     */
+    public function test_tutor_is_enrolled_given_role_and_grouped(): void {
+        $course  = $this->getDataGenerator()->create_course();
+        $learner = $this->enrolled_user('20001', $course->id);
+        $tutor   = $this->getDataGenerator()->create_user(['username' => '30001']);
+        $rows = [
+            new membership_row('20001', 'ISC_26', 'Tutorial A'),
+            new membership_row('30001', 'ISC_26', 'Tutorial A', true),
+        ];
+
+        $report = $this->engine($rows, ['ISC_26' => $course->id], ['tutorroleid' => $this->tutor_role()])->run();
+
+        $this->assertSame(1, $report['tutorsenrolled']);
+        $this->assertSame(1, $report['tutorrolesadded']);
+        $this->assertTrue(is_enrolled(\context_course::instance($course->id), $tutor->id, '', true));
+        $this->assertTrue($this->has_tutor_role((int)$tutor->id, (int)$course->id));
+        $this->assertFalse($this->has_tutor_role((int)$learner->id, (int)$course->id));
+        $group = groups_get_group_by_idnumber($course->id, group_sync::make_idnumber('ISC_26', 'Tutorial A'));
+        $this->assertTrue(groups_is_member($group->id, $tutor->id));
+        $this->assertTrue(groups_is_member($group->id, $learner->id));
+    }
+
+    /**
+     * Unticking a tutor removes their tutor role and leaves them enrolled, while another
+     * ticked tutor keeps theirs.
+     *
+     * @return void
+     */
+    public function test_unticked_tutor_loses_role_but_stays_enrolled(): void {
+        $course = $this->getDataGenerator()->create_course();
+        $first  = $this->getDataGenerator()->create_user(['username' => '30001']);
+        $second = $this->getDataGenerator()->create_user(['username' => '30002']);
+        $map = ['ISC_26' => $course->id];
+        $options = ['tutorroleid' => $this->tutor_role()];
+        $this->engine([
+            new membership_row('30001', 'ISC_26', 'Tutorial A', true),
+            new membership_row('30002', 'ISC_26', 'Tutorial B', true),
+        ], $map, $options)->run();
+
+        $report = $this->engine([
+            new membership_row('30001', 'ISC_26', 'Tutorial A'),
+            new membership_row('30002', 'ISC_26', 'Tutorial B', true),
+        ], $map, $options)->run();
+
+        $this->assertSame(1, $report['tutorrolesremoved']);
+        $this->assertFalse($this->has_tutor_role((int)$first->id, (int)$course->id));
+        $this->assertTrue($this->has_tutor_role((int)$second->id, (int)$course->id));
+        $this->assertTrue(is_enrolled(\context_course::instance($course->id), $first->id, '', true));
+    }
+
+    /**
+     * When no row in a read is ticked as a tutor, existing tutor roles are left alone.
+     *
+     * @return void
+     */
+    public function test_read_without_tutors_leaves_tutor_roles(): void {
+        $course = $this->getDataGenerator()->create_course();
+        $tutor  = $this->getDataGenerator()->create_user(['username' => '30001']);
+        $map = ['ISC_26' => $course->id];
+        $options = ['tutorroleid' => $this->tutor_role()];
+        $this->engine([new membership_row('30001', 'ISC_26', 'Tutorial A', true)], $map, $options)->run();
+
+        $report = $this->engine([new membership_row('30001', 'ISC_26', 'Tutorial A')], $map, $options)->run();
+
+        $this->assertSame(0, $report['tutorrolesremoved']);
+        $this->assertTrue($this->has_tutor_role((int)$tutor->id, (int)$course->id));
+    }
+
+    /**
+     * A dry run reports the tutor's enrolment and role but makes neither.
+     *
+     * @return void
+     */
+    public function test_dry_run_reports_tutor_without_changes(): void {
+        $course = $this->getDataGenerator()->create_course();
+        $tutor  = $this->getDataGenerator()->create_user(['username' => '30001']);
+        $rows = [new membership_row('30001', 'ISC_26', 'Tutorial A', true)];
+        $options = ['tutorroleid' => $this->tutor_role(), 'dryrun' => true];
+
+        $report = $this->engine($rows, ['ISC_26' => $course->id], $options)->run();
+
+        $this->assertSame(1, $report['tutorsenrolled']);
+        $this->assertSame(1, $report['tutorrolesadded']);
+        $this->assertSame(1, $report['membersadded']);
+        $this->assertFalse(is_enrolled(\context_course::instance($course->id), $tutor->id));
+        $this->assertFalse($this->has_tutor_role((int)$tutor->id, (int)$course->id));
+    }
+
+    /**
+     * With tutor handling off, a ticked row is an ordinary member: not enrolled, skipped.
+     *
+     * @return void
+     */
+    public function test_tutor_handling_off_treats_tutor_as_member(): void {
+        $course = $this->getDataGenerator()->create_course();
+        $this->getDataGenerator()->create_user(['username' => '30001']);
+        $rows = [new membership_row('30001', 'ISC_26', 'Tutorial A', true)];
+
+        $report = $this->engine($rows, ['ISC_26' => $course->id])->run();
+
+        $this->assertSame(0, $report['tutorsenrolled']);
+        $this->assertSame(1, $report['rowsskipped']);
+    }
+
+    /**
+     * The panel's Tutor checkbox is read whether iMIS returns a boolean or text.
+     *
+     * @covers \local_membershipbridge\tutorial\rest_reader::is_ticked
+     * @return void
+     */
+    public function test_tutor_checkbox_values(): void {
+        foreach ([true, 'True', '1', 'yes', 'Y'] as $ticked) {
+            $this->assertTrue(rest_reader::is_ticked($ticked), var_export($ticked, true));
+        }
+        foreach ([false, null, '', 'False', '0', 'no'] as $unticked) {
+            $this->assertFalse(rest_reader::is_ticked($unticked), var_export($unticked, true));
+        }
+    }
 }

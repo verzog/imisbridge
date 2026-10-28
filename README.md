@@ -19,7 +19,10 @@ Key behaviours:
   gradable activity installed; an unchanged regrade is not sent again.
 * **Tutorial group sync** (opt-in): a nightly scheduled task reads the iMIS
   `MoodleTutorialGroup` panel over REST and makes each course's groups match it.
-  It uses the REST settings whichever provider is selected.
+  It uses the REST settings whichever provider is selected. Rows with the panel's
+  **Tutor** checkbox ticked (2.1.0) also give that person the tutor role in the
+  course (Non-editing teacher by default), enrolling them if needed; unticking it
+  removes the role.
 * **Registration sync over REST** (opt-in, 1.21.0): with *Sync provider* set to
   Direct iMIS REST and a registrations IQA configured, Moodle reads registrations
   from iMIS and enrols active registrants (creating missing accounts) and suspends
@@ -113,7 +116,8 @@ Local plugins > Membership Bridge_:
 * **Automatic sync controls** and **Scheduled task controls** — one switch per
   automatic write.
 * **Tutorial group sync** — enable switch (off by default), dry run (on by
-  default), removal guard, and the course-lookup IQA settings.
+  default), removal guard, the course-lookup IQA settings, and the *Tutor field*
+  and *Tutor role* used for tutors.
 * **Audit log** — enable/disable logging, set the retention period (days), and
   optionally capture full request/response payloads (off by default) while
   debugging. Open the log from the *Open iMIS audit log* button.

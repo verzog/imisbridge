@@ -46,16 +46,21 @@ class membership_row {
     /** @var string The group name; becomes the Moodle group name (trimmed, matched case-insensitively). */
     public string $groupname;
 
+    /** @var bool Whether this person is the group's tutor (the panel's Tutor checkbox). */
+    public bool $tutor;
+
     /**
      * Build a membership row, trimming each field.
      *
      * @param string $imisid    The iMIS contact id.
      * @param string $code      The event/product code.
      * @param string $groupname The group name.
+     * @param bool   $tutor     Whether this person is the group's tutor.
      */
-    public function __construct(string $imisid, string $code, string $groupname) {
+    public function __construct(string $imisid, string $code, string $groupname, bool $tutor = false) {
         $this->imisid    = trim($imisid);
         $this->code      = trim($code);
         $this->groupname = trim($groupname);
+        $this->tutor     = $tutor;
     }
 }
