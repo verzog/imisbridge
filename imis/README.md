@@ -18,8 +18,10 @@ What it does, for the event in the page address (`EventKey`):
   their row. Duplicate rows for the event are tidied. A tutor moved to another group
   stays a tutor.
 - **Remove from group:** deletes their rows for the event.
-- **Mark as tutor / Unmark tutor:** sets the `Tutor` checkbox on the ticked people's
-  row. They must already be in a group.
+- **Mark as tutor / Unmark tutor:** sets the `Tutor` checkbox on every row the ticked
+  people have for the event. They must already be in a group.
+- If a refresh fails, changes are disabled until **Refresh** loads the data again, so
+  nothing is saved from out-of-date rows.
 - Checks that the event maps to a Moodle course (a `{EventKey}/REG` row in
   `MOODLE_PRODUCTS`, through the `MoodleCourseLookup` query) and disables changes if
   it doesn't.

@@ -35,6 +35,8 @@
     var groupNames = [];
     var busy = false;
     var mapped = false;
+    // True after a refresh fails: the cached rows may be stale, so changes wait for a good refresh.
+    var loadFailed = false;
     var nameInput, datalist, addBtn, removeBtn, tutorBtn, untutorBtn, refreshBtn, filterBox;
 
     el.table.style.width = '100%';
@@ -64,6 +66,18 @@
         return [];
       }
       return data.Items.$values || [];
+    }
+
+    // A typed value such as {"$type": "System.Boolean", "$value": true} unwrapped to its value.
+    function scalar(v) {
+      if (v !== null) {
+        if (typeof v === 'object') {
+          if ('$value' in v) {
+            return v.$value;
+          }
+        }
+      }
+      return v;
     }
 
     function flatten(item) {
@@ -128,8 +142,8 @@
         return get(base + AMP + 'offset=' + offset).then(function (data) {
           all = all.concat(items(data));
           if (data) {
-            if (data.HasNext) {
-              return page(data.NextOffset);
+            if (isTicked(scalar(data.HasNext))) {
+              return page(scalar(data.NextOffset));
             }
           }
           return all;
@@ -218,11 +232,11 @@
       return hit;
     }
 
+    // A tutor if any of their rows is ticked, as the Moodle sync reads it.
     function isTutor(p) {
-      if (p.rows.length === 0) {
-        return false;
-      }
-      return p.rows[0].tutor;
+      return p.rows.some(function (row) {
+        return row.tutor;
+      });
     }
 
     function build(registrants, rows) {
@@ -403,10 +417,10 @@
 
     function setBusy(b) {
       busy = b;
-      addBtn.disabled = b || !mapped;
-      removeBtn.disabled = b || !mapped;
-      tutorBtn.disabled = b || !mapped;
-      untutorBtn.disabled = b || !mapped;
+      addBtn.disabled = b || !mapped || loadFailed;
+      removeBtn.disabled = b || !mapped || loadFailed;
+      tutorBtn.disabled = b || !mapped || loadFailed;
+      untutorBtn.disabled = b || !mapped || loadFailed;
       refreshBtn.disabled = b;
     }
 
@@ -432,8 +446,20 @@
       }, Promise.resolve());
     }
 
-    function addSelected() {
+    // Changes are made from the cached rows, so they wait until a refresh has succeeded.
+    function blocked() {
       if (busy) {
+        return true;
+      }
+      if (loadFailed) {
+        setStatus('The last refresh failed. Click Refresh and try again once it loads.');
+        return true;
+      }
+      return false;
+    }
+
+    function addSelected() {
+      if (blocked()) {
         return;
       }
       var ids = selected();
@@ -494,7 +520,7 @@
     }
 
     function removeSelected() {
-      if (busy) {
+      if (blocked()) {
         return;
       }
       var ids = selected().filter(function (id) {
@@ -525,9 +551,10 @@
     }
 
     // Mark (flag true) or unmark (flag false) the ticked people as their group's tutor.
-    // Only people already in a group can be marked; their group is unchanged.
+    // Only people already in a group can be marked; their group is unchanged. Every row
+    // the person has for the event is updated, because the Moodle sync reads them all.
     function setTutorSelected(flag) {
-      if (busy) {
+      if (blocked()) {
         return;
       }
       var ticked = selected();
@@ -546,12 +573,18 @@
       var c = { changed: 0, same: 0, failed: 0 };
       setBusy(true);
       series(ids, function (id) {
-        var first = people[id].rows[0];
-        if (first.tutor === flag) {
+        var rows = people[id].rows.filter(function (row) {
+          return row.tutor !== flag;
+        });
+        if (!rows.length) {
           c.same = c.same + 1;
           return Promise.resolve();
         }
-        return send('PUT', rowUrl(id, first.ordinal), entity(id, first.group, first.ordinal, flag)).then(function () {
+        return rows.reduce(function (chain, row) {
+          return chain.then(function () {
+            return send('PUT', rowUrl(id, row.ordinal), entity(id, row.group, row.ordinal, flag));
+          });
+        }, Promise.resolve()).then(function () {
           c.changed = c.changed + 1;
         }).catch(function () {
           c.failed = c.failed + 1;
@@ -576,9 +609,11 @@
         build(res[0], res[1]);
         renderSummary();
         render();
+        loadFailed = false;
         setBusy(false);
         setStatus(message || '');
       }).catch(function (e) {
+        loadFailed = true;
         setBusy(false);
         setStatus('Could not load data - ' + e.message + '. See the browser console.');
       });
