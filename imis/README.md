@@ -29,9 +29,28 @@ What it does, for the event in the page address (`EventKey`):
 
 It needs:
 - the `MoodleTutorialGroup` panel source, with the properties `Code`,
-  `Moodlegroupname` and `Tutor` (Yes/No);
+  `Moodlegroupname` and `Tutor` (Yes/No or text; the page works with either);
 - the queries `$/_SCCA/Events/Activeregistrations` (prompt: event key) and
   `$/_SCCA/Events/MoodleCourseLookup` (prompt: `{EventKey}/REG`).
+
+### Adding `Tutor` to a panel that already has rows
+
+Rows created before the `Tutor` property was added have an empty (NULL) Tutor.
+iMIS can still list them, but reading, saving or deleting one of those rows on
+its own fails with HTTP 500 ("An error occurred"). In this page, Mark as tutor,
+moves and Remove then fail for those people, and the browser console shows, for
+example, `PUT /api/MoodleTutorialGroup/~20007|2 failed 500`. Rows created after
+the property was added work. Fix the old rows straight after adding the
+property, using either:
+- **SQL:** set `Tutor = 0` where it is NULL in the panel's table, and give the
+  column a default of 0; or
+- **No SQL access:** add `Tutor` as a text property instead of Yes/No. iMIS loads
+  an empty text value without error, and the Moodle sync counts `True`, `Yes` or
+  `1` as ticked. The page needs no change: iMIS stores its true/false value in a
+  text property too.
+
+To check: on a person who isn't in a group, use Add to group and then Mark as
+tutor. That works, while an older row fails until it has been fixed.
 
 ### Installing or updating
 
