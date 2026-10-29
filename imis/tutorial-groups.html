@@ -14,6 +14,9 @@
     var LOOKUP_IQA = '$/_SCCA/Events/MoodleCourseLookup';
     var PANEL = 'MoodleTutorialGroup';
     var TUTOR = 'Tutor';
+    // How Tutor is saved: true when the property is text ("True"/"False"), false when it is
+    // a Yes/No property. Reading works either way.
+    var TUTOR_AS_TEXT = true;
     var MAXLEN = 60;
     var AMP = String.fromCharCode(38);
     var DC = 'Asi.Soa.Core.DataContracts.';
@@ -156,6 +159,13 @@
       return { '$type': DC + 'GenericPropertyData, Asi.Contracts', Name: name, Value: value };
     }
 
+    function tutorValue(flag) {
+      if (TUTOR_AS_TEXT) {
+        return flag ? 'True' : 'False';
+      }
+      return { '$type': 'System.Boolean', '$value': flag };
+    }
+
     // A PUT replaces the whole row, so the Tutor flag is always sent: a move keeps it,
     // and a new row starts unticked.
     function entity(id, groupName, ordinal, tutor) {
@@ -163,7 +173,7 @@
         prop('ID', id),
         prop('Code', eventKey),
         prop('Moodlegroupname', groupName),
-        prop(TUTOR, { '$type': 'System.Boolean', '$value': tutor === true })
+        prop(TUTOR, tutorValue(tutor === true))
       ];
       var e = {
         '$type': DC + 'GenericEntityData, Asi.Contracts',
