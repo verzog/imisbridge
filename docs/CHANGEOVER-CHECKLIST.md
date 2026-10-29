@@ -530,9 +530,8 @@ log on long REST URLs).
   the **numeric Moodle course id**. (A *copied* event usually gets a new code — add
   its row.)
 - [ ] The panel rows carry the member's iMIS ID, the event code and the group name.
-- [ ] **Tutors (2.1.0):** the panel has a **Tutor** property, set on each tutor's
-  allocation row. It is text, which the page saves as `True`/`False`, or Yes/No with
-  `TUTOR_AS_TEXT = false` in the page. Its property name must match the plugin's
+- [ ] **Tutors (2.1.0):** the panel has a **Tutor** property (Yes/No or text),
+  ticked on each tutor's allocation row. Its property name must match the plugin's
   *Tutor field* setting (default `Tutor`). The REST service account can read it.
 - [ ] **Existing rows have a Tutor value, not NULL.** Adding `Tutor` to a panel
   that already has rows leaves them NULL. iMIS then returns HTTP 500 when it reads,

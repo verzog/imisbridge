@@ -18,7 +18,7 @@ What it does, for the event in the page address (`EventKey`):
   their row. Duplicate rows for the event are tidied. A tutor moved to another group
   stays a tutor.
 - **Remove from group:** deletes their rows for the event.
-- **Mark as tutor / Unmark tutor:** sets `Tutor` on every row the ticked
+- **Mark as tutor / Unmark tutor:** sets the `Tutor` checkbox on every row the ticked
   people have for the event. They must already be in a group.
 - If a refresh fails, changes are disabled until **Refresh** loads the data again, so
   nothing is saved from out-of-date rows.
@@ -29,7 +29,7 @@ What it does, for the event in the page address (`EventKey`):
 
 It needs:
 - the `MoodleTutorialGroup` panel source, with the properties `Code`,
-  `Moodlegroupname` and `Tutor` (text; see below for Yes/No);
+  `Moodlegroupname` and `Tutor` (Yes/No or text; the page works with either);
 - the queries `$/_SCCA/Events/Activeregistrations` (prompt: event key) and
   `$/_SCCA/Events/MoodleCourseLookup` (prompt: `{EventKey}/REG`).
 
@@ -46,9 +46,8 @@ property, using either:
   column a default of 0; or
 - **No SQL access:** add `Tutor` as a text property instead of Yes/No. iMIS loads
   an empty text value without error, and the Moodle sync counts `True`, `Yes` or
-  `1` as ticked. The page saves Tutor as the text `True` or `False`
-  (`TUTOR_AS_TEXT = true` at the top of the script). For a Yes/No property, set
-  it to `false` so the page sends a Boolean instead.
+  `1` as ticked. The page needs no change: iMIS stores its true/false value in a
+  text property too.
 
 To check: on a person who isn't in a group, use Add to group and then Mark as
 tutor. That works, while an older row fails until it has been fixed.
