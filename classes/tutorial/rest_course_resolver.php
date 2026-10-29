@@ -35,8 +35,10 @@ use local_membershipbridge\rest_client;
  * rows). So this resolves one code at a time — sending the registration product code
  * `{code}/REG` (the panel stores only the bare event code) — and reads the Description
  * column from the returned row. Results are cached per code for the run. The query
- * name and suffix are settings so this can follow the Causeis program rework without
- * code changes.
+ * name and suffix are settings (*Tutorial course IQA* and *Course code suffix*), so
+ * this can follow the Causeis program rework without code changes. There is no
+ * built-in query: with none set, building the resolver fails, so a sync stops
+ * rather than treating every code as unmapped.
  *
  * Resolution is deliberately conservative: a product is kept only when its Description
  * is a positive integer naming a course that exists; an unmapped code returns null and
@@ -52,14 +54,11 @@ use local_membershipbridge\rest_client;
  * @license    http://www.gnu.org/copyleft/gpl.html GNU GPL v3 or later
  */
 class rest_course_resolver implements course_resolver {
-    /** @var string Default IQA document path for the lookup. */
-    public const DEFAULT_QUERY = '$/_SCCA/Events/MoodleCourseLookup';
-
     /** @var string Default result column holding the Moodle course id. */
     public const DEFAULT_COLUMN = 'Description';
 
-    /** @var string Default registration suffix on the product code in the result. */
-    public const DEFAULT_SUFFIX = '/REG';
+    /** @var string Default registration suffix on the product code in the result (none). */
+    public const DEFAULT_SUFFIX = '';
 
     /** @var rest_client The authenticated iMIS REST client. */
     private rest_client $client;
@@ -83,12 +82,15 @@ class rest_course_resolver implements course_resolver {
      * Build the resolver, reading the IQA query name and code suffix from settings.
      *
      * @param rest_client|null $client An iMIS REST client, or null to build one from settings.
+     * @throws \moodle_exception When the *Tutorial course IQA* setting is blank.
      */
     public function __construct(?rest_client $client = null) {
-        $this->client = $client ?? new rest_client();
-
-        $query = (string)get_config('local_membershipbridge', 'tutorial_course_iqa');
-        $this->queryname = $query !== '' ? $query : self::DEFAULT_QUERY;
+        $query = trim((string)get_config('local_membershipbridge', 'tutorial_course_iqa'));
+        if ($query === '') {
+            throw new \moodle_exception('tutorial_course_iqa_missing', 'local_membershipbridge');
+        }
+        $this->client    = $client ?? new rest_client();
+        $this->queryname = $query;
         $this->column    = self::DEFAULT_COLUMN;
 
         $suffix = get_config('local_membershipbridge', 'tutorial_course_code_suffix');

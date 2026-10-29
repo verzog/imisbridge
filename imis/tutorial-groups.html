@@ -10,11 +10,22 @@
 </div>
 <script>
   (function () {
+    // ---- Site settings: change these to match your iMIS. ----
+    // The query listing an event's active registrants (prompt: the event key).
     var REGISTRANT_IQA = '$/_SCCA/Events/Activeregistrations';
+    // The course lookup query, and the suffix added to the event key before the lookup;
+    // the same as the plugin's Course lookup IQA and Registration product suffix settings.
     var LOOKUP_IQA = '$/_SCCA/Events/MoodleCourseLookup';
+    var LOOKUP_SUFFIX = '/REG';
+    // The tutorial panel and its properties; the same as the plugin's Tutorial panel,
+    // Panel field and Tutor field settings.
     var PANEL = 'MoodleTutorialGroup';
+    var FIELD_CODE = 'Code';
+    var FIELD_GROUP = 'Moodlegroupname';
     var TUTOR = 'Tutor';
+    // The longest group name allowed.
     var MAXLEN = 60;
+    // ---- End of site settings. ----
     var AMP = String.fromCharCode(38);
     var DC = 'Asi.Soa.Core.DataContracts.';
     var STRINGS = 'System.Collections.ObjectModel.Collection`1[[System.String, mscorlib]], mscorlib';
@@ -161,8 +172,8 @@
     function entity(id, groupName, ordinal, tutor) {
       var props = [
         prop('ID', id),
-        prop('Code', eventKey),
-        prop('Moodlegroupname', groupName),
+        prop(FIELD_CODE, eventKey),
+        prop(FIELD_GROUP, groupName),
         prop(TUTOR, { '$type': 'System.Boolean', '$value': tutor === true })
       ];
       var e = {
@@ -193,12 +204,12 @@
 
     function loadCourse() {
       var url = '/api/IQA?QueryName=' + encodeURIComponent(LOOKUP_IQA) +
-        AMP + 'Parameter=' + encodeURIComponent(eventKey + '/REG') +
+        AMP + 'Parameter=' + encodeURIComponent(eventKey + LOOKUP_SUFFIX) +
         AMP + 'limit=10';
       return get(url).then(function (data) {
         // As the Moodle sync does: skip a neighbouring product (e.g. .../REGNZ) a loose
         // query returns, and take the first row whose Description is a course id.
-        var want = (eventKey + '/REG').toLowerCase();
+        var want = (eventKey + LOOKUP_SUFFIX).toLowerCase();
         var courseId = '';
         items(data).map(flatten).forEach(function (r) {
           var code = String(r.Code || '').trim();
@@ -227,7 +238,7 @@
     function loadRows() {
       return getAll('/api/' + PANEL + '?limit=500').then(function (list) {
         return list.map(flatten).filter(function (r) {
-          return String(r.Code || '') === eventKey;
+          return String(r[FIELD_CODE] || '') === eventKey;
         });
       });
     }
@@ -273,7 +284,7 @@
           people[id] = { id: id, name: '(not on the registrant list)', type: '', registered: false, rows: [] };
           order.push(id);
         }
-        people[id].rows.push({ ordinal: r.Ordinal, group: String(r.Moodlegroupname || ''), tutor: isTicked(r[TUTOR]) });
+        people[id].rows.push({ ordinal: r.Ordinal, group: String(r[FIELD_GROUP] || ''), tutor: isTicked(r[TUTOR]) });
       });
       order.sort(function (a, b) {
         var pa = people[a];
@@ -698,8 +709,8 @@
       if (mapped) {
         el.course.textContent = 'Event ' + eventKey + ' syncs to Moodle course ' + courseId + '.';
       } else {
-        el.course.textContent = 'No Moodle course is mapped for ' + eventKey + ' (no ' + eventKey +
-          '/REG row in MOODLE_PRODUCTS). Add one before building groups.';
+        el.course.textContent = 'No Moodle course is mapped for ' + eventKey + ' (the course lookup found none for ' +
+          eventKey + LOOKUP_SUFFIX + '). Add the mapping before building groups.';
         el.course.style.color = '#a94442';
       }
     }).catch(function (e) {
