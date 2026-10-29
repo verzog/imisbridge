@@ -22,9 +22,9 @@ What it does, for the event in the page address (`EventKey`):
   people have for the event. They must already be in a group.
 - If a refresh fails, changes are disabled until **Refresh** loads the data again, so
   nothing is saved from out-of-date rows.
-- Checks that the event maps to a Moodle course (a `{EventKey}/REG` row in
-  `MOODLE_PRODUCTS`, through the `MoodleCourseLookup` query) and disables changes if
-  it doesn't. As in the Moodle sync, a returned row with a different `Code` (such as
+- Checks that the event maps to a Moodle course (for SCCA, a `{EventKey}/REG` row
+  in `MOODLE_PRODUCTS`, through the `MoodleCourseLookup` query) and disables changes
+  if it doesn't. As in the Moodle sync, a returned row with a different `Code` (such as
   `{EventKey}/REGNZ`) is ignored, and the `Description` must be a course id.
 
 It needs:
@@ -32,6 +32,12 @@ It needs:
   `Moodlegroupname` and `Tutor` (Yes/No or text; the page works with either);
 - the queries `$/_SCCA/Events/Activeregistrations` (prompt: event key) and
   `$/_SCCA/Events/MoodleCourseLookup` (prompt: `{EventKey}/REG`).
+
+These are SCCA's names. For another iMIS, change them in the **Site settings**
+block at the top of the script (`REGISTRANT_IQA`, `LOOKUP_IQA`, `LOOKUP_SUFFIX`,
+`PANEL`, `FIELD_CODE`, `FIELD_GROUP`, `TUTOR`) to match yours and the plugin's
+settings. The page checks the course mapping through the lookup query, so it
+needs one even when the plugin maps courses by Moodle course ID number.
 
 ### Adding `Tutor` to a panel that already has rows
 

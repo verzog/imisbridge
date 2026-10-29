@@ -4,6 +4,35 @@ All notable changes to the iMIS Bridge plugin (`local_imisbridge`) are documente
 in this file. The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [2.2.0] - 2026-10-29
+
+Makes the plugin usable by any iMIS organisation, not only SCCA. An existing site
+behaves exactly as before: the upgrade keeps the values it was using.
+
+### Added
+- **Course mapping** setting: map an event to its Moodle course through the iMIS
+  lookup query (the default, as before) or, new, to the course whose *Course ID
+  number* is the event code, with nothing to build in iMIS. Used by the tutorial
+  group sync and the REST registration sync. *Course mapping overrides* still win.
+- **Tutorial panel** and **Panel field** settings (member ID, event code, group
+  name) for the tutorial group sync. They default to the names the plugin has always
+  read (`MoodleTutorialGroup`, `ID`, `Code`, `Moodlegroupname`).
+- `docs/SETUP.md`: setting the plugin up for any iMIS.
+- The iMIS Tutorial Groups page (`imis/tutorial-groups.html`) has a *Site settings*
+  block at the top for its query, panel and property names.
+
+### Changed
+- *Course lookup IQA* and *Registration product suffix* no longer default to SCCA's
+  `$/_SCCA/Events/MoodleCourseLookup` and `/REG`, and a blank query no longer falls
+  back to SCCA's. With the iMIS lookup chosen and no query set, the tutorial group
+  sync and the REST registration sync stop with an error instead of treating every
+  event as unmapped.
+- The upgrade (and a migration from `local_imisbridge`) writes SCCA's former values
+  into those settings where the site was relying on them, so nothing changes for an
+  existing site. Values a site set itself are kept.
+- Setting descriptions use neutral examples instead of SCCA's names.
+- `docs/CHANGEOVER-CHECKLIST.md` is marked as SCCA's runbook.
+
 ## [2.1.0] - 2026-10-28
 
 ### Added

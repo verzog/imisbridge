@@ -46,6 +46,39 @@ final class rest_course_resolver_test extends \advanced_testcase {
     protected function setUp(): void {
         parent::setUp();
         $this->resetAfterTest();
+        // The lookup has no built-in query or suffix since 2.2.0: set SCCA's, as an
+        // upgraded SCCA site has them.
+        set_config('tutorial_course_iqa', '$/_SCCA/Events/MoodleCourseLookup', 'local_membershipbridge');
+        set_config('tutorial_course_code_suffix', '/REG', 'local_membershipbridge');
+    }
+
+    /**
+     * With no lookup query set, the resolver cannot be built, so a sync stops instead
+     * of treating every code as unmapped.
+     *
+     * @return void
+     */
+    public function test_blank_query_throws(): void {
+        set_config('tutorial_course_iqa', '', 'local_membershipbridge');
+        $this->expectException(\moodle_exception::class);
+        new rest_course_resolver($this->stub_client([]));
+    }
+
+    /**
+     * A blank suffix looks the bare code up.
+     *
+     * @return void
+     */
+    public function test_blank_suffix_looks_up_bare_code(): void {
+        set_config('tutorial_course_code_suffix', '', 'local_membershipbridge');
+        $course = $this->getDataGenerator()->create_course();
+        $client = $this->stub_client([
+            $this->entity(['Code' => 'ATS_BRIDGE', 'Description' => $course->id]),
+        ]);
+
+        $resolver = new rest_course_resolver($client);
+        $this->assertSame((int)$course->id, $resolver->resolve_courseid('ATS_BRIDGE'));
+        $this->assertSame([['ATS_BRIDGE']], $client->calls);
     }
 
     /**

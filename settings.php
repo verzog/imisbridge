@@ -388,11 +388,41 @@ if ($hassiteconfig) {
         PARAM_INT
     ));
 
+    // The panel and its property names; the defaults are the names the plugin has
+    // always read, so an existing site is unaffected.
+    $settings->add(new admin_setting_configtext(
+        'local_membershipbridge/tutorial_panel',
+        get_string('tutorial_panel', 'local_membershipbridge'),
+        get_string('tutorial_panel_desc', 'local_membershipbridge'),
+        \local_membershipbridge\tutorial\rest_reader::DEFAULT_PANEL,
+        PARAM_ALPHANUMEXT
+    ));
+
+    foreach (\local_membershipbridge\tutorial\rest_reader::DEFAULT_FIELDS as $name => $default) {
+        $settings->add(new admin_setting_configtext(
+            'local_membershipbridge/' . $name,
+            get_string($name, 'local_membershipbridge'),
+            get_string($name . '_desc', 'local_membershipbridge'),
+            $default,
+            PARAM_ALPHANUMEXT
+        ));
+    }
+
+    // How an event code finds its Moodle course; used by the tutorial group sync and
+    // the REST registration sync.
+    $settings->add(new admin_setting_configselect(
+        'local_membershipbridge/course_map_source',
+        get_string('course_map_source', 'local_membershipbridge'),
+        get_string('course_map_source_desc', 'local_membershipbridge'),
+        \local_membershipbridge\tutorial\course_mapping::SOURCE_IQA,
+        \local_membershipbridge\tutorial\course_mapping::menu()
+    ));
+
     $settings->add(new admin_setting_configtext(
         'local_membershipbridge/tutorial_course_iqa',
         get_string('tutorial_course_iqa', 'local_membershipbridge'),
         get_string('tutorial_course_iqa_desc', 'local_membershipbridge'),
-        '$/_SCCA/Events/MoodleCourseLookup',
+        '',
         PARAM_RAW_TRIMMED
     ));
 
@@ -400,7 +430,7 @@ if ($hassiteconfig) {
         'local_membershipbridge/tutorial_course_code_suffix',
         get_string('tutorial_course_code_suffix', 'local_membershipbridge'),
         get_string('tutorial_course_code_suffix_desc', 'local_membershipbridge'),
-        '/REG',
+        '',
         PARAM_RAW_TRIMMED
     ));
 

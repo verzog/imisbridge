@@ -25,8 +25,8 @@
 namespace local_membershipbridge\task;
 
 use local_membershipbridge\rest_client;
+use local_membershipbridge\tutorial\course_mapping;
 use local_membershipbridge\tutorial\group_sync;
-use local_membershipbridge\tutorial\rest_course_resolver;
 use local_membershipbridge\tutorial\rest_reader;
 
 /**
@@ -78,7 +78,7 @@ class sync_tutorial_groups extends \core\task\scheduled_task {
             $client   = new rest_client();
             $sync     = new group_sync(
                 new rest_reader($client),
-                new rest_course_resolver($client),
+                course_mapping::resolver($client),
                 ['dryrun' => $dryrun, 'removalguardpct' => $guard, 'tutorroleid' => group_sync::configured_tutor_role()]
             );
             $report = $sync->run();

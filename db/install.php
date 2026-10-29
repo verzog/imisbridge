@@ -25,9 +25,15 @@
 /**
  * Copy settings, records and permissions from local_imisbridge, when it is installed.
  *
+ * A site carried over also keeps the course lookup values local_imisbridge used when
+ * its settings were blank ({@see \local_membershipbridge\former_defaults}). A new
+ * site gets no built-in lookup.
+ *
  * @return bool
  */
 function xmldb_local_membershipbridge_install() {
-    \local_membershipbridge\migration::from_imisbridge();
+    if (\local_membershipbridge\migration::from_imisbridge()) {
+        \local_membershipbridge\former_defaults::pin();
+    }
     return true;
 }

@@ -128,8 +128,10 @@ Scheduled tasks_): enrolment sync 02:00, cancellation sync 02:15, group sync
 
 ## Documentation ##
 
-* `docs/CHANGEOVER-CHECKLIST.md` — go-live: switching from the vendor plugin, and
-  the tutorial group sync go-live.
+* `docs/SETUP.md` — setting the plugin up for any iMIS: what to build in iMIS and
+  which settings to fill in.
+* `docs/CHANGEOVER-CHECKLIST.md` — SCCA's go-live runbook: switching from the vendor
+  plugin, and the tutorial group sync go-live.
 * `docs/TESTING.md` — configuring and testing safely, including against production.
 * `docs/TEST-CHECKLIST.md` — step-by-step pre-testing checklist.
 * `docs/TEST-PLAN.md` — the living test matrix.

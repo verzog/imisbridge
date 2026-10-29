@@ -243,7 +243,7 @@ class get_completions_since extends external_api {
                         'The iMIS contact ID resolved from the configured source field '
                             . '(username, ID number or email).'
                     ),
-                    'username'        => new external_value(PARAM_RAW, 'Moodle username (the iMIS contact ID at SCCA).'),
+                    'username'        => new external_value(PARAM_RAW, 'Moodle username (normally the member\'s iMIS ID).'),
                     'useridnumber'    => new external_value(PARAM_RAW, 'Moodle user ID number.'),
                     'courseid'        => new external_value(PARAM_INT, 'Moodle course id.'),
                     'courseshortname' => new external_value(PARAM_RAW, 'Course short name.'),

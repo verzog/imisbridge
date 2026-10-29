@@ -239,7 +239,7 @@ class rest_client implements \local_membershipbridge\provider\org_sync_provider 
         $codes = array_filter(array_map('trim', explode(',', (string)get_config('local_membershipbridge', 'reg_cancelled_codes'))));
         return $this->regsync = new registration\registration_sync(
             new registration\rest_reader($this, trim((string)get_config('local_membershipbridge', 'reg_iqa'))),
-            new tutorial\rest_course_resolver($this),
+            tutorial\course_mapping::resolver($this),
             [
                 'dryrun'         => util::is_enabled('reg_dry_run'),
                 'createusers'    => util::is_enabled('reg_create_users'),

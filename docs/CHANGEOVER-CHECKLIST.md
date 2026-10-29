@@ -1,5 +1,8 @@
 # iMIS plugin changeover checklist
 
+> This is SCCA's runbook, with SCCA's iMIS names and steps. For setting the plugin
+> up on another iMIS, see `SETUP.md`.
+
 Confirming a successful switch from the vendor `local_imis` plugin to
 `local_membershipbridge` on the live Moodle. Use alongside `TEST-CHECKLIST.md`
 (setup/connectivity), `TEST-PLAN.md` (the per-feature test matrix) and

@@ -26,13 +26,19 @@
  * Apply the local_membershipbridge upgrade steps.
  *
  * The component was renamed from local_imisbridge in 2.0.0 and installs fresh from
- * db/install.xml (db/install.php carries an existing local_imisbridge site over), so
- * there are no steps yet. The upgrade history before the rename belongs to
- * local_imisbridge.
+ * db/install.xml (db/install.php carries an existing local_imisbridge site over). The
+ * upgrade history before the rename belongs to local_imisbridge.
  *
  * @param int $oldversion The version we are upgrading from.
  * @return bool
  */
 function xmldb_local_membershipbridge_upgrade($oldversion) {
+    if ($oldversion < 2026102901) {
+        // 2.2.0 drops the built-in SCCA course lookup query and /REG suffix; keep
+        // this site on the values it was using.
+        \local_membershipbridge\former_defaults::pin();
+        upgrade_plugin_savepoint(true, 2026102901, 'local', 'membershipbridge');
+    }
+
     return true;
 }
